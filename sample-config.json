@@ -1,0 +1,34 @@
+{
+    "settings": {
+        "machines_internet_access": true,
+        "auto_dismantle_seconds": -1 
+    },
+    "networks": [
+        {
+            "name": "br",
+            "physical_ports": [
+                "eno2"
+            ]
+        }
+    ],
+    "machines": [
+        {
+            "name": "a.virtual.machine",
+            "diskimage": "/images/image.qcow2",
+            "cores": 2,
+            "memory": 1024,
+            "networks": [
+                "br"
+            ]
+        },
+        {
+            "name": "b.virtual.machine",
+            "diskimage": "/images/image.qcow2",
+            "cores": 2,
+            "memory": 1024,
+            "networks": [
+                "br"
+            ]
+        }
+    ]
+}
