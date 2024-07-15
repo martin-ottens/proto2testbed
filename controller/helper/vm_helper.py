@@ -36,18 +36,20 @@ class VMWrapper():
     def __init__(self, name: str, management: Dict[str, str], 
                  extra_interfaces: List[str], image: str,
                  cores: int = 2, memory: int = 1024, debug: bool = False):
-        
         self.name = name
         self.debug = debug
         self.qemu_handle = None
+
+        if not all(key in management for key in ["interface", "ip", "gateway"]):
+            logger.error(f"VM {name}: Error during creation, management config is not correct!")
+            return
+
+        self.ip_address = management["ip"].ip
 
         if len(extra_interfaces) > 4:
             logger.error(f"VM {name}: Error during creation, 4 interfaces are allowed, but {len(extra_interfaces)} were added!")
             return
 
-        if not all(key in management for key in ["interface", "ip", "gateway", "netmask"]):
-            logger.error(f"VM {name}: Error during creation, management config is not correct!")
-            return
 
         self.tempdir = tempfile.TemporaryDirectory()
  
@@ -55,7 +57,7 @@ class VMWrapper():
         init_files = Path(self.tempdir.name) / "cloud-init"
         os.mkdir(init_files)
 
-        j2_env = Environment(loader=FileSystemLoader("../vm_templates/"))
+        j2_env = Environment(loader=FileSystemLoader("./vm_templates/"))
 
         meta_data = j2_env.get_template("meta-data.j2").render()
         with open(init_files / "meta-data", mode="w", encoding="utf-8") as handle:
@@ -74,9 +76,9 @@ class VMWrapper():
             handle.write(user_data)
 
         network_config = j2_env.get_template("network-config.j2").render(
-            mgmt_address=management["ip"],
-            mgmt_server=management["gateway"],
-            mgmt_netmask=management["netmask"]
+            mgmt_address=str(management["ip"].ip),
+            mgmt_server=str(management["gateway"]),
+            mgmt_netmask=management["ip"].with_prefixlen.split("/")[1]
         )
         with open(init_files / "network-config", mode="w", encoding="utf-8") as handle:
             handle.write(network_config)
@@ -162,22 +164,3 @@ class VMWrapper():
         except Exception as ex:
             logger.opt(exception=ex).warning(f"VM {self.name}: Unable to get status:")
             return "VM status: unkown"
-
-#if __name__ == "__main__":
-#
-#    # ip tuntap add dev vnet0 mode tap
-#    # ip tuntap add dev vnet2 mode tap
-#    # ip link set dev vnet0 master br0
-#
-#
-#
-#    qemu_instance = VMWrapper(
-#        name="vma.test.system", 
-#        management={"interface": "vnet0", "ip": "172.16.99.2", "gateway": "172.16.99.1", "netmask": "255.255.255.0"}, 
-#        extra_interfaces=["vnet1"],
-#        image="/root/debian.qcow"
-#    )
-#    qemu_instance.start_instance()
-#    print(qemu_instance.instance_status())
-#    time.sleep(20)
-#    qemu_instance.stop_instance()

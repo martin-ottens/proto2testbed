@@ -1,34 +1,46 @@
 {
     "settings": {
         "machines_internet_access": true,
-        "auto_dismantle_seconds": -1,
+        "auto_dismantle_seconds": 10,
         "management_network": "172.16.99.0/24"
     },
     "networks": [
         {
-            "name": "br",
-            "physical_ports": [
-                "eno2"
-            ]
+            "name": "exp0",
+            "physical_ports": []
+        },
+        {
+            "name": "exp1",
+            "physical_ports": []
         }
     ],
     "machines": [
         {
-            "name": "a.virtual.machine",
-            "diskimage": "/images/image.qcow2",
+            "name": "vma.virtual.machine",
+            "diskimage": "/home/martin/image.qcow2",
             "cores": 2,
             "memory": 1024,
             "networks": [
-                "br"
+                "exp0"
             ]
         },
         {
-            "name": "b.virtual.machine",
-            "diskimage": "/images/image.qcow2",
+            "name": "router.virtual.machine",
+            "diskimage": "/home/martin/image.qcow2",
             "cores": 2,
             "memory": 1024,
             "networks": [
-                "br"
+                "exp0",
+                "exp1"
+            ]
+        },
+        {
+            "name": "vmb.virtual.machine",
+            "diskimage": "/home/martin/image.qcow2",
+            "cores": 2,
+            "memory": 1024,
+            "networks": [
+                "exp1"
             ]
         }
     ]

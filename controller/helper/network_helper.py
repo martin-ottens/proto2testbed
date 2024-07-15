@@ -51,14 +51,15 @@ class NetworkBridge():
         logger.info(f"Network {self.name}: Stopping bridge.")
 
         status = True
-        for action in self.dismantle_action:
+        while len(self.dismantle_action) > 0:
+            action = self.dismantle_action.pop(0)
             if not self._run_command(action):
                 logger.warning(f"Network {self.name}: Error executing dismantle command!")
                 status = False
         
         return status
 
-    def add_device(self, interface: str) -> bool:
+    def add_device(self, interface: str, undo: bool = False) -> bool:
         logger.debug(f"Network {self.name}: Adding interface {interface} to bridge.")
 
         process = subprocess.run(["/usr/sbin/ip", "-j", "link", "show"], 
@@ -95,15 +96,14 @@ class NetworkBridge():
         if not self._run_command(["/usr/sbin/brctl", "addif", self.name, interface]):
             logger.error(f"Network {self.name}: Unable to add {interface} to bridge!")
             return False
-        self.dismantle_action.insert(0, ["/usr/sbin/brctl", "delif", self.name, interface])
+        if undo:
+            self.dismantle_action.insert(0, ["/usr/sbin/brctl", "delif", self.name, interface])
         return True
 
-    def setup_local(self, ip: ipaddress.IPv4Address, netmask: str = 24, 
-                    nat: ipaddress.IPv4Network | None = None):
-        ipstring = f"{str(ip)}/{netmask}"
-        logger.debug(f"Network {self.name}: Adding IP {ipstring} to bridge.")
-        if not self._run_command(["/usr/sbin/ip", "addr", "add", ipstring, "dev", self.name]):
-            logger.error(f"Network {self.name}: Unable to add IP {ipstring} to bridge!")
+    def setup_local(self, ip: ipaddress.IPv4Interface, nat: ipaddress.IPv4Network | None = None):
+        logger.debug(f"Network {self.name}: Adding IP {str(ip)} to bridge.")
+        if not self._run_command(["/usr/sbin/ip", "addr", "add", str(ip), "dev", self.name]):
+            logger.error(f"Network {self.name}: Unable to add IP {str(ip)} to bridge!")
             return False
 
         if nat is None:
@@ -166,14 +166,3 @@ class NetworkBridge():
         self.dismantle_action.insert(0, ["/usr/sbin/iptables", "-t", "nat", "-D", "POSTROUTING", "-s", str(nat), "-j", "SNAT", "--to-source", default_route_prefsrc])
 
         return True
-
-#if __name__ == "__main__":
-#    logger.remove()
-#    logger.add(sys.stderr, level="TRACE")
-#
-#    nb = NetworkBridge("br-0")
-#    nb.add_device("vnet0")
-#    nb.setup_local(list(ipaddress.ip_network('192.0.2.0/24').hosts())[0], 24, ipaddress.ip_network('192.0.2.0/24'))
-#    nb.start_bridge()
-#    time.sleep(100)
-#    nb.stop_bridge()
