@@ -37,11 +37,6 @@ class VMWrapper():
                  extra_interfaces: List[str], image: str,
                  cores: int = 2, memory: int = 1024, debug: bool = False):
         
-        try:
-            raise Exception("WTF")
-        except Exception as ex:
-            logger.opt(exception=ex).critical("lol", ex)
-        
         self.name = name
         self.debug = debug
         self.qemu_handle = None
@@ -168,21 +163,21 @@ class VMWrapper():
             logger.opt(exception=ex).warning(f"VM {self.name}: Unable to get status:")
             return "VM status: unkown"
 
-if __name__ == "__main__":
-
-    # ip tuntap add dev vnet0 mode tap
-    # ip tuntap add dev vnet2 mode tap
-    # ip link set dev vnet0 master br0
-
-
-
-    qemu_instance = VMWrapper(
-        name="vma.test.system", 
-        management={"interface": "vnet0", "ip": "172.16.99.2", "gateway": "172.16.99.1", "netmask": "255.255.255.0"}, 
-        extra_interfaces=["vnet1"],
-        image="/root/debian.qcow"
-    )
-    qemu_instance.start_instance()
-    print(qemu_instance.instance_status())
-    time.sleep(20)
-    qemu_instance.stop_instance()
+#if __name__ == "__main__":
+#
+#    # ip tuntap add dev vnet0 mode tap
+#    # ip tuntap add dev vnet2 mode tap
+#    # ip link set dev vnet0 master br0
+#
+#
+#
+#    qemu_instance = VMWrapper(
+#        name="vma.test.system", 
+#        management={"interface": "vnet0", "ip": "172.16.99.2", "gateway": "172.16.99.1", "netmask": "255.255.255.0"}, 
+#        extra_interfaces=["vnet1"],
+#        image="/root/debian.qcow"
+#    )
+#    qemu_instance.start_instance()
+#    print(qemu_instance.instance_status())
+#    time.sleep(20)
+#    qemu_instance.stop_instance()
