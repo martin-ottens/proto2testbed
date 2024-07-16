@@ -8,17 +8,13 @@
         {
             "name": "exp0",
             "physical_ports": []
-        },
-        {
-            "name": "exp1",
-            "physical_ports": []
         }
     ],
     "machines": [
         {
-            "name": "vma.virtual.machine",
+            "name": "vma",
             "diskimage": "/home/martin/image.qcow2",
-            "setup_script": null,
+            "setup_script": "vma/setup.sh",
             "cores": 2,
             "memory": 1024,
             "networks": [
@@ -26,24 +22,13 @@
             ]
         },
         {
-            "name": "router.virtual.machine",
-            "diskimage": "/home/martin/image.qcow2",
-            "setup_script": "router/setup.sh",
-            "cores": 2,
-            "memory": 1024,
-            "networks": [
-                "exp0",
-                "exp1"
-            ]
-        },
-        {
-            "name": "vmb.virtual.machine",
+            "name": "vmb",
             "diskimage": "/home/martin/image.qcow2",
             "setup_script": "vmb/setup.sh",
             "cores": 2,
             "memory": 1024,
             "networks": [
-                "exp1"
+                "exp0"
             ]
         }
     ]
