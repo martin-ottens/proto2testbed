@@ -1,7 +1,7 @@
 {
     "settings": {
         "machines_internet_access": true,
-        "auto_dismantle_seconds": 10,
+        "auto_dismantle_seconds": 600,
         "management_network": "172.16.99.0/24"
     },
     "networks": [
@@ -19,6 +19,7 @@
             "name": "vma.virtual.machine",
             "diskimage": "/home/martin/image.qcow2",
             "setup_script": null,
+            "environment": null,
             "cores": 2,
             "memory": 1024,
             "networks": [
@@ -29,6 +30,9 @@
             "name": "router.virtual.machine",
             "diskimage": "/home/martin/image.qcow2",
             "setup_script": "router/setup.sh",
+            "environment": {
+                "key": "value"
+            },
             "cores": 2,
             "memory": 1024,
             "networks": [
@@ -40,6 +44,9 @@
             "name": "vmb.virtual.machine",
             "diskimage": "/home/martin/image.qcow2",
             "setup_script": "vmb/setup.sh",
+            "environment": {
+                "key": "value"
+            },
             "cores": 2,
             "memory": 1024,
             "networks": [
