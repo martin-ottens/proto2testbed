@@ -1,6 +1,7 @@
 import socket
 import threading
 import time
+import json
 
 from loguru import logger
 from enum import Enum
@@ -49,6 +50,12 @@ class ManagementConnectionManager():
         
         return self.map[name]["state"]
     
+    def get_agent_remote_addr(self, name: str) -> str | None:
+        if name not in self.map:
+            return None
+        
+        return self.map[name]["addr"][0]
+    
     def send_agent_message(self, name: str, message: bytes):
         if name not in self.map:
             raise Exception(f"Agent {name} was not registered!")
@@ -57,6 +64,8 @@ class ManagementConnectionManager():
 
 
 class ManagementClientConnection(threading.Thread):
+    __MAX_FRAME_LEN = 8192
+
     def __init__(self, addr, client_socket: socket, manager: ManagementConnectionManager):
         threading.Thread.__init__(self)
         self.addr = addr
@@ -72,11 +81,16 @@ class ManagementClientConnection(threading.Thread):
         self.client_socket.settimeout(0.5)
         while not self.stop_event.is_set():
             try:
-                data = self.client_socket.recv(4096)
+                data = self.client_socket.recv(ManagementClientConnection.__MAX_FRAME_LEN)
                 if len(data) == 0:
                     logger.debug(f"Management: Client disconnected: {self.addr}")
                     break
 
+                try:
+                    json_data = json.loads(data.decode("utf-8"))
+                except Exception as ex:
+                    logger.opt(exception=ex).error(f"Management: Client JSON decoce error {self.addr}")
+                
                 # TODO: Parse.
                 self.name = data.decode("utf-8").strip()
                 self.manager.add_connection(self.name, self.addr, self)
@@ -94,6 +108,9 @@ class ManagementClientConnection(threading.Thread):
         self.stop_event.set()
 
     def send_message(self, message: bytes):
+        if len(bytes) > ManagementClientConnection.__MAX_FRAME_LEN:
+            raise Exception("Message is too long!")
+        
         self.client_socket.sendall(message)
 
 class ManagementServer():

@@ -14,6 +14,8 @@ MGMT_SERVER_WAITRETRY = 5
 MGMT_SERVER_MAXLEN = 4096
 
 class ManagementClient():
+    __MAX_FRAME_LEN = 8192
+
     def __init__(self, mgmt_server):
         self.mgmt_server = mgmt_server
         self.socket = None
@@ -51,7 +53,7 @@ class ManagementClient():
         self.socket.sendall(json.dumps({"hostname": hostname, "status": "installed"}).encode("utf-8"))
 
     def wait_for_command(self) -> Any:
-        result = self.socket.recv(4096)
+        result = self.socket.recv(ManagementClient.__MAX_FRAME_LEN)
         return json.loads(result.decode("utf-8"))
 
 
