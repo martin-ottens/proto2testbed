@@ -63,9 +63,12 @@ class Controller:
                 networks[bridge].add_device(interface)
             logger.info(f"{name} ({wrapper.ip_address}) attached to bridges: {', '.join(extra_interfaces.values())}")
 
-        logger.success("Testbed is ready!")
+        logger.success("Testbed is ready, CRTL+C to dismantle!")
         
-        time.sleep(config["settings"]["auto_dismantle_seconds"])
+        try:
+            time.sleep(config["settings"]["auto_dismantle_seconds"])
+        except KeyboardInterrupt:
+            logger.critical("Starting dismantle!")
 
         for machine in machines.values():
             wrapper, _ = machine
