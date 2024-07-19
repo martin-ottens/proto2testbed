@@ -1,0 +1,115 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "config.schema.json",
+    "title": "Proto-Testbed Config",
+    "description": "Testbed config for a Proto-Testbed setup package",
+    "type": "object",
+    "properties": {
+        "settings": {
+            "type": "object",
+            "properties": {
+                "machines_internet_access": {
+                    "type": "boolean"
+                },
+                "auto_dismantle_seconds": {
+                    "type": "number"
+                },
+                "management_network": {
+                    "type": "string"
+                }
+            },
+            "additionalItems": false,
+            "required": [
+                "machines_internet_access",
+                "auto_dismantle_seconds",
+                "management_network"
+            ]
+        },
+        "networks": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "physical_ports": {
+                        "type": "array",
+                        "items": {
+                            "type": [
+                                "string",
+                                "null"
+                            ]
+                        }
+                    }
+                },
+                "additionalItems": false,
+                "required": [
+                    "name",
+                    "physical_ports"
+                ]
+            }
+        },
+        "machines": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "diskimage": {
+                        "type": "string"
+                    },
+                    "setup_script": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "environment": {
+                        "type": [
+                            "object",
+                            "null"
+                        ]
+                    },
+                    "cores": {
+                        "type": "number"
+                    },
+                    "memory": {
+                        "type": "number"
+                    },
+                    "networks": {
+                        "oneOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        ]
+                    }
+                },
+                "additionalItems": false,
+                "required": [
+                    "name",
+                    "diskimage",
+                    "setup_script",
+                    "environment",
+                    "cores",
+                    "memory",
+                    "networks"
+                ]
+            }
+        }
+    },
+    "required": [
+        "settings",
+        "networks",
+        "machines"
+    ],
+    "additionalItems": false
+}

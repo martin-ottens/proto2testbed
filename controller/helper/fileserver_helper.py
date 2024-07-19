@@ -43,6 +43,9 @@ class FileServer(Dismantable):
                                        daemon=True)
 
     def _stop_thread(self):
+        if self.thread is None:
+            return
+
         self.server.serve_stop()
         self.thread.join()
         self.thread = None

@@ -1,7 +1,7 @@
 {
     "settings": {
         "machines_internet_access": true,
-        "auto_dismantle_seconds": 10,
+        "auto_dismantle_seconds": 180,
         "management_network": "172.16.99.0/24"
     },
     "networks": [

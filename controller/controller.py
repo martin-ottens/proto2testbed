@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from loguru import logger
 from typing import List
+from jsonschema import validate
 
 from helper.network_helper import NetworkBridge
 from helper.fileserver_helper import FileServer
@@ -26,6 +27,15 @@ class Controller(Dismantable):
 
         with open(self.config_path, "r") as handle:
             self.config = json.load(handle)
+        
+        with open("assets/config.schema.json", "r") as handle:
+            schema = json.load(handle)
+
+            try:
+                validate(instance=self.config, schema=schema)
+            except Exception as ex:
+                logger.opt(exception=ex).critical("Unable to parse config")
+                raise Exception(f"Unable to parse config {self.config_path}")
     
     def _destory(self) -> None:
         self.setup_env = None
@@ -153,7 +163,8 @@ class Controller(Dismantable):
     
     def start_management_infrastructure(self) -> bool:
         try:
-            file_server = FileServer(self.base_path, (str(self.mgmt_gateway), 4242, ))
+            #file_server = FileServer(self.base_path, (str(self.mgmt_gateway), 4242, ))
+            file_server = FileServer(self.base_path, ("0.0.0.0", 4242, ))
             file_server.start()
             self.dismantables.insert(0, file_server)
         except Exception as ex:
@@ -161,7 +172,8 @@ class Controller(Dismantable):
             return False
         
         try:
-            magamenet_server = ManagementServer((str(self.mgmt_gateway), 4243, ), self.config_store)
+            #magamenet_server = ManagementServer((str(self.mgmt_gateway), 4243, ), self.config_store)
+            magamenet_server = ManagementServer(("0.0.0.0", 4243, ), self.config_store)
             magamenet_server.start()
             self.dismantables.insert(0, magamenet_server)
         except Exception as ex:

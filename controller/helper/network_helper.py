@@ -10,7 +10,7 @@ from utils.interfaces import Dismantable
 class NetworkBridge(Dismantable):
     @staticmethod
     def check_interfaces_available(interfaces: List[str]):
-        process = subprocess.run(["ip", "--brief", "--json", "link", "show"], shell=False, capture_output=True)
+        process = subprocess.run(["/usr/sbin/ip", "--brief", "--json", "link", "show"], shell=False, capture_output=True)
         if process.returncode != 0:
             raise Exception(f"Unable to fetch interfaces: {process.stderr}")
         
@@ -120,7 +120,7 @@ class NetworkBridge(Dismantable):
         logger.info(f"Network {self.name}: NAT: Enabling NAT for {str(nat)}!")
 
         # Get default prefsrc
-        process = subprocess.run(["/usr/sbin/ip", "-j", "route"], 
+        process = subprocess.run(["/usr/sbin/ip", "--json", "route"], 
                                  capture_output=True, shell=False)
         if process.returncode != 0:
             raise Exception(f"NAT: Unable to check default route: {process.stderr.decode('utf-8')}")
