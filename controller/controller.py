@@ -2,21 +2,39 @@ import json
 import ipaddress
 import time
 
+from pathlib import Path
 from loguru import logger
 from typing import List
 
 from helper.network_helper import NetworkBridge
+from helper.fileserver_helper import FileServer
 from helper.vm_helper import VMWrapper
 from utils.interfaces import Dismantable
+from utils.config_store import ConfigStore
+from management_server import ManagementServer
 
 class Controller(Dismantable):
     def __init__(self, config_path):
-        with open(config_path, "r") as handle:
-            self.config = json.load(handle)
-        
+        self.networks = None
+        self.config_store = None
         self.dismantables: List[Dismantable] = []
+
+        self.base_path = Path(config_path)
+        self.config_path = self.base_path / "testbed.json"
+        if not self.config_path.exists():
+            raise Exception("Unable to find 'testbed.json' in given setup.")
+
+        with open(self.config_path, "r") as handle:
+            self.config = json.load(handle)
     
     def _destory(self) -> None:
+        self.setup_env = None
+        self.networks = None
+        self.config_store = None
+
+        if self.dismantables is None:
+            return
+
         for dismantable in self.dismantables:
             try:
                 dismantable.dismantle()
@@ -31,25 +49,32 @@ class Controller(Dismantable):
     
     def get_name(self) -> str:
         return f"Controller"
-
-    def setup_infrastructure(self) -> bool:
-        mgmt_network = ipaddress.IPv4Network(self.config["settings"]["management_network"])
-        mgmt_ips = list(mgmt_network.hosts())
-        mgmt_netmask = ipaddress.IPv4Network(f"0.0.0.0/{mgmt_network.netmask}").prefixlen
+    
+    def setup_local_network(self) -> bool:
+        self.mgmt_network = ipaddress.IPv4Network(self.config["settings"]["management_network"])
+        self.mgmt_ips = list(self.mgmt_network.hosts())
+        self.mgmt_netmask = ipaddress.IPv4Network(f"0.0.0.0/{self.mgmt_network.netmask}").prefixlen
 
         # Setup Networks
-        networks = {}
+        self.networks = {}
 
         try:
             mgmt_bridge = NetworkBridge("br-mgmt")
             self.dismantables.insert(0, mgmt_bridge)
-            mgmt_gateway = mgmt_ips.pop(0)
-            mgmt_bridge.setup_local(ip=ipaddress.IPv4Interface(f"{mgmt_gateway}/{mgmt_netmask}"), 
-                                    nat=mgmt_network if self.config["settings"]["machines_internet_access"] == True else None)
+            self.mgmt_gateway = self.mgmt_ips.pop(0)
+            mgmt_bridge.setup_local(ip=ipaddress.IPv4Interface(f"{self.mgmt_gateway}/{self.mgmt_netmask}"), 
+                                    nat=self.mgmt_network if self.config["settings"]["machines_internet_access"] == True else None)
             mgmt_bridge.start_bridge()
-            networks["br-mgmt"] = mgmt_bridge
+            self.networks["br-mgmt"] = mgmt_bridge
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to setup management network!")
+            return False
+        
+        return True
+
+    def setup_infrastructure(self) -> bool:
+        if self.networks is None:
+            logger.critical("Infrastructure setuo was called before local network setup!")
             return False
 
         for network in self.config["networks"]:
@@ -59,7 +84,7 @@ class Controller(Dismantable):
                 for pyhsical_port in network["physical_ports"]:
                     bridge.add_device(pyhsical_port)
                 bridge.start_bridge()
-                networks[network["name"]] = bridge
+                self.networks[network["name"]] = bridge
             except Exception as ex:
                 logger.opt(exception=ex).critical(f"Unable to setup additional network {network['name']}")
                 return False
@@ -76,14 +101,22 @@ class Controller(Dismantable):
                 wait_for_interfaces.append(if_int_name)
 
             try:
+                diskimage_path = Path(machine["diskimage"])
+
+                if not diskimage_path.is_absolute():
+                    diskimage_path = self.base_path / diskimage_path
+                
+                if not diskimage_path.exists():
+                    raise Exception(f"Unable to find diskimage '{diskimage_path}'")
+
                 wrapper = VMWrapper(name=machine["name"],
                                     management={
                                         "interface": f"v_{index}_m",
-                                        "ip": ipaddress.IPv4Interface(f"{mgmt_ips.pop(0)}/{mgmt_netmask}"),
-                                        "gateway": str(mgmt_gateway)
+                                        "ip": ipaddress.IPv4Interface(f"{self.mgmt_ips.pop(0)}/{self.mgmt_netmask}"),
+                                        "gateway": str(self.mgmt_gateway)
                                     },
                                     extra_interfaces=extra_interfaces.keys(),
-                                    image=machine["diskimage"],
+                                    image=str(diskimage_path),
                                     cores=machine["cores"],
                                     memory=machine["memory"])
                 self.dismantables.insert(0, wrapper)
@@ -110,18 +143,55 @@ class Controller(Dismantable):
             for name, machine in machines.items():
                 wrapper, extra_interfaces = machine
                 for interface, bridge in extra_interfaces.items():
-                    networks[bridge].add_device(interface)
+                    self.networks[bridge].add_device(interface)
                 logger.info(f"{name} ({wrapper.ip_address}) attached to bridges: {', '.join(extra_interfaces.values())}")
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to attach VM interfaces to bridges.")
             return False
 
         return True
+    
+    def start_management_infrastructure(self) -> bool:
+        try:
+            file_server = FileServer(self.base_path, (str(self.mgmt_gateway), 4242, ))
+            file_server.start()
+            self.dismantables.insert(0, file_server)
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Unable to start file server")
+            return False
+        
+        try:
+            magamenet_server = ManagementServer((str(self.mgmt_gateway), 4243, ), self.config_store)
+            magamenet_server.start()
+            self.dismantables.insert(0, magamenet_server)
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Unable to start managenent server")
+            return False
+
+        return True
         
     def main(self):
+        self.config_store = ConfigStore()
+        if not self.config_store.load_vm_initialization(self.config, self.base_path):
+            logger.critical("Critical error while loading VM initialization!")
+            return
+
+        if not self.setup_local_network():
+            logger.critical("Critical error during local network setup!")
+            return
+
+        if not self.start_management_infrastructure():
+            logger.critical("Critical error during start of management infrastructure!")
+            self.dismantle()
+            return
+
+
         if not self.setup_infrastructure():
             logger.critical("Critical error during setup, dismantling!")
             self.dismantle()
+            return
+
+        # TODO: Wait for machines to become started and directly set them up
 
         wait_seconds = self.config["settings"]["auto_dismantle_seconds"]
         logger.success(f"Testbed is ready, CRTL+C to dismantle (Auto stop after {wait_seconds}s)")

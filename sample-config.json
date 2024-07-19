@@ -1,13 +1,15 @@
 {
     "settings": {
         "machines_internet_access": true,
-        "auto_dismantle_seconds": 600,
+        "auto_dismantle_seconds": 6000,
         "management_network": "172.16.99.0/24"
     },
     "networks": [
         {
             "name": "exp0",
-            "physical_ports": []
+            "physical_ports": [
+                "eno2"
+            ]
         },
         {
             "name": "exp1",
@@ -31,7 +33,7 @@
             "diskimage": "/home/martin/image.qcow2",
             "setup_script": "router/setup.sh",
             "environment": {
-                "key": "value"
+                "KEY": "value"
             },
             "cores": 2,
             "memory": 1024,
@@ -45,7 +47,7 @@
             "diskimage": "/home/martin/image.qcow2",
             "setup_script": "vmb/setup.sh",
             "environment": {
-                "key": "value"
+                "KEY": "value"
             },
             "cores": 2,
             "memory": 1024,

@@ -113,9 +113,7 @@ class VMWrapper(Dismantable):
             raise ex
 
     def _destory_instance(self):
-        if self.qemu_handle is not None:
-            self.stop_instance()
-
+        self.stop_instance()
         self.tempdir.cleanup()
 
     def __del__(self):
@@ -148,6 +146,9 @@ class VMWrapper(Dismantable):
         return True
 
     def stop_instance(self) -> bool:
+        if self.qemu_handle is None:
+            return False
+
         logger.debug(f"VM {self.name}: Stopping instance ...")
         try:
             self.qemu_handle.sendline("system_powerdown")

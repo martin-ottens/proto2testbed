@@ -6,6 +6,9 @@ import json
 from loguru import logger
 from enum import Enum
 
+from utils.interfaces import Dismantable
+from utils.config_store import ConfigStore
+
 class AgentManagementState(Enum):
     UNKNOWN = 0
     STARTED = 1
@@ -113,9 +116,10 @@ class ManagementClientConnection(threading.Thread):
         
         self.client_socket.sendall(message)
 
-class ManagementServer():
-    def __init__(self, host: str, port: int):
-        self.bind_address = (host, port, )
+class ManagementServer(Dismantable):
+    def __init__(self, bind_address, config_store: ConfigStore):
+        self.bind_address = bind_address
+        self.config_store = config_store
         self.client_threads = []
         self.keep_running = threading.Event()
         self.manager = ManagementConnectionManager()
@@ -164,6 +168,12 @@ class ManagementServer():
         self.accept_thread.join()
         self.socket.close()
         self.is_started = False
+
+    def dismantle(self) -> None:
+        self.stop()
+
+    def get_name(self) -> str:
+        return "ManagementServer"
     
     def is_started(self) -> bool:
         return self.is_started()

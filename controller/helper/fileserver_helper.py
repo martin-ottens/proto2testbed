@@ -1,8 +1,10 @@
+import os
+import threading
+
 from http.server import HTTPServer as BaseHTTPServer, SimpleHTTPRequestHandler
 from loguru import logger
 
-import os
-import threading
+from utils.interfaces import Dismantable
 
 class HTTPHandler(SimpleHTTPRequestHandler):
     def translate_path(self, path):
@@ -33,16 +35,26 @@ class HTTPServer(BaseHTTPServer):
     def serve_stop(self):
         self._stop_event.set()
 
-class FileServer():
+class FileServer(Dismantable):
     def __init__(self, path, bind_address, poll_interval = 0.5):
         self.server = HTTPServer(path, bind_address)
         self.thread = threading.Thread(target=self.server.serve, 
                                        args=(poll_interval, ),
                                        daemon=True)
 
-    def start(self):
-        self.thread.start()
-
-    def stop(self):
+    def _stop_thread(self):
         self.server.serve_stop()
         self.thread.join()
+        self.thread = None
+
+    def get_name(self) -> str:
+        return "FileServer"
+    
+    def dismantle(self) -> None:
+        self._stop_thread()
+    
+    def stop(self):
+        self._stop_thread()
+
+    def start(self):
+        self.thread.start()
