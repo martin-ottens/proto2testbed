@@ -9,4 +9,4 @@ if __name__ == "__main__":
     parser.add_argument("config")
     args = parser.parse_args()
 
-    Controller(args.config)
+    Controller(args.config).main()

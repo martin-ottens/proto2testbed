@@ -1,14 +1,23 @@
 import ipaddress
 import subprocess
 import json
-import time
-import sys
 
 from typing import List
 from loguru import logger
 
+from utils.interfaces import Dismantable
 
-class NetworkBridge():
+class NetworkBridge(Dismantable):
+    @staticmethod
+    def check_interfaces_available(interfaces: List[str]):
+        process = subprocess.run(["ip", "--brief", "--json", "link", "show"], shell=False, capture_output=True)
+        if process.returncode != 0:
+            raise Exception(f"Unable to fetch interfaces: {process.stderr}")
+        
+        json_interfaces = list(map(lambda x: x["ifname"], json.loads(process.stdout.decode("utf-8"))))
+        return all(x in json_interfaces for x in interfaces)
+
+
     def _run_command(self, command: List[str]):
         logger.trace("Running command:" + " ".join(command))
         process = subprocess.run(command, shell=False, capture_output=True)
@@ -24,12 +33,11 @@ class NetworkBridge():
         self.ready = False
 
         if len(name) > 8:
-            logger.error(f"Network {self.name}: Bridge Interface name is too long!")
-            return
+            raise Exception(f"Bridge interface name {self.name} is too long!")
 
         if not self._run_command(["/usr/sbin/brctl", "addbr", self.name]):
-            logger.error(f"Network {self.name}: Setup failed!")
-            return
+            raise Exception(f"Setup of bridge {self.name} failed")
+
         self.dismantle_action.insert(0, ["/usr/sbin/brctl", "delbr", self.name])
 
         logger.info(f"Network {self.name}: Bridge ready!")
@@ -37,11 +45,16 @@ class NetworkBridge():
 
     def __del__(self):
         self.stop_bridge()
+
+    def dismantle(self):
+        self.stop_bridge()
+
+    def get_name(self) -> str:
+        return f"NetworkBridge {self.name}"
     
     def start_bridge(self):
         if not self._run_command(["/usr/sbin/ip", "link", "set", "up", "dev", self.name]):
-            logger.error(f"Network {self.name}: Startup failed!")
-            return
+            raise Exception(f"Unable to bring bridge {self.name} up")
         self.dismantle_action.insert(0, ["/usr/sbin/ip", "link", "set", "down", "dev", self.name])
 
     def stop_bridge(self):
@@ -62,11 +75,10 @@ class NetworkBridge():
     def add_device(self, interface: str, undo: bool = False) -> bool:
         logger.debug(f"Network {self.name}: Adding interface {interface} to bridge.")
 
-        process = subprocess.run(["/usr/sbin/ip", "-j", "link", "show"], 
+        process = subprocess.run(["/usr/sbin/ip", "--json", "link", "show"], 
                                  capture_output=True, shell=False)
         if process.returncode != 0:
-            logger.error(f"Network {self.name}: Unable to check interface {interface}: {process.stderr.decode('utf-8')}")
-            return False
+            raise Exception(f"Unable to check interface {interface}: {process.stderr.decode('utf-8')}")
         
         interface_list = json.loads(process.stdout.decode("utf-8"))
         was_found = False
@@ -86,25 +98,21 @@ class NetworkBridge():
             else:
                 logger.debug(f"Network {self.name}: Interface {interface} is currently added to brigde {check_if_master}, removing ...")
                 if not self._run_command(["/usr/sbin/brctl", "delif", check_if_master, interface]):
-                    logger.error(f"Network {self.name}: Unable to remove {interface} from bridge {check_if_master}!")
-                    return False
+                    raise Exception(f"Unable to remove {interface} from bridge {check_if_master}!")
             
         if not was_found:
-            logger.error(f"Network {self.name}: Interface {interface} was not found!")
-            return False
+            raise Exception(f"Interface {interface} was not found!")
 
         if not self._run_command(["/usr/sbin/brctl", "addif", self.name, interface]):
-            logger.error(f"Network {self.name}: Unable to add {interface} to bridge!")
-            return False
+            logger.error(f"Unable to add {interface} to bridge {self.name}.")
         if undo:
             self.dismantle_action.insert(0, ["/usr/sbin/brctl", "delif", self.name, interface])
         return True
 
-    def setup_local(self, ip: ipaddress.IPv4Interface, nat: ipaddress.IPv4Network | None = None):
+    def setup_local(self, ip: ipaddress.IPv4Interface, nat: ipaddress.IPv4Network | None = None) -> bool:
         logger.debug(f"Network {self.name}: Adding IP {str(ip)} to bridge.")
         if not self._run_command(["/usr/sbin/ip", "addr", "add", str(ip), "dev", self.name]):
-            logger.error(f"Network {self.name}: Unable to add IP {str(ip)} to bridge!")
-            return False
+            raise Exception(f"Unable to add IP {str(ip)} to bridge {self.name}!")
 
         if nat is None:
             return True
@@ -115,8 +123,7 @@ class NetworkBridge():
         process = subprocess.run(["/usr/sbin/ip", "-j", "route"], 
                                  capture_output=True, shell=False)
         if process.returncode != 0:
-            logger.error(f"Network {self.name}: NAT: Unable to check default route: {process.stderr.decode('utf-8')}")
-            return False
+            raise Exception(f"NAT: Unable to check default route: {process.stderr.decode('utf-8')}")
 
         route_list = json.loads(process.stdout.decode("utf-8"))
 
@@ -130,8 +137,7 @@ class NetworkBridge():
                 break
 
         if default_route_device is None:
-            logger.error(f"Network {self.name}: NAT: Unable to obtain default route!")
-            return False
+            raise Exception(f"NAT: Unable to obtain default route!")
         
         default_route_prefsrc = None
         for route in route_list:
@@ -143,26 +149,21 @@ class NetworkBridge():
                 break
         
         if default_route_prefsrc is None:
-            logger.error(f"Network {self.name}: NAT: Unable to obtain default route!")
-            return False
+            raise Exception(f"NAT: Unable to obtain default route!")
 
         if not self._run_command(["/usr/sbin/sysctl", "-w", "net.ipv4.conf.all.forwarding=1"]):
-            logger.error(f"Network {self.name}: NAT: Unable to allow IPv4 forwarding on host!")
-            return False
+            raise Exception(f"NAT: Unable to allow IPv4 forwarding on host!")
 
         if not self._run_command(["/usr/sbin/iptables", "-A", "FORWARD", "-s", str(nat), "-j", "ACCEPT"]):
-            logger.error(f"Network {self.name}: NAT: Unable to create iptables rule!")
-            return False
+            raise Exception(f"NAT: Unable to create iptables rule!")
         self.dismantle_action.insert(0, ["/usr/sbin/iptables", "-D", "FORWARD", "-s", str(nat), "-j", "ACCEPT"])
 
         if not self._run_command(["/usr/sbin/iptables", "-A", "FORWARD", "-m", "state", "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"]):
-            logger.error(f"Network {self.name}: NAT: Unable to create iptables rule!")
-            return False
+            raise Exception(f"Unable to create iptables rule!")
         self.dismantle_action.insert(0, ["/usr/sbin/iptables", "-D", "FORWARD", "-m", "state", "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"])
 
         if not self._run_command(["/usr/sbin/iptables", "-t", "nat", "-A", "POSTROUTING", "-s", str(nat), "-j", "SNAT", "--to-source", default_route_prefsrc]):
-            logger.error(f"Network {self.name}: NAT: Unable to create iptables rule!")
-            return False
+            raise Exception(f"NAT: Unable to create iptables rule!")
         self.dismantle_action.insert(0, ["/usr/sbin/iptables", "-t", "nat", "-D", "POSTROUTING", "-s", str(nat), "-j", "SNAT", "--to-source", default_route_prefsrc])
 
         return True

@@ -1,17 +1,18 @@
-from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
-from loguru import logger
-from typing import List, Dict
-
 import pexpect
 import hashlib
 import tempfile
 import subprocess
 import os
 import sys
-import time
 
-class VMWrapper():
+from pathlib import Path
+from jinja2 import Environment, FileSystemLoader
+from loguru import logger
+from typing import List, Dict
+
+from utils.interfaces import Dismantable
+
+class VMWrapper(Dismantable):
     __QEMU_NIC_TEMPLATE     = "-nic tap,model=e1000,ifname={tapname},mac={mac} "
     __QEMU_COMMAND_TEMPLATE = """qemu-system-x86_64 \
                                 -boot c \
@@ -32,7 +33,6 @@ class VMWrapper():
                                    -joliet \
                                    -rock {input}"""
 
-    @logger.catch(reraise=True)
     def __init__(self, name: str, management: Dict[str, str], 
                  extra_interfaces: List[str], image: str,
                  cores: int = 2, memory: int = 1024, debug: bool = False):
@@ -41,80 +41,91 @@ class VMWrapper():
         self.qemu_handle = None
 
         if not all(key in management for key in ["interface", "ip", "gateway"]):
-            logger.error(f"VM {name}: Error during creation, management config is not correct!")
-            return
+            raise Exception(f"Error during creation, management config is not correct!")
 
         self.ip_address = management["ip"].ip
 
         if len(extra_interfaces) > 4:
-            logger.error(f"VM {name}: Error during creation, 4 interfaces are allowed, but {len(extra_interfaces)} were added!")
-            return
+            raise Exception(f"Error during creation, 4 interfaces are allowed, but {len(extra_interfaces)} were added!")
 
 
         self.tempdir = tempfile.TemporaryDirectory()
  
-        # Generate cloud-init files
-        init_files = Path(self.tempdir.name) / "cloud-init"
-        os.mkdir(init_files)
+            # Generate cloud-init files
+        try:
+            init_files = Path(self.tempdir.name) / "cloud-init"
+            os.mkdir(init_files)
 
-        j2_env = Environment(loader=FileSystemLoader("./vm_templates/"))
+            j2_env = Environment(loader=FileSystemLoader("./vm_templates/"))
 
-        meta_data = j2_env.get_template("meta-data.j2").render()
-        with open(init_files / "meta-data", mode="w", encoding="utf-8") as handle:
-            handle.write(meta_data)
+            meta_data = j2_env.get_template("meta-data.j2").render()
+            with open(init_files / "meta-data", mode="w", encoding="utf-8") as handle:
+                handle.write(meta_data)
 
-        domain_parts = name.split('.')
-        fqdn = "\"\""
-        if len(domain_parts) > 2:
-            fqdn = "\"" + '.'.join(domain_parts[1:]) + "\""
-        
-        user_data = j2_env.get_template("user-data.j2").render(
-            hostname=name,
-            fqdn=fqdn
-        )
-        with open(init_files / "user-data", mode="w", encoding="utf-8") as handle:
-            handle.write(user_data)
+            domain_parts = name.split('.')
+            fqdn = "\"\""
+            if len(domain_parts) > 2:
+                fqdn = "\"" + '.'.join(domain_parts[1:]) + "\""
+            
+            user_data = j2_env.get_template("user-data.j2").render(
+                hostname=name,
+                fqdn=fqdn
+            )
+            with open(init_files / "user-data", mode="w", encoding="utf-8") as handle:
+                handle.write(user_data)
 
-        network_config = j2_env.get_template("network-config.j2").render(
-            mgmt_address=str(management["ip"].ip),
-            mgmt_server=str(management["gateway"]),
-            mgmt_netmask=management["ip"].with_prefixlen.split("/")[1]
-        )
-        with open(init_files / "network-config", mode="w", encoding="utf-8") as handle:
-            handle.write(network_config)
+            network_config = j2_env.get_template("network-config.j2").render(
+                mgmt_address=str(management["ip"].ip),
+                mgmt_server=str(management["gateway"]),
+                mgmt_netmask=management["ip"].with_prefixlen.split("/")[1]
+            )
+            with open(init_files / "network-config", mode="w", encoding="utf-8") as handle:
+                handle.write(network_config)
 
-        cloud_init_iso = str(Path(self.tempdir.name) / "cloud-init.iso")
-        process = subprocess.run([VMWrapper.__CLOUD_INIT_ISO_TEMPLATE.format(input=init_files, output=cloud_init_iso)], 
-                                 shell=True, 
-                                 capture_output=True)
-        
-        if process.returncode != 0:
-            logger.error(f"VM {self.name}: Unbale to run genisoimage: {process.stderr.decode('utf-8')}")
-            sys.exit(1)
-        
-        # Generate pseudo unique interface macs
-        hash_hex = hashlib.sha256(name.encode()).hexdigest()
-        base_mac = hash_hex[1:2] + 'e:' + hash_hex[2:4] + ':' + hash_hex[4:6] + ':' + hash_hex[6:8] + ':' + hash_hex[8:10] + ':' + hash_hex[10:11]
-        
-        interfaces = VMWrapper.__QEMU_NIC_TEMPLATE.format(tapname=management["interface"], mac=(base_mac + "0"))
-        for index, name in enumerate(extra_interfaces):
-            interfaces += VMWrapper.__QEMU_NIC_TEMPLATE.format(tapname=name, mac=(base_mac + str(index + 1)))
+            cloud_init_iso = str(Path(self.tempdir.name) / "cloud-init.iso")
+            process = subprocess.run([VMWrapper.__CLOUD_INIT_ISO_TEMPLATE.format(input=init_files, output=cloud_init_iso)], 
+                                    shell=True, 
+                                    capture_output=True)
+            
+            if process.returncode != 0:
+                raise Exception(f"Unbale to run genisoimage: {process.stderr.decode('utf-8')}")
+            
+            # Generate pseudo unique interface macs
+            hash_hex = hashlib.sha256(name.encode()).hexdigest()
+            base_mac = hash_hex[1:2] + 'e:' + hash_hex[2:4] + ':' + hash_hex[4:6] + ':' + hash_hex[6:8] + ':' + hash_hex[8:10] + ':' + hash_hex[10:11]
+            
+            interfaces = VMWrapper.__QEMU_NIC_TEMPLATE.format(tapname=management["interface"], mac=(base_mac + "0"))
+            for index, name in enumerate(extra_interfaces):
+                interfaces += VMWrapper.__QEMU_NIC_TEMPLATE.format(tapname=name, mac=(base_mac + str(index + 1)))
 
-        # Prepare qemu command
-        self.qemu_command = VMWrapper.__QEMU_COMMAND_TEMPLATE.format(
-            memory=memory,
-            cores=cores,
-            image=image,
-            nics=interfaces,
-            cloud_init_iso=cloud_init_iso
-        )
+            # Prepare qemu command
+            self.qemu_command = VMWrapper.__QEMU_COMMAND_TEMPLATE.format(
+                memory=memory,
+                cores=cores,
+                image=image,
+                nics=interfaces,
+                cloud_init_iso=cloud_init_iso
+            )
+        except Exception as ex:
+            self.tempdir.cleanup()
+            self.qemu_handle = None
+            self.qemu_command = None
+            raise ex
 
-    def __del__(self):
+    def _destory_instance(self):
         if self.qemu_handle is not None:
             self.stop_instance()
 
         self.tempdir.cleanup()
-        logger.debug(f"VM {self.name}: Destoryed and cleaned up.")
+
+    def __del__(self):
+        self._destory_instance()
+    
+    def dismantle(self) -> None:
+        self._destory_instance()
+
+    def get_name(self) -> str:
+        return f"VirtualMachine {self.name}"
 
     def ready_to_start(self) -> bool:
         return self.qemu_command is not None and self.qemu_handle is None
@@ -130,11 +141,9 @@ class VMWrapper():
                 self.qemu_handle.logfile = sys.stdout
             self.qemu_handle.expect_exact("(qemu)", timeout=10)
         except pexpect.EOF as ex:
-            logger.opt(exception=ex).error(f"VM {self.name}: Unable to start, process exited unexpected:")
-            return False
+            raise Exception(f"Unable to start VM {self.name}, process exited unexpected") from ex
         except pexpect.TIMEOUT as ex:
-            logger.opt(exception=ex).error(f"VM {self.name}: Unable to start, timeout during QEMU start:")
-            return False
+            raise Exception(f"Unable to start VM {self.name}, timeout during QEMU start") from ex
         logger.info(f"VM {self.name}: Instance was started!")
         return True
 
@@ -144,8 +153,7 @@ class VMWrapper():
             self.qemu_handle.sendline("system_powerdown")
             self.qemu_handle.expect(pexpect.EOF, timeout=30)
         except pexpect.TIMEOUT as ex:
-            logger.opt(exception=ex).error(f"VM {self.name}: Unable to stop, timeout occured:")
-            return False
+            raise Exception(f"Unable to stop VM {self.name}, timeout occured:") from ex
         finally:
             self.qemu_handle = None
 
@@ -162,5 +170,5 @@ class VMWrapper():
             self.qemu_handle.expect_exact("(qemu)", timeout=1)
             return status
         except Exception as ex:
-            logger.opt(exception=ex).warning(f"VM {self.name}: Unable to get status:")
+            logger.opt(exception=ex).warning(f"VM {self.name}: Unable to get status")
             return "VM status: unkown"
