@@ -28,13 +28,13 @@ class ManagementClientConnection(threading.Thread):
                 ManagementClientConnection.message_schema = json.load(handle)
 
     def run(self):
-        logger.debug(f"Management: Client  {self.addr} connected")
+        logger.info(f"Management: Client {self.addr} connected")
         self.client_socket.settimeout(0.5)
         while not self.stop_event.is_set():
             try:
                 data = self.client_socket.recv(ManagementClientConnection.__MAX_FRAME_LEN)
                 if len(data) == 0:
-                    logger.debug(f"Management: Client {self.addr} disconnected")
+                    logger.info(f"Management: Client {self.addr} disconnected")
                     break
 
                 try:
@@ -54,7 +54,7 @@ class ManagementClientConnection(threading.Thread):
                     if self.client.name != json_data["name"]:
                         logger.error(f"Management: Client {self.addr} reported name {self.client.name} before, now {json_data['name']}")
                         break
-                {"name": "vma", "status": "initialized", "message": "Hello!"}
+
                 match json_data["status"]:
                     case "started":
                         self.client.set_state(state_manager.AgentManagementState.STARTED)
@@ -89,8 +89,11 @@ class ManagementClientConnection(threading.Thread):
                 break
         
         if self.client is not None:
-            logger.info(f"Management: Client {self.client.name}: Connection closed.")
+            logger.info(f"Management: Client {self.client.name}@{self.addr}: Connection closed.")
             self.client.disconnect()
+        else:
+            logger.info(f"Management: Client {self.addr}: Connection closed.")
+
         self.client_socket.close()
 
     def stop(self):
