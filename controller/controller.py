@@ -1,46 +1,32 @@
-import json
 import ipaddress
 import time
 
 from pathlib import Path
 from loguru import logger
 from typing import List
-from jsonschema import validate
 
 from helper.network_helper import NetworkBridge
 from helper.fileserver_helper import FileServer
 from helper.vm_helper import VMWrapper
 from utils.interfaces import Dismantable
-from utils.config_store import ConfigStore
+from utils.config_tools import load_config, load_vm_initialization
 from management_server import ManagementServer
+from state_manager import MachineStateManager, AgentManagementState
 
 class Controller(Dismantable):
     def __init__(self, config_path):
         self.networks = None
-        self.config_store = None
         self.dismantables: List[Dismantable] = []
+        self.state_manager: MachineStateManager = MachineStateManager()
 
         self.base_path = Path(config_path)
         self.config_path = self.base_path / "testbed.json"
-        if not self.config_path.exists():
-            raise Exception("Unable to find 'testbed.json' in given setup.")
-
-        with open(self.config_path, "r") as handle:
-            self.config = json.load(handle)
-        
-        with open("assets/config.schema.json", "r") as handle:
-            schema = json.load(handle)
-
-            try:
-                validate(instance=self.config, schema=schema)
-            except Exception as ex:
-                logger.opt(exception=ex).critical("Unable to parse config")
-                raise Exception(f"Unable to parse config {self.config_path}")
+        self.config = load_config(self.config_path)
     
     def _destory(self) -> None:
         self.setup_env = None
         self.networks = None
-        self.config_store = None
+        self.state_manager.remove_all()
 
         if self.dismantables is None:
             return
@@ -172,8 +158,8 @@ class Controller(Dismantable):
             return False
         
         try:
-            #magamenet_server = ManagementServer((str(self.mgmt_gateway), 4243, ), self.config_store)
-            magamenet_server = ManagementServer(("0.0.0.0", 4243, ), self.config_store)
+            #magamenet_server = ManagementServer((str(self.mgmt_gateway), 4243, ), self.state_manager)
+            magamenet_server = ManagementServer(("0.0.0.0", 4243, ), self.state_manager)
             magamenet_server.start()
             self.dismantables.insert(0, magamenet_server)
         except Exception as ex:
@@ -183,8 +169,7 @@ class Controller(Dismantable):
         return True
         
     def main(self):
-        self.config_store = ConfigStore()
-        if not self.config_store.load_vm_initialization(self.config, self.base_path):
+        if not load_vm_initialization(self.config, self.base_path, self.state_manager):
             logger.critical("Critical error while loading VM initialization!")
             return
 
@@ -204,6 +189,12 @@ class Controller(Dismantable):
             return
 
         # TODO: Wait for machines to become started and directly set them up
+        logger.info("Waiting for VMs to start and initialize ...")
+        if not self.state_manager.wait_for_machines_to_become_state(AgentManagementState.INITIALIZED):
+            logger.critical("VMs are not ready or error during initialization!")
+            self.dismantle()
+            return
+        logger.success("All VMs reported up & ready!")
 
         wait_seconds = self.config["settings"]["auto_dismantle_seconds"]
         logger.success(f"Testbed is ready, CRTL+C to dismantle (Auto stop after {wait_seconds}s)")

@@ -1,0 +1,29 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "statusmsg.schema.json",
+    "title": "VM Status Message",
+    "description": "Downstream status message: VM to management server",
+    "type": "object",
+    "properties": {
+        "name": {
+            "type": "string"
+        },
+        "status": {
+            "type": "string",
+            "enum": [
+                "started",
+                "initialized",
+                "message",
+                "failed"
+            ]
+        },
+        "message": {
+            "type": "string"
+        }
+    },
+    "required": [
+        "name",
+        "status"
+    ],
+    "additionalItems": false
+}

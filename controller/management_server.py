@@ -1,128 +1,113 @@
 import socket
 import threading
-import time
 import json
 
 from loguru import logger
-from enum import Enum
+from jsonschema import validate
 
 from utils.interfaces import Dismantable
-from utils.config_store import ConfigStore
 
-class AgentManagementState(Enum):
-    UNKNOWN = 0
-    STARTED = 1
-    INSTALLED = 2
-    IN_EXPERIMENT = 3
-    FINISHED = 4
-    DISMANTLE = 5
-
-
-class ManagementConnectionManager():
-    def __init__(self):
-        self.map = {}
-    
-    def add_connection(self, name, addr, connection):
-        if name in self.map:
-            logger.warning(f"Management: {name} was already registered!")
-        
-        self.map[name] = {
-            "addr": addr, 
-            "connection": connection, 
-            "state": AgentManagementState.UNKNOWN
-        }
-        logger.info(f"Management: Client {name} was registered!")
-    
-    def remove_connection(self, name):
-        if not name in self.map:
-            return
-        self.map.pop(name)
-        logger.info(f"Management: Client {name} was unregistered!")
-    
-    def change_state(self, name: str, state: AgentManagementState):
-        if name not in self.map:
-            logger.warning(f"Management: {name} was not registered!")
-            return
-        
-        self.map[name]["state"] = state
-        logger.info(f"Management: Client {name} changed state to {state}")
-
-    def get_agent_state(self, name: str) -> AgentManagementState:
-        if name not in self.map:
-            return AgentManagementState.UNKNOWN
-        
-        return self.map[name]["state"]
-    
-    def get_agent_remote_addr(self, name: str) -> str | None:
-        if name not in self.map:
-            return None
-        
-        return self.map[name]["addr"][0]
-    
-    def send_agent_message(self, name: str, message: bytes):
-        if name not in self.map:
-            raise Exception(f"Agent {name} was not registered!")
-        
-        self.map[name]["connection"].send_message(message)
-
+import state_manager
 
 class ManagementClientConnection(threading.Thread):
     __MAX_FRAME_LEN = 8192
 
-    def __init__(self, addr, client_socket: socket, manager: ManagementConnectionManager):
+    message_schema = None
+
+    def __init__(self, addr, client_socket: socket, manager: state_manager.MachineStateManager):
         threading.Thread.__init__(self)
         self.addr = addr
         self.client_socket = client_socket
         self.manager = manager
         self.daemon = True
-        self.connected_instance = None
         self.stop_event = threading.Event()
-        self.client_name = None
+        self.client = None
+
+        if ManagementClientConnection.message_schema is None:
+            with open("assets/statusmsg.schema.json", "r") as handle:
+                ManagementClientConnection.message_schema = json.load(handle)
 
     def run(self):
-        logger.debug(f"Management: Client connected: {self.addr}")
+        logger.debug(f"Management: Client  {self.addr} connected")
         self.client_socket.settimeout(0.5)
         while not self.stop_event.is_set():
             try:
                 data = self.client_socket.recv(ManagementClientConnection.__MAX_FRAME_LEN)
                 if len(data) == 0:
-                    logger.debug(f"Management: Client disconnected: {self.addr}")
+                    logger.debug(f"Management: Client {self.addr} disconnected")
                     break
 
                 try:
                     json_data = json.loads(data.decode("utf-8"))
+                    validate(schema=ManagementClientConnection.message_schema, instance=json_data)
                 except Exception as ex:
-                    logger.opt(exception=ex).error(f"Management: Client JSON decoce error {self.addr}")
-                
-                # TODO: Parse.
-                self.name = data.decode("utf-8").strip()
-                self.manager.add_connection(self.name, self.addr, self)
-                self.manager.change_state(self.name, AgentManagementState.STARTED)
+                    logger.opt(exception=ex).error(f"Management: Client {self.addr} message parsing error")
+                    break
+
+                if self.client is None:
+                    self.client = self.manager.get_machine(json_data["name"])
+                    if self.client is None:
+                        logger.error(f"Management: Client {self.addr} reported invalid instance name: {json_data['name']}")
+                        break
+                    self.client.connect(self.addr, self)
+                else:
+                    if self.client.name != json_data["name"]:
+                        logger.error(f"Management: Client {self.addr} reported name {self.client.name} before, now {json_data['name']}")
+                        break
+                {"name": "vma", "status": "initialized", "message": "Hello!"}
+                match json_data["status"]:
+                    case "started":
+                        self.client.set_state(state_manager.AgentManagementState.STARTED)
+                        logger.info(f"Management: Client {self.client.name} started. Sending setup instructions.")
+                        self.send_message(json.dumps({
+                            "status": "initialize",
+                            "script": self.client.get_setup_env()[0],
+                            "environment": self.client.get_setup_env()[1]
+                        }).encode("utf-8"))
+                    case "initialized":
+                        self.client.set_state(state_manager.AgentManagementState.INITIALIZED)
+                        logger.info(f"Management: Client {self.client.name} initialized.")
+                    case "message":
+                        pass
+                    case "failed":
+                        self.client.set_state(state_manager.AgentManagementState.FAILED)
+                        if "message" in json_data:
+                            logger.error(f"Management: Client {self.client.name} reported failure with message: {json_data['message']}.")
+                        else:
+                            logger.error(f"Management: Client {self.client.name} reported failure without message.")
+                        break
+                    case _:
+                        logger.warning(f"Management: Client {self.client.name}: Unkown message type '{json_data['status']}'")
+
+                if "message" in json_data:
+                    logger.warning(f"Management: Client {self.client.name} sends message: {json_data['message']}")
 
             except socket.timeout:
                 continue
             except Exception as ex:
                 logger.opt(exception=ex).error(f"Management: Client error: {self.addr}")
                 break
-        if self.name is not None:
-            self.manager.remove_connection(self.name)
+        
+        if self.client is not None:
+            logger.info(f"Management: Client {self.client.name}: Connection closed.")
+            self.client.disconnect()
+        self.client_socket.close()
 
     def stop(self):
         self.stop_event.set()
 
     def send_message(self, message: bytes):
-        if len(bytes) > ManagementClientConnection.__MAX_FRAME_LEN:
+        if len(message) > ManagementClientConnection.__MAX_FRAME_LEN:
             raise Exception("Message is too long!")
         
-        self.client_socket.sendall(message)
+        self.client_socket.sendall(message + b'\n')
 
 class ManagementServer(Dismantable):
-    def __init__(self, bind_address, config_store: ConfigStore):
+    def __init__(self, bind_address, state_manager: state_manager.MachineStateManager):
         self.bind_address = bind_address
-        self.config_store = config_store
         self.client_threads = []
         self.keep_running = threading.Event()
-        self.manager = ManagementConnectionManager()
+        self.manager = state_manager
         self.is_started = False
 
     def _accept_connections(self):
@@ -131,9 +116,13 @@ class ManagementServer(Dismantable):
                 client_socket, address = self.socket.accept()
                 if self.keep_running.is_set():
                     break
-                client_connection = ManagementClientConnection(address, client_socket, self.manager)
-                client_connection.start()
-                self.client_threads.append(client_connection)
+
+                try:
+                    client_connection = ManagementClientConnection(address, client_socket, self.manager)
+                    client_connection.start()
+                    self.client_threads.append(client_connection)
+                except Exception as ex:
+                    logger.opt(exception=ex).error(f"Management: Unable to accept client {address}")
             except socket.timeout:
                 pass
         
@@ -177,17 +166,3 @@ class ManagementServer(Dismantable):
     
     def is_started(self) -> bool:
         return self.is_started()
-
-    def get_manager(self) -> ManagementConnectionManager:
-        return self.manager
-
-if __name__ == "__main__":
-    m = ManagementServer("127.0.0.1", 8080)
-    m.start()
-    time.sleep(20)
-    print(m.get_manager().get_agent_state("test"))
-    m.get_manager().send_agent_message("test", "Test".encode("utf-8"))
-    time.sleep(20)
-    m.stop()
-    while m.is_started():
-        pass
