@@ -3,7 +3,7 @@ import time
 
 from pathlib import Path
 from loguru import logger
-from typing import List
+from typing import List, Tuple
 
 from helper.network_helper import NetworkBridge
 from helper.fileserver_helper import FileServer
@@ -12,6 +12,9 @@ from utils.interfaces import Dismantable
 from utils.config_tools import load_config, load_vm_initialization
 from management_server import ManagementServer
 from state_manager import MachineStateManager, AgentManagementState
+
+FILESERVER_PORT = 4242
+MANAGEMENT_SERVER_PORT = 4243
 
 class Controller(Dismantable):
     def __init__(self, config_path):
@@ -147,10 +150,9 @@ class Controller(Dismantable):
 
         return True
     
-    def start_management_infrastructure(self) -> bool:
+    def start_management_infrastructure(self, fileserver_addr: Tuple[str, int], mgmt_server_addr: Tuple[str, int]) -> bool:
         try:
-            #file_server = FileServer(self.base_path, (str(self.mgmt_gateway), 4242, ))
-            file_server = FileServer(self.base_path, ("0.0.0.0", 4242, ))
+            file_server = FileServer(self.base_path, fileserver_addr)
             file_server.start()
             self.dismantables.insert(0, file_server)
         except Exception as ex:
@@ -158,8 +160,7 @@ class Controller(Dismantable):
             return False
         
         try:
-            #magamenet_server = ManagementServer((str(self.mgmt_gateway), 4243, ), self.state_manager)
-            magamenet_server = ManagementServer(("0.0.0.0", 4243, ), self.state_manager)
+            magamenet_server = ManagementServer(mgmt_server_addr, self.state_manager)
             magamenet_server.start()
             self.dismantables.insert(0, magamenet_server)
         except Exception as ex:
@@ -169,19 +170,21 @@ class Controller(Dismantable):
         return True
         
     def main(self):
-        if not load_vm_initialization(self.config, self.base_path, self.state_manager):
-            logger.critical("Critical error while loading VM initialization!")
-            return
-
         if not self.setup_local_network():
             logger.critical("Critical error during local network setup!")
             return
+        
+        file_server_addr = (str(self.mgmt_gateway), FILESERVER_PORT, )
+        mgmt_server_addr = (str(self.mgmt_gateway), MANAGEMENT_SERVER_PORT, )
 
-        if not self.start_management_infrastructure():
+        if not load_vm_initialization(self.config, self.base_path, self.state_manager, f"http://{file_server_addr[0]}:{file_server_addr[1]}"):
+            logger.critical("Critical error while loading VM initialization!")
+            return
+
+        if not self.start_management_infrastructure(file_server_addr, mgmt_server_addr):
             logger.critical("Critical error during start of management infrastructure!")
             self.dismantle()
             return
-
 
         if not self.setup_infrastructure():
             logger.critical("Critical error during setup, dismantling!")
@@ -207,12 +210,3 @@ class Controller(Dismantable):
         self.dismantle()
         
         logger.success("Testbed was dismantled!")
-
-
-
-
-
-
-
-
-

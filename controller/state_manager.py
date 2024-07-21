@@ -25,6 +25,9 @@ class MachineState():
     def get_setup_env(self) -> Tuple[str, dict[str, str]]:
         return self.script_file, self.setup_env
     
+    def set_setup_env_entry(self, key: str, value: str):
+        self.setup_env[key] = value
+    
     def get_state(self) -> AgentManagementState:
         return self._state
 
@@ -53,11 +56,13 @@ class MachineStateManager():
         self.waiting_for_state: MachineState | None = None
         self.state_change_semaphore: Semaphore | None = None
     
-    def add_machine(self, name: str, script_file: str, setup_env: dict[str, str]):
+    def add_machine(self, name: str, script_file: str, setup_env: dict[str, str], fileserver: str):
         if name in self.map:
             raise Exception(f"Machine {name} was already configured")
         
         self.map[name] = MachineState(name, script_file, setup_env, self)
+        self.map[name].set_setup_env_entry("INSTANCE_NAME", name)
+        self.map[name].set_setup_env_entry("FILESERVER_ADDRESS", fileserver)
     
     def remove_machine(self, name: str):
         if not name in self.map:

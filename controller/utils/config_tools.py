@@ -29,7 +29,7 @@ def load_config(config_path: Path) -> dict:
     return config
 
 
-def load_vm_initialization(config, base_path: Path, state_manager: state_manager.MachineStateManager) -> bool:
+def load_vm_initialization(config, base_path: Path, state_manager: state_manager.MachineStateManager, fileserver_base: str) -> bool:
     for machine in config["machines"]:
         script_file = None
         env_variables = None
@@ -48,7 +48,7 @@ def load_vm_initialization(config, base_path: Path, state_manager: state_manager
                     logger.critical(f"Unable to load environment dict for VM {machine['name']}")
                     return False
         
-        state_manager.add_machine(machine["name"], script_file, env_variables)
+        state_manager.add_machine(machine["name"], script_file, env_variables, fileserver_base)
 
     return True
     
