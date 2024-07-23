@@ -1,44 +1,60 @@
 import ipaddress
-import subprocess
 import json
 
 from typing import List
 from loguru import logger
 
 from utils.interfaces import Dismantable
+from utils.system_commands import invoke_subprocess
 
 class NetworkBridge(Dismantable):
     @staticmethod
     def check_interfaces_available(interfaces: List[str]):
-        process = subprocess.run(["/usr/sbin/ip", "--brief", "--json", "link", "show"], shell=False, capture_output=True)
+        process = invoke_subprocess(["/usr/sbin/ip", "--brief", "--json", "link", "show"])
         if process.returncode != 0:
             raise Exception(f"Unable to fetch interfaces: {process.stderr}")
         
         json_interfaces = list(map(lambda x: x["ifname"], json.loads(process.stdout.decode("utf-8"))))
+
         return all(x in json_interfaces for x in interfaces)
 
 
     def _run_command(self, command: List[str]):
-        logger.trace("Running command:" + " ".join(command))
-        process = subprocess.run(command, shell=False, capture_output=True)
+        process = invoke_subprocess(command, needs_root=True)
         if process.returncode != 0:
             logger.error(f"Network {self.name}: Command '{' '. join(command)}' failed: {process.stderr.decode('utf-8')}")
             return False
 
         return True
         
-    def __init__(self, name: str):
+    def __init__(self, name: str, clean: bool = False):
         self.name = name
         self.dismantle_action = []
         self.ready = False
 
         if len(name) > 8:
             raise Exception(f"Bridge interface name {self.name} is too long!")
+        
+        is_running =  NetworkBridge.check_interfaces_available([name])
 
-        if not self._run_command(["/usr/sbin/brctl", "addbr", self.name]):
-            raise Exception(f"Setup of bridge {self.name} failed")
+        if is_running and clean:
+            logger.info(f"Bridge {self.name} exists, --clean is set, so deleting bridge.")
+            
+            if not self._run_command(["/usr/sbin/ip", "link", "set", "down", "dev", self.name]):
+                raise Exception(f"Unable to bring bridge {self.name} down")
 
-        self.dismantle_action.insert(0, ["/usr/sbin/brctl", "delbr", self.name])
+            if not self._run_command(["/usr/sbin/brctl", "delbr", self.name]):
+                raise Exception(f"Deletion of bridge {self.name} failed")
+            
+            is_running = False
+
+        if is_running:
+            logger.info(f"Bridge {self.name} exists, skipping creation (Concurrent testbeds?)")
+        else:
+            if not self._run_command(["/usr/sbin/brctl", "addbr", self.name]):
+                raise Exception(f"Setup of bridge {self.name} failed")
+
+            self.dismantle_action.insert(0, ["/usr/sbin/brctl", "delbr", self.name])
 
         logger.info(f"Network {self.name}: Bridge ready!")
         self.ready = True
@@ -75,8 +91,7 @@ class NetworkBridge(Dismantable):
     def add_device(self, interface: str, undo: bool = False) -> bool:
         logger.debug(f"Network {self.name}: Adding interface {interface} to bridge.")
 
-        process = subprocess.run(["/usr/sbin/ip", "--json", "link", "show"], 
-                                 capture_output=True, shell=False)
+        process = invoke_subprocess(["/usr/sbin/ip", "--json", "link", "show"])
         if process.returncode != 0:
             raise Exception(f"Unable to check interface {interface}: {process.stderr.decode('utf-8')}")
         
@@ -120,8 +135,7 @@ class NetworkBridge(Dismantable):
         logger.info(f"Network {self.name}: NAT: Enabling NAT for {str(nat)}!")
 
         # Get default prefsrc
-        process = subprocess.run(["/usr/sbin/ip", "--json", "route"], 
-                                 capture_output=True, shell=False)
+        process = invoke_subprocess(["/usr/sbin/ip", "--json", "route"])
         if process.returncode != 0:
             raise Exception(f"NAT: Unable to check default route: {process.stderr.decode('utf-8')}")
 

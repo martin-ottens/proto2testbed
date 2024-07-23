@@ -18,12 +18,7 @@
                     "type": "string"
                 }
             },
-            "additionalItems": false,
-            "required": [
-                "machines_internet_access",
-                "auto_dismantle_seconds",
-                "management_network"
-            ]
+            "additionalItems": false
         },
         "networks": {
             "type": "array",
@@ -99,8 +94,6 @@
                     "diskimage",
                     "setup_script",
                     "environment",
-                    "cores",
-                    "memory",
                     "networks"
                 ]
             }

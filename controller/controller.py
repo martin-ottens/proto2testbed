@@ -10,6 +10,7 @@ from helper.fileserver_helper import FileServer
 from helper.vm_helper import VMWrapper
 from utils.interfaces import Dismantable
 from utils.config_tools import load_config, load_vm_initialization
+from utils.settings import SettingsWrapper
 from management_server import ManagementServer
 from state_manager import MachineStateManager, AgentManagementState
 
@@ -17,14 +18,17 @@ FILESERVER_PORT = 4242
 MANAGEMENT_SERVER_PORT = 4243
 
 class Controller(Dismantable):
-    def __init__(self, config_path):
+    def __init__(self):
+        if SettingsWrapper.cli_paramaters is None:
+            raise Exception("No CLIParamaters class object was set before calling the controller")
+
         self.networks = None
         self.dismantables: List[Dismantable] = []
         self.state_manager: MachineStateManager = MachineStateManager()
 
-        self.base_path = Path(config_path)
+        self.base_path = Path(SettingsWrapper.cli_paramaters.config)
         self.config_path = self.base_path / "testbed.json"
-        self.config = load_config(self.config_path)
+        SettingsWrapper.testbed_config = load_config(self.config_path)
     
     def _destory(self) -> None:
         self.setup_env = None
@@ -50,7 +54,7 @@ class Controller(Dismantable):
         return f"Controller"
     
     def setup_local_network(self) -> bool:
-        self.mgmt_network = ipaddress.IPv4Network(self.config["settings"]["management_network"])
+        self.mgmt_network = ipaddress.IPv4Network(SettingsWrapper.testbed_config.settings.management_network)
         self.mgmt_ips = list(self.mgmt_network.hosts())
         self.mgmt_netmask = ipaddress.IPv4Network(f"0.0.0.0/{self.mgmt_network.netmask}").prefixlen
 
@@ -58,11 +62,11 @@ class Controller(Dismantable):
         self.networks = {}
 
         try:
-            mgmt_bridge = NetworkBridge("br-mgmt")
+            mgmt_bridge = NetworkBridge("br-mgmt", SettingsWrapper.cli_paramaters.clean)
             self.dismantables.insert(0, mgmt_bridge)
             self.mgmt_gateway = self.mgmt_ips.pop(0)
             mgmt_bridge.setup_local(ip=ipaddress.IPv4Interface(f"{self.mgmt_gateway}/{self.mgmt_netmask}"), 
-                                    nat=self.mgmt_network if self.config["settings"]["machines_internet_access"] == True else None)
+                                    nat=self.mgmt_network if SettingsWrapper.testbed_config.settings.machines_internet_access == True else None)
             mgmt_bridge.start_bridge()
             self.networks["br-mgmt"] = mgmt_bridge
         except Exception as ex:
@@ -73,34 +77,34 @@ class Controller(Dismantable):
 
     def setup_infrastructure(self) -> bool:
         if self.networks is None:
-            logger.critical("Infrastructure setuo was called before local network setup!")
+            logger.critical("Infrastructure setup was called before local network setup!")
             return False
 
-        for network in self.config["networks"]:
+        for network in SettingsWrapper.testbed_config.networks:
             try:
-                bridge = NetworkBridge(network["name"])
+                bridge = NetworkBridge(network.name, SettingsWrapper.cli_paramaters.clean)
                 self.dismantables.insert(0, bridge)
-                for pyhsical_port in network["physical_ports"]:
+                for pyhsical_port in network.physical_ports:
                     bridge.add_device(pyhsical_port)
                 bridge.start_bridge()
-                self.networks[network["name"]] = bridge
+                self.networks[network.name] = bridge
             except Exception as ex:
-                logger.opt(exception=ex).critical(f"Unable to setup additional network {network['name']}")
+                logger.opt(exception=ex).critical(f"Unable to setup additional network {network.name}")
                 return False
             
         # Setup VMs
         machines = {}
         wait_for_interfaces = ["br-mgmt"]
-        for index, machine in enumerate(self.config["machines"]):
+        for index, machine in enumerate(SettingsWrapper.testbed_config.machines):
             extra_interfaces = {}
 
-            for if_index, if_bridge in enumerate(machine["networks"]):
+            for if_index, if_bridge in enumerate(machine.networks):
                 if_int_name = f"v_{index}_{if_index}"
                 extra_interfaces[if_int_name] = if_bridge
                 wait_for_interfaces.append(if_int_name)
 
             try:
-                diskimage_path = Path(machine["diskimage"])
+                diskimage_path = Path(machine.diskimage)
 
                 if not diskimage_path.is_absolute():
                     diskimage_path = self.base_path / diskimage_path
@@ -108,7 +112,7 @@ class Controller(Dismantable):
                 if not diskimage_path.exists():
                     raise Exception(f"Unable to find diskimage '{diskimage_path}'")
 
-                wrapper = VMWrapper(name=machine["name"],
+                wrapper = VMWrapper(name=machine.name,
                                     management={
                                         "interface": f"v_{index}_m",
                                         "ip": ipaddress.IPv4Interface(f"{self.mgmt_ips.pop(0)}/{self.mgmt_netmask}"),
@@ -116,15 +120,16 @@ class Controller(Dismantable):
                                     },
                                     extra_interfaces=extra_interfaces.keys(),
                                     image=str(diskimage_path),
-                                    cores=machine["cores"],
-                                    memory=machine["memory"])
+                                    cores=machine.cores,
+                                    memory=machine.memory)
                 self.dismantables.insert(0, wrapper)
                 wrapper.start_instance()
                 extra_interfaces[f"v_{index}_m"] = "br-mgmt"
-                machines[machine["name"]] = (wrapper, extra_interfaces, )
+                machines[machine.name] = (wrapper, extra_interfaces, )
             except Exception as ex:
-                logger.opt(exception=ex).critical(f"Unable to setup and start VM {machine['name']}")
-        
+                logger.opt(exception=ex).critical(f"Unable to setup and start VM {machine.name}")
+                return False
+
         # Wait for tap devices to become ready
         wait_until = time.time() * 20
         while True:
@@ -177,7 +182,7 @@ class Controller(Dismantable):
         file_server_addr = (str(self.mgmt_gateway), FILESERVER_PORT, )
         mgmt_server_addr = (str(self.mgmt_gateway), MANAGEMENT_SERVER_PORT, )
 
-        if not load_vm_initialization(self.config, self.base_path, self.state_manager, f"http://{file_server_addr[0]}:{file_server_addr[1]}"):
+        if not load_vm_initialization(SettingsWrapper.testbed_config, self.base_path, self.state_manager, f"http://{file_server_addr[0]}:{file_server_addr[1]}"):
             logger.critical("Critical error while loading VM initialization!")
             return
 
@@ -199,7 +204,7 @@ class Controller(Dismantable):
             return
         logger.success("All VMs reported up & ready!")
 
-        wait_seconds = self.config["settings"]["auto_dismantle_seconds"]
+        wait_seconds = SettingsWrapper.testbed_config.settings.auto_dismantle_seconds
         logger.success(f"Testbed is ready, CRTL+C to dismantle (Auto stop after {wait_seconds}s)")
 
         try: 

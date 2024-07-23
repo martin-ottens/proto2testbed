@@ -140,7 +140,7 @@ class ManagementServer(Dismantable):
 
         self.accept_thread = threading.Thread(target=self._accept_connections, daemon=True)
         self.accept_thread.start()
-        logger.debug(f"Management: Server listing at {self.bind_address}")
+        logger.info(f"Management: Server listing at {self.bind_address}")
         self.is_started = True
 
     def stop(self):

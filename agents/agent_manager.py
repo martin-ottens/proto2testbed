@@ -123,36 +123,38 @@ def main():
             raise Exception("Initialization message error: Environment should be a dict")
 
         # 2.2 Download initialization script from file server
-        exec_dir = tempfile.mkdtemp()
-        setup_script_basename = os.path.basename(installation_data.get('script'))
-        setup_script = f"{exec_dir}/{setup_script_basename}"
-        try:
-            urllib.request.urlretrieve(f"http://{management_server_addr}:{FILE_SERVER_PORT}/{installation_data.get('script')}", setup_script)
-        except Exception as ex:
-            message = DownstreamMassage("failed", "Unable to fetch script file")
-            manager.send_to_server(message)
-            raise Exception(f"Unable to retrive script file {installation_data.get('script')} from file server") from ex
+        
+        if installation_data.get('script') is not None:
+            exec_dir = tempfile.mkdtemp()
+            setup_script_basename = os.path.basename(installation_data.get('script'))
+            setup_script = f"{exec_dir}/{setup_script_basename}"
+            try:
+                urllib.request.urlretrieve(f"http://{management_server_addr}:{FILE_SERVER_PORT}/{installation_data.get('script')}", setup_script)
+            except Exception as ex:
+                message = DownstreamMassage("failed", "Unable to fetch script file")
+                manager.send_to_server(message)
+                raise Exception(f"Unable to retrive script file {installation_data.get('script')} from file server") from ex
 
-        # 2.3. Setup execution environment and launch script
-        os.chmod(setup_script, 0o744)
-        os.chdir(exec_dir)
-        for key, value in installation_data.get('environment').items():
-            os.environ[key] = value
-        
-        proc = None
-        try:
-            proc = subprocess.run(["/bin/bash", setup_script_basename], capture_output=True, shell=False)
-        except Exception as ex:
-            message = DownstreamMassage("failed", 
-                                        f"Setup script failed:\nMESSAGE: {ex}")
-            manager.send_to_server(message)
-            raise Exception(f"Unable to run setup_script") from ex
-        
-        if proc is not None and proc.returncode != 0:
-            message = DownstreamMassage("failed", 
-                                        f"Setup script failed ({proc.returncode})\nSTDOUT: {proc.stdout}\nSTDERR: {proc.stderr}")
-            manager.send_to_server(message)
-            raise Exception(f"Unable to run setup_script': {proc.stderr}")
+            # 2.3. Setup execution environment and launch script
+            os.chmod(setup_script, 0o744)
+            os.chdir(exec_dir)
+            for key, value in installation_data.get('environment').items():
+                os.environ[key] = value
+            
+            proc = None
+            try:
+                proc = subprocess.run(["/bin/bash", setup_script_basename], capture_output=True, shell=False)
+            except Exception as ex:
+                message = DownstreamMassage("failed", 
+                                            f"Setup script failed:\nMESSAGE: {ex}")
+                manager.send_to_server(message)
+                raise Exception(f"Unable to run setup_script") from ex
+            
+            if proc is not None and proc.returncode != 0:
+                message = DownstreamMassage("failed", 
+                                            f"Setup script failed ({proc.returncode})\nSTDOUT: {proc.stdout}\nSTDERR: {proc.stderr}")
+                manager.send_to_server(message)
+                raise Exception(f"Unable to run setup_script': {proc.stderr}")
 
         # 2.4. Report status to management server
         message = DownstreamMassage("initialized")

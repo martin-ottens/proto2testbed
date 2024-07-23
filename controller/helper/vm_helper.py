@@ -11,6 +11,7 @@ from loguru import logger
 from typing import List, Dict
 
 from utils.interfaces import Dismantable
+from utils.system_commands import invoke_subprocess, invoke_pexpect
 
 class VMWrapper(Dismantable):
     __QEMU_NIC_TEMPLATE     = "-nic tap,model=e1000,ifname={tapname},mac={mac} "
@@ -83,9 +84,8 @@ class VMWrapper(Dismantable):
                 handle.write(network_config)
 
             cloud_init_iso = str(Path(self.tempdir.name) / "cloud-init.iso")
-            process = subprocess.run([VMWrapper.__CLOUD_INIT_ISO_TEMPLATE.format(input=init_files, output=cloud_init_iso)], 
-                                    shell=True, 
-                                    capture_output=True)
+            process = invoke_subprocess([VMWrapper.__CLOUD_INIT_ISO_TEMPLATE.format(input=init_files, output=cloud_init_iso)],
+                                        shell=True)
             
             if process.returncode != 0:
                 raise Exception(f"Unbale to run genisoimage: {process.stderr.decode('utf-8')}")
@@ -134,7 +134,7 @@ class VMWrapper(Dismantable):
 
         logger.debug(f"VM {self.name}: Starting instance ...")
         try:
-            self.qemu_handle = pexpect.spawn(self.qemu_command, timeout=None, encoding="utf-8")
+            self.qemu_handle = invoke_pexpect(self.qemu_command, needs_root=True)
             if self.debug:
                 self.qemu_handle.logfile = sys.stdout
             self.qemu_handle.expect_exact("(qemu)", timeout=10)
