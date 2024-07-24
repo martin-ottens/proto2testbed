@@ -173,6 +173,22 @@ class Controller(Dismantable):
             return False
 
         return True
+    
+    def wait_before_release(self, on_demand: bool = False):
+        sleep_for = SettingsWrapper.testbed_config.settings.auto_dismantle_seconds
+        if SettingsWrapper.cli_paramaters.wait == -1:
+            sleep_for = 10_000_000
+        elif SettingsWrapper.cli_paramaters.wait != 0:
+            sleep_for = SettingsWrapper.cli_paramaters.wait
+
+        if on_demand:
+            logger.success(f"Testbed paused at stage {SettingsWrapper.cli_paramaters.pause}, CRTL+C to dismantle (Auto stop after {sleep_for}s)")
+        else:
+            logger.success(f"Testbed is ready, CRTL+C to dismantle (Auto stop after {sleep_for}s)")
+        
+        try: time.sleep(sleep_for)
+        except KeyboardInterrupt:
+            return
         
     def main(self):
         if not self.setup_local_network():
@@ -195,6 +211,10 @@ class Controller(Dismantable):
             logger.critical("Critical error during setup, dismantling!")
             self.dismantle()
             return
+        
+        if SettingsWrapper.cli_paramaters.pause == "SETUP":
+            self.wait_before_release(on_demand=True)
+            return
 
         # TODO: Wait for machines to become started and directly set them up
         logger.info("Waiting for VMs to start and initialize ...")
@@ -204,14 +224,8 @@ class Controller(Dismantable):
             return
         logger.success("All VMs reported up & ready!")
 
-        wait_seconds = SettingsWrapper.testbed_config.settings.auto_dismantle_seconds
-        logger.success(f"Testbed is ready, CRTL+C to dismantle (Auto stop after {wait_seconds}s)")
+        if SettingsWrapper.cli_paramaters.pause == "INIT":
+            self.wait_before_release(on_demand=True)
+            return
 
-        try: 
-            time.sleep(wait_seconds)
-        except KeyboardInterrupt:
-            logger.info("Starting dismantle!")
-
-        self.dismantle()
-        
-        logger.success("Testbed was dismantled!")
+        self.wait_before_release()

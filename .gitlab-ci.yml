@@ -4,6 +4,10 @@ stages:
 build-manager-package:
   stage: build
   image: debian:latest
+  rules:
+    - changes:
+        - instance_manager/*
+        - .gitlab-ci.yml
   before_script:
     - apt update && apt install make
   script:

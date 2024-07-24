@@ -49,4 +49,7 @@ if __name__ == "__main__":
         logger.critical("Unable to start: You need to be root!")
         sys.exit(1)
 
-    Controller().main()
+    controller = Controller()
+    controller.main()
+    controller.dismantle()
+    logger.success("Testbed was dismantled!")
