@@ -1,0 +1,15 @@
+stages:
+  - build
+
+build-manager-package:
+  stage: build
+  image: debian:latest
+  before_script:
+    - apt update && apt install make
+  script:
+    - make -C ./instance-manager all
+  artifacts:
+    name: "Instance Manager .deb Package"
+    expire_in: 1 day
+    paths:
+      - ./instance-manager/instance-manager.deb

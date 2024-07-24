@@ -6,7 +6,7 @@ After=network-online.target
 [Service]
 User=root
 WorkingDirectory=/usr/lib/instance-manager
-ExecStart=python3 agent_manager.py 
+ExecStart=python3 manager_main.py 
 Restart=on-failure
 RestartSec=5
 StartLimitBurst=10

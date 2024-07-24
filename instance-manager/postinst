@@ -4,5 +4,5 @@ set -e
 systemctl daemon-reload
 
 # Omit --now: Service will be started on next boot
-systemctl enable test.service
+systemctl enable instance-manager.service
 
