@@ -1,0 +1,8 @@
+Package: testbed-instance-manager
+Version: 1.0-0
+Section: base
+Priority: optional
+Architecture: all
+Depends: cloud-init, python3
+Maintainer: Martin Ottens <martin.ottens@fau.de>
+Description: Package installed on a Debian-based instance image for Proto-Testbed
