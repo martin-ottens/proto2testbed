@@ -24,13 +24,26 @@
    ```bash
    umount /tmp/isomount
    ```
-## TODO:
+6. Start QEMU normally
+   ```bash
+   qemu-system-x86_64 -m 1G -hda <DISKIMAGE>.qcow2 \
+        -enable-kvm -boot c \
+        -nographic -serial mon:stdio \
+        -virtfs local,path=<PATH TO instance-manager.deb>,mount_tag=host0,security_model=passthrough,id=host0
+   ```
+7. The serial console of the system attaches, login as root
+8. On the machine, install all requirements:
+   ```bash
+   mount -t 9p -o trans=virtio host0 /mnt
+   apt install ./mnt/instance-manager.deb
+   echo "nameserver 1.1.1.1" > /etc/resolv.conf
+   sed -i 's/GRUB_TIMEOUT=5/GRUB_TIMEOUT=0/' /etc/default/grub
+   update-grub2
+   # Do your individual setup stuff
+   ```
+9. Shut down the machine, the image is ready.
+   ```bash
+   shutdown now
+   ```
 
-6. Prepare System
-   1. Mount `<DISKIMAGE>` 
-   2. Setup GRUB/Debian to use tty
-   3. Copy Installation Package
-   4. Unmount `<DISKIMAGE>`
-
-7. Start VM and finish installation of the Base Image
 

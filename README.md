@@ -2,7 +2,19 @@
 
 ## Installation of required Dependencies on Host
 ```bash
-apt install qemu-utils qemu-system-x86 qemu-system-gui bidge-utils iptables net-tools genisoimage
+apt install qemu-utils qemu-system-x86 qemu-system-gui bidge-utils iptables net-tools genisoimage python3 iproute2
+```
+
+## Python Dependencies
+### Debian Packages
+```bash
+apt install python3-jinja2 python3-pexpect python3-logura python3-jsonschema
+```
+
+### Virtual Environment
+```bash
+apt install python3-virtualenv
+# TODO
 ```
 
 ## Image Creation
@@ -23,36 +35,6 @@ apt install cloud-init
 sed -i 's/GRUB_TIMEOUT=5/GRUB_TIMEOUT=0/' /etc/default/grub
 update-grub2
 shutdown now
-```
-
-## Management Network
-- VMs Management Interface: `172.16.99.0/24`
-- Host Management Interface: `172.16.99.1/24`
-- Host Public Address: `10.2.30.20/24`
-
-Example Wrapper Code:
-```python
-vma = VMWrapper(
-    name="vma.test.system", 
-    management_interface="vma-mgmt", 
-    experiment_interface="vma-exp", 
-    management_ip="172.16.99.2", 
-    management_server="172.16.99.1", 
-    image="/root/image.qcow2"
-)
-vmb = VMWrapper(
-    name="vmb.test.system", 
-    management_interface="vmb-mgmt", 
-    experiment_interface="vmb-exp", 
-    management_ip="172.16.99.3", 
-    management_server="172.16.99.1", 
-    image="/root/image.qcow2"
-)
-vma.start_instance()
-vmb.start_instance()
-time.sleep(600 * 10)
-vma.stop_instance()
-vmb.stop_instance()
 ```
 
 ```bash
