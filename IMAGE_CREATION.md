@@ -14,7 +14,7 @@
    ```bash
    qemu-system-x86_64 -m 1G -hda <DISKIMAGE>.qcow2 \
         -cdrom <ISO> -boot d \
-        -nographic -serial mon:stdio 
+        -nographic -serial mon:stdio \
         -kernel /tmp/isomount/install.amd/vmlinuz \
         -initrd /tmp/isomount/install.amd/initrd.gz \
         -enable-kvm -cpu host -no-reboot \
@@ -35,7 +35,7 @@
 8. On the machine, install all requirements:
    ```bash
    mount -t 9p -o trans=virtio host0 /mnt
-   apt install ./mnt/instance-manager.deb
+   apt install /mnt/instance-manager.deb
    # Do your individual setup stuff
    ```
 9. Shut down the machine, the image is ready.
