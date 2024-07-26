@@ -6,7 +6,7 @@ build-manager-package:
   image: debian:latest
   rules:
     - changes:
-        - instance_manager/*
+        - instance-manager/*
         - .gitlab-ci.yml
   before_script:
     - apt update && apt install make
