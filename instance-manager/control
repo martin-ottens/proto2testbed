@@ -3,6 +3,6 @@ Version: 1.0-0
 Section: base
 Priority: optional
 Architecture: all
-Depends: cloud-init, python3
+Depends: cloud-init, python3, sudo, net-tools, iproute2, nmap
 Maintainer: Martin Ottens <martin.ottens@fau.de>
 Description: Package installed on a Debian-based instance image for Proto-Testbed

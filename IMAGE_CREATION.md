@@ -36,14 +36,9 @@
    ```bash
    mount -t 9p -o trans=virtio host0 /mnt
    apt install ./mnt/instance-manager.deb
-   echo "nameserver 1.1.1.1" > /etc/resolv.conf
-   sed -i 's/GRUB_TIMEOUT=5/GRUB_TIMEOUT=0/' /etc/default/grub
-   update-grub2
    # Do your individual setup stuff
    ```
 9. Shut down the machine, the image is ready.
    ```bash
    shutdown now
    ```
-
-

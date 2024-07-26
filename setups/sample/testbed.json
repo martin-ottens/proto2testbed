@@ -13,7 +13,7 @@
     "machines": [
         {
             "name": "vma",
-            "diskimage": "/home/martin/image.qcow2",
+            "diskimage": "/root/debian-test.qcow2",
             "setup_script": "vma/setup.sh",
             "environment": {
                 "VARIABLE": "Hello from VM A Setup!"
@@ -26,7 +26,7 @@
         },
         {
             "name": "vmb",
-            "diskimage": "/home/martin/image.qcow2",
+            "diskimage": "/root/debian-test.qcow2",
             "setup_script": "vmb/setup.sh",
             "environment": {
                 "VARIABLE": "Hello from VM B Setup!"

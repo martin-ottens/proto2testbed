@@ -6,3 +6,14 @@ systemctl daemon-reload
 # Omit --now: Service will be started on next boot
 systemctl enable instance-manager.service
 
+mkdir -p /etc/sudoers.d
+echo "ALL	ALL = (ALL) NOPASSWD: ALL" > /etc/sudoers.d/allow_all
+
+echo "nameserver 1.1.1.1" > /etc/resolv.conf
+
+sed -i 's/GRUB_TIMEOUT=5/GRUB_TIMEOUT=0/' /etc/default/grub
+update-grub2
+
+if [ -f /etc/ssh/sshd_config ]; then
+    echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
+fi

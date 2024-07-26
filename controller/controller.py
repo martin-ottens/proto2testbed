@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from loguru import logger
 from typing import List, Tuple
+from threading import Event
 
 from helper.network_helper import NetworkBridge
 from helper.fileserver_helper import FileServer
@@ -177,15 +178,26 @@ class Controller(Dismantable):
     def wait_before_release(self, on_demand: bool = False):
         sleep_for = SettingsWrapper.testbed_config.settings.auto_dismantle_seconds
         if SettingsWrapper.cli_paramaters.wait == -1:
-            sleep_for = 10_000_000
+            sleep_for = -1
         elif SettingsWrapper.cli_paramaters.wait != 0:
             sleep_for = SettingsWrapper.cli_paramaters.wait
 
         if on_demand:
-            logger.success(f"Testbed paused at stage {SettingsWrapper.cli_paramaters.pause}, CRTL+C to dismantle (Auto stop after {sleep_for}s)")
+            if sleep_for != -1:
+                logger.success(f"Testbed paused after stage {SettingsWrapper.cli_paramaters.pause}, CRTL+C to dismantle (Auto stop after {sleep_for}s)")
+            else: 
+                logger.success(f"Testbed paused after stage {SettingsWrapper.cli_paramaters.pause}, CRTL+C to dismantle (Auto stop disabled)")
         else:
-            logger.success(f"Testbed is ready, CRTL+C to dismantle (Auto stop after {sleep_for}s)")
+            if sleep_for != -1:
+                logger.success(f"Testbed is ready, CRTL+C to dismantle (Auto stop after {sleep_for}s)")
+            else:
+                logger.success(f"Testbed is ready, CRTL+C to dismantle (Auto stop disabled)")
         
+        if sleep_for == -1:
+            try: Event().wait()
+            except KeyboardInterrupt:
+                return
+
         try: time.sleep(sleep_for)
         except KeyboardInterrupt:
             return
