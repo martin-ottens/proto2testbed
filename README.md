@@ -13,30 +13,20 @@ apt install python3-jinja2 python3-pexpect python3-logura python3-jsonschema
 
 ### Virtual Environment
 ```bash
-apt install python3-virtualenv
-# TODO
+apt install python3-virtualenv python3-pip
+virtualenv -p python3 venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## Image Creation
-Connect to the Host with SSH X-Forwarding.
-
+## Start Example
 ```bash
-qemu-img create -f qcow2 image.qcow2 4G
-wget https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.6.0-amd64-netinst.iso
-qemu-system-x86_64 -hda image.qcow2 -cdrom debian-12.6.0-amd64-netinst.iso -boot d -m 1024 -enable-kvm
-# Optional: add -nographic -vnc :0 to enable VNC access to the VM
+cd controller
+python3 main.py ../setups/sample
 ```
+See `python3 main.py --help` for additional arguments.
 
-Install the OS, on the VM do at least the following steps as root:
-```bash
-# Do your idividual VM setup stuff [...]
-echo "nameserver 1.1.1.1" > /etc/resolv.conf
-apt install cloud-init
-sed -i 's/GRUB_TIMEOUT=5/GRUB_TIMEOUT=0/' /etc/default/grub
-update-grub2
-shutdown now
-```
-
+## Background functions
 ```bash
 brctl addbr br-mgmt
 ip addr add 172.16.99.1/24 dev br-mgmt

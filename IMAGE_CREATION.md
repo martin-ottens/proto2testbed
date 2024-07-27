@@ -1,4 +1,6 @@
-# Headless Debian Base Image Creation
+# Image Creation
+
+## Headless Debian Base Image Creation
 
 1. Download Debian ISO -> `<ISO>`
 2. Prepare Disk Image
@@ -42,3 +44,24 @@
    ```bash
    shutdown now
    ```
+
+## Basic / Graphical Base Image Creation
+
+Connect to the Host with SSH X-Forwarding.
+
+```bash
+qemu-img create -f qcow2 image.qcow2 4G
+wget https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.6.0-amd64-netinst.iso
+qemu-system-x86_64 -hda image.qcow2 -cdrom debian-12.6.0-amd64-netinst.iso -boot d -m 1024 -enable-kvm
+# Optional: add -nographic -vnc :0 to enable VNC access to the VM
+```
+
+Install the OS, on the VM do at least the following steps as root:
+```bash
+# Do your idividual VM setup stuff [...]
+echo "nameserver 1.1.1.1" > /etc/resolv.conf
+apt install cloud-init
+sed -i 's/GRUB_TIMEOUT=5/GRUB_TIMEOUT=0/' /etc/default/grub
+update-grub2
+shutdown now
+```
