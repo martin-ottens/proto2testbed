@@ -3,8 +3,11 @@ import pexpect
 
 from typing import List
 from loguru import logger
+from pathlib import Path
 
-from utils.settings import SettingsWrapper
+def get_asset_relative_to(base, file) -> str:
+    return f"{Path(base).parent.resolve()}/{file}"
+
 
 def log_trace(func):
     def wrap(*args, **kwargs):

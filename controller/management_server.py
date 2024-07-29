@@ -4,8 +4,10 @@ import json
 
 from loguru import logger
 from jsonschema import validate
+from pathlib import Path
 
 from utils.interfaces import Dismantable
+from utils.system_commands import get_asset_relative_to
 from common.instance_manager_message import *
 
 import state_manager
@@ -25,7 +27,7 @@ class ManagementClientConnection(threading.Thread):
         self.client = None
 
         if ManagementClientConnection.message_schema is None:
-            with open("assets/statusmsg.schema.json", "r") as handle:
+            with open(get_asset_relative_to(__file__, "assets/statusmsg.schema.json"), "r") as handle:
                 ManagementClientConnection.message_schema = json.load(handle)
 
     def run(self):

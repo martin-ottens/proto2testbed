@@ -11,7 +11,7 @@ from loguru import logger
 from typing import List, Dict
 
 from utils.interfaces import Dismantable
-from utils.system_commands import invoke_subprocess, invoke_pexpect
+from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_relative_to
 
 class VMWrapper(Dismantable):
     __QEMU_NIC_TEMPLATE     = "-nic tap,model=e1000,ifname={tapname},mac={mac} "
@@ -57,7 +57,7 @@ class VMWrapper(Dismantable):
             init_files = Path(self.tempdir.name) / "cloud-init"
             os.mkdir(init_files)
 
-            j2_env = Environment(loader=FileSystemLoader("./vm_templates/"))
+            j2_env = Environment(loader=FileSystemLoader(get_asset_relative_to(__file__, "../vm_templates/")))
 
             meta_data = j2_env.get_template("meta-data.j2").render()
             with open(init_files / "meta-data", mode="w", encoding="utf-8") as handle:

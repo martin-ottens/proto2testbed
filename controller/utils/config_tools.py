@@ -7,6 +7,7 @@ from collections import namedtuple
 
 import state_manager
 from utils.settings import *
+from utils.system_commands import get_asset_relative_to
 
 def load_config(config_path: Path) -> TestbedConfig:
     if not config_path.exists():
@@ -19,7 +20,7 @@ def load_config(config_path: Path) -> TestbedConfig:
         logger.opt(exception=ex).critical("Unable to parse config json")
         raise Exception(f"Unable to parse config {config_path}")
 
-    with open("assets/config.schema.json", "r") as handle:
+    with open(get_asset_relative_to(__file__, "../assets/config.schema.json"), "r") as handle:
         schema = json.load(handle)
 
     try:

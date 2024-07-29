@@ -18,7 +18,10 @@
             ]
         },
         "message": {
-            "type": "string"
+            "type": [
+                "string",
+                "null"
+            ]
         }
     },
     "required": [

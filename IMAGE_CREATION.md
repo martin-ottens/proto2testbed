@@ -37,7 +37,7 @@
 8. On the machine, install all requirements:
    ```bash
    mount -t 9p -o trans=virtio host0 /mnt
-   apt install /mnt/instance-manager.deb
+   apt-get install -y /mnt/instance-manager.deb
    # Do your individual setup stuff
    ```
 9. Shut down the machine, the image is ready.

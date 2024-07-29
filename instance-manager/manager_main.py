@@ -46,7 +46,7 @@ class DownstreamMassage():
             self.message.message = message
 
     def get_json_bytes(self) -> bytes:
-        return self.message.as_json_bytes() + '\n'
+        return self.message.as_json_bytes() + b'\n'
 
 class ManagementClient():
     __MAX_FRAME_LEN = 8192
