@@ -12,6 +12,8 @@ import tempfile
 import shutil
 import urllib.request
 
+from common.instance_manager_message import *
+
 FILE_SERVER_PORT = 4242
 MGMT_SERVER_PORT = 4243
 MGMT_SERVER_RETRY = 5
@@ -38,13 +40,13 @@ def get_default_gateway() -> str:
 
 class DownstreamMassage():
     def __init__(self, status, message = None):
-        self.name = get_hostname()
-        self.status = status
-        self.set_message(message)
+        self.message = InstanceManagerDownstream(get_hostname(), status, message)
     
     def set_message(self, message):
-        if message is not None:
-            self.message = message
+            self.message.message = message
+
+    def get_json_bytes(self) -> bytes:
+        return self.message.as_json_bytes() + '\n'
 
 class ManagementClient():
     __MAX_FRAME_LEN = 8192
@@ -82,8 +84,7 @@ class ManagementClient():
 
     def send_to_server(self, downstream_message: DownstreamMassage):
         try:
-            payload = json.dumps(vars(downstream_message))
-            self.socket.sendall(payload.encode("utf-8") + b'\n')
+            self.socket.sendall(downstream_message.get_json_bytes())
         except Exception as ex:
             raise Exception("Unable to send message to management server") from ex
 
@@ -121,24 +122,26 @@ def main():
 
         if not isinstance(installation_data.get("environment"), dict):
             raise Exception("Initialization message error: Environment should be a dict")
+        
+        init_message = InitializeMessageUpstream(**installation_data)
 
         # 2.2 Download initialization script from file server
         
-        if installation_data.get('script') is not None:
+        if init_message.script is not None:
             exec_dir = tempfile.mkdtemp()
-            setup_script_basename = os.path.basename(installation_data.get('script'))
+            setup_script_basename = os.path.basename(init_message.script)
             setup_script = f"{exec_dir}/{setup_script_basename}"
             try:
-                urllib.request.urlretrieve(f"http://{management_server_addr}:{FILE_SERVER_PORT}/{installation_data.get('script')}", setup_script)
+                urllib.request.urlretrieve(f"http://{management_server_addr}:{FILE_SERVER_PORT}/{init_message.script}", setup_script)
             except Exception as ex:
                 message = DownstreamMassage("failed", "Unable to fetch script file")
                 manager.send_to_server(message)
-                raise Exception(f"Unable to retrive script file {installation_data.get('script')} from file server") from ex
+                raise Exception(f"Unable to retrive script file {init_message.script} from file server") from ex
 
             # 2.3. Setup execution environment and launch script
             os.chmod(setup_script, 0o744)
             os.chdir(exec_dir)
-            for key, value in installation_data.get('environment').items():
+            for key, value in init_message.environment.items():
                 os.environ[key] = value
             
             proc = None

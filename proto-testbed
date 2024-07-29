@@ -1,0 +1,5 @@
+#!/bin/bash
+
+REPO_BASE=$(realpath $(dirname $0))
+
+python3 $REPO_BASE/controller/main.py ${@:1}

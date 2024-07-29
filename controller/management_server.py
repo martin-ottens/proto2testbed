@@ -6,6 +6,7 @@ from loguru import logger
 from jsonschema import validate
 
 from utils.interfaces import Dismantable
+from common.instance_manager_message import *
 
 import state_manager
 
@@ -44,43 +45,44 @@ class ManagementClientConnection(threading.Thread):
                     logger.opt(exception=ex).error(f"Management: Client {self.addr} message parsing error")
                     break
 
+                message_obj = InstanceManagerDownstream(**json_data)
+
                 if self.client is None:
-                    self.client = self.manager.get_machine(json_data["name"])
+                    self.client = self.manager.get_machine(message_obj.name)
                     if self.client is None:
-                        logger.error(f"Management: Client {self.addr} reported invalid instance name: {json_data['name']}")
+                        logger.error(f"Management: Client {self.addr} reported invalid instance name: {message_obj.name}")
                         break
                     self.client.connect(self.addr, self)
                 else:
-                    if self.client.name != json_data["name"]:
-                        logger.error(f"Management: Client {self.addr} reported name {self.client.name} before, now {json_data['name']}")
+                    if self.client.name != message_obj.name:
+                        logger.error(f"Management: Client {self.addr} reported name {self.client.name} before, now {message_obj.name}")
                         break
 
-                match json_data["status"]:
-                    case "started":
+                match message_obj.get_status():
+                    case InstanceStatus.STARTED:
                         self.client.set_state(state_manager.AgentManagementState.STARTED)
                         logger.info(f"Management: Client {self.client.name} started. Sending setup instructions.")
-                        self.send_message(json.dumps({
-                            "status": "initialize",
-                            "script": self.client.get_setup_env()[0],
-                            "environment": self.client.get_setup_env()[1]
-                        }).encode("utf-8"))
-                    case "initialized":
+                        self.send_message(InitializeMessageUpstream(
+                            "initialize", 
+                            self.client.get_setup_env()[0], 
+                            self.client.get_setup_env()[1]).as_json_bytes())
+                    case InstanceStatus.INITIALIZED:
                         self.client.set_state(state_manager.AgentManagementState.INITIALIZED)
                         logger.info(f"Management: Client {self.client.name} initialized.")
-                    case "message":
+                    case InstanceStatus.MESSAGE:
                         pass
-                    case "failed":
+                    case InstanceStatus.FAILED:
                         self.client.set_state(state_manager.AgentManagementState.FAILED)
-                        if "message" in json_data:
-                            logger.error(f"Management: Client {self.client.name} reported failure with message: {json_data['message']}.")
+                        if message_obj.message is not None:
+                            logger.error(f"Management: Client {self.client.name} reported failure with message: {message_obj.message}.")
                         else:
                             logger.error(f"Management: Client {self.client.name} reported failure without message.")
                         break
                     case _:
-                        logger.warning(f"Management: Client {self.client.name}: Unkown message type '{json_data['status']}'")
+                        logger.warning(f"Management: Client {self.client.name}: Unkown message type '{message_obj.status}'")
 
-                if "message" in json_data:
-                    logger.warning(f"Management: Client {self.client.name} sends message: {json_data['message']}")
+                if message_obj.message is not None:
+                    logger.warning(f"Management: Client {self.client.name} sends message: {message_obj.message}")
 
             except socket.timeout:
                 continue
