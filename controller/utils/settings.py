@@ -1,5 +1,7 @@
 from typing import List, Dict
 
+from common.collector_configs import ExperimentConfig
+
 class TestbedSettings():
     def __init__(self, json) -> None:
         self.machines_internet_access: bool = True
@@ -28,6 +30,14 @@ class TestbedMachine():
         self.networks: List[str] = None
 
         self.__dict__.update(json)
+
+        self.experiments: List[ExperimentConfig] = []
+
+        if self.collectors is None:
+            return
+
+        for experiment in self.collectors:
+            self.experiments.append(ExperimentConfig(experiment))
 
 
 class TestbedConfig():

@@ -1,8 +1,9 @@
 import json
 
 from enum import Enum
-from typing import Dict
-from abc import ABC
+from typing import Dict, List
+
+from common.collector_configs import ExperimentConfig
 
 class InstanceStatus(Enum):
     STARTED = "started"
@@ -40,5 +41,31 @@ class InitializeMessageUpstream(JSONSerializable):
         self.script = script
         self.environment = environment
 
+# TODO: InfluxDB will become object as well
 class ExperimentMessageUpstream(JSONSerializable):
-    pass
+    def __init__(self, status: str, influx: str, experiments: List[ExperimentConfig]) -> None:
+        self.status = status
+        self.influx = influx
+        self.experiments = experiments
+
+    @staticmethod
+    def from_json(json):
+        obj = ExperimentMessageUpstream(**json)
+
+        if obj.experiments is None:
+            return obj
+        
+        obj.experiments = []
+        for experiment in json["experiments"]:
+            obj.experiments.append(ExperimentConfig(experiment))
+
+        return obj
+
+    def as_json_bytes(self) -> bytes:
+        rdict = vars(self).copy()
+        rdict["experiments"] = []
+        if self.experiments is not None:
+            for experiment in self.experiments:
+                rdict["experiments"].append(experiment.as_dict())
+
+        return json.dumps(rdict).encode("utf-8")

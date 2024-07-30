@@ -14,6 +14,7 @@ from utils.config_tools import load_config, load_vm_initialization
 from utils.settings import SettingsWrapper
 from management_server import ManagementServer
 from state_manager import MachineStateManager, AgentManagementState
+from common.instance_manager_message import ExperimentMessageUpstream
 
 FILESERVER_PORT = 4242
 MANAGEMENT_SERVER_PORT = 4243
@@ -239,5 +240,10 @@ class Controller(Dismantable):
         if SettingsWrapper.cli_paramaters.pause == "INIT":
             self.wait_before_release(on_demand=True)
             return
+        
+        for machine in SettingsWrapper.testbed_config.machines:
+            state = self.state_manager.get_machine(machine.name)
+            message = ExperimentMessageUpstream("experiement", "TODO", machine.experiments)
+            state.send_message(message.as_json_bytes())
 
         self.wait_before_release()

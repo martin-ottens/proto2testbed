@@ -164,6 +164,8 @@ def main():
         manager.send_to_server(message)
 
         experiment_data = manager.wait_for_command()
+        print(ExperimentMessageUpstream.from_json(experiment_data).experiments[0].settings, flush=True)
+        time.sleep(1000000)
     except Exception as ex:
         raise ex
     finally:

@@ -22,6 +22,18 @@
             "memory": 1024,
             "networks": [
                 "exp0"
+            ],
+            "collectors": [
+                {
+                    "collector": "iperf3-client",
+                    "name": "vmb-iperf3-client",
+                    "delay": 1,
+                    "timeout": 20,
+                    "settings": {
+                        "host": "127.0.0.1",
+                        "time": 30
+                    }
+                }
             ]
         },
         {
@@ -35,6 +47,18 @@
             "memory": 1024,
             "networks": [
                 "exp0"
+            ],
+            "collectors": [
+                {
+                    "collector": "iperf3-client",
+                    "name": "vmb-iperf3-client",
+                    "delay": 1,
+                    "timeout": 20,
+                    "settings": {
+                        "host": "127.0.0.1",
+                        "time": 30
+                    }
+                }
             ]
         }
     ]

@@ -37,6 +37,12 @@ class MachineState():
         
         self._state = new_state
         self.manager.notify_state_change(new_state)
+
+    def send_message(self, message: bytes):
+        if self.connection is None:
+            raise Exception(f"Machine {self.name} is not connected")
+
+        self.connection.send_message(message)
     
     def connect(self, addr: Tuple[str, int], connection):
         self.addr = addr
@@ -85,12 +91,8 @@ class MachineStateManager():
         if name not in self.map:
             raise Exception(f"Machine {name} is not configured")
         
-        connection = self.map[name].connection
-
-        if connection is None:
-            raise Exception(f"Machine {name} is not connected")
-        
-        connection.send_message(message)
+        machine = self.map[name]
+        machine.send_message(message)
 
     def all_machines_in_state(self, expected_state: AgentManagementState) -> bool:
         return all(x.get_state() == expected_state for x in self.map.values())

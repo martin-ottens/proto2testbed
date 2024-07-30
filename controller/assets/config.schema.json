@@ -86,6 +86,117 @@
                                 }
                             }
                         ]
+                    },
+                    "collectors": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "collector": {
+                                    "type": "string",
+                                    "enum": [
+                                        "iperf3-client",
+                                        "iperf3-server"
+                                    ]
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "delay": {
+                                    "type": "number"
+                                },
+                                "timeout": {
+                                    "type": "number"
+                                },
+                                "settings": {
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "collector",
+                                "name",
+                                "settings"
+                            ],
+                            "additionalItems": false,
+                            "allOf": [
+                                {
+                                    "if": {
+                                        "properties": {
+                                            "collector": {
+                                                "const": "iperf3-client"
+                                            }
+                                        }
+                                    },
+                                    "then": {
+                                        "properties": {
+                                            "settings": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "host": {
+                                                        "type": "string"
+                                                    },
+                                                    "port": {
+                                                        "type": "number"
+                                                    },
+                                                    "reverse": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "udp": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "time": {
+                                                        "type": "number"
+                                                    },
+                                                    "streams": {
+                                                        "type": "number"
+                                                    },
+                                                    "bandwitdth_bps": {
+                                                        "type": "number"
+                                                    },
+                                                    "tcp_no_delay": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "host",
+                                                    "time"
+                                                ],
+                                                "additionalItems": false
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "if": {
+                                        "properties": {
+                                            "collector": {
+                                                "const": "iperf3-server"
+                                            }
+                                        }
+                                    },
+                                    "then": {
+                                        "properties": {
+                                            "settings": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "host": {
+                                                        "type": "string"
+                                                    },
+                                                    "port": {
+                                                        "type": "number"
+                                                    }
+                                                },
+                                                "required": [],
+                                                "additionalItems": false
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
                     }
                 },
                 "additionalItems": false,
@@ -94,7 +205,8 @@
                     "diskimage",
                     "setup_script",
                     "environment",
-                    "networks"
+                    "networks",
+                    "collectors"
                 ]
             }
         }
