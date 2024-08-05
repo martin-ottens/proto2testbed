@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Dict, List
 
 from common.collector_configs import ExperimentConfig
+from common.interfaces import JSONSerializer
 
 class InstanceStatus(Enum):
     STARTED = "started"
@@ -21,12 +22,16 @@ class InstanceStatus(Enum):
         except Exception:
             return InstanceStatus.UNKNOWN
         
+        
 class JSONSerializable():
     def as_json_bytes(self) -> bytes:
         return json.dumps(vars(self)).encode("utf-8")
 
+class JSONSerializable():
+    def as_json_bytes(self) -> bytes:
+        return json.dumps(vars(self)).encode("utf-8")
 
-class InstanceManagerDownstream(JSONSerializable):
+class InstanceManagerDownstream(JSONSerializer):
     def __init__(self, name: str, status: str, message: str = None):
         self.name = name
         self.status = status
@@ -35,15 +40,16 @@ class InstanceManagerDownstream(JSONSerializable):
     def get_status(self) -> InstanceStatus:
         return InstanceStatus.from_str(self.status)
 
-class InitializeMessageUpstream(JSONSerializable):
+class InitializeMessageUpstream(JSONSerializer):
     def __init__(self, status: str, script: str, environment: Dict[str, str]):
         self.status = status
         self.script = script
         self.environment = environment
 
 # TODO: InfluxDB will become object as well
-class ExperimentMessageUpstream(JSONSerializable):
-    def __init__(self, status: str, influx: str, experiments: List[ExperimentConfig]) -> None:
+class ExperimentMessageUpstream(JSONSerializer):
+    def __init__(self, status: str, influx: str, 
+                 experiments: List[ExperimentConfig] = None) -> None:
         self.status = status
         self.influx = influx
         self.experiments = experiments
@@ -57,15 +63,7 @@ class ExperimentMessageUpstream(JSONSerializable):
         
         obj.experiments = []
         for experiment in json["experiments"]:
-            obj.experiments.append(ExperimentConfig(experiment))
+            obj.experiments.append(ExperimentConfig(**experiment))
 
         return obj
 
-    def as_json_bytes(self) -> bytes:
-        rdict = vars(self).copy()
-        rdict["experiments"] = []
-        if self.experiments is not None:
-            for experiment in self.experiments:
-                rdict["experiments"].append(experiment.as_dict())
-
-        return json.dumps(rdict).encode("utf-8")

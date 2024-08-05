@@ -67,7 +67,7 @@ class ManagementClientConnection(threading.Thread):
                         self.send_message(InitializeMessageUpstream(
                             "initialize", 
                             self.client.get_setup_env()[0], 
-                            self.client.get_setup_env()[1]).as_json_bytes())
+                            self.client.get_setup_env()[1]).to_json().encode("utf-8"))
                     case InstanceStatus.INITIALIZED:
                         self.client.set_state(state_manager.AgentManagementState.INITIALIZED)
                         logger.info(f"Management: Client {self.client.name} initialized.")

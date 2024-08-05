@@ -244,6 +244,6 @@ class Controller(Dismantable):
         for machine in SettingsWrapper.testbed_config.machines:
             state = self.state_manager.get_machine(machine.name)
             message = ExperimentMessageUpstream("experiement", "TODO", machine.experiments)
-            state.send_message(message.as_json_bytes())
+            state.send_message(message.to_json().encode("utf-8"))
 
         self.wait_before_release()

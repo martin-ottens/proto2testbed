@@ -1,43 +1,40 @@
 from typing import List, Dict
+from dataclasses import dataclass
 
 from common.collector_configs import ExperimentConfig
 
+@dataclass
 class TestbedSettings():
-    def __init__(self, json) -> None:
-        self.machines_internet_access: bool = True
-        self.auto_dismantle_seconds: int = 180
-        self.management_network: str = "172.16.99.0/24"
+    machines_internet_access: bool = True
+    auto_dismantle_seconds: int = 180
+    management_network: str = "172.16.99.0/24"
 
-        self.__dict__.update(json)
-
-
+@dataclass
 class TestbedNetwork():
-    def __init__(self, json) -> None:
-        self.name: str = None
-        self.physical_ports: List[str] = None
-
-        self.__dict__.update(json)
+    name: str
+    physical_ports: List[str] = None
 
 
 class TestbedMachine():
-    def __init__(self, json) -> None:
-        self.name: str = None
-        self.diskimage: str = None
-        self.setup_script: str = None
-        self.environment: Dict[str, str] = None
-        self.cores: int = 2
-        self.memory: int = 1024
-        self.networks: List[str] = None
-
-        self.__dict__.update(json)
+    def __init__(self, name: str, diskimage: str, setup_script: str = None, 
+                 environment: Dict[str, str]=  None, cores: int = 2, 
+                 memory: int = 1024, networks: List[str] = None,
+                 collectors = None) -> None:
+        self.name: str = name
+        self.diskimage: str = diskimage
+        self.setup_script: str = setup_script
+        self.environment: Dict[str, str] = environment
+        self.cores: int = cores
+        self.memory: int = memory
+        self.networks: List[str] = networks
 
         self.experiments: List[ExperimentConfig] = []
 
-        if self.collectors is None:
+        if collectors is None:
             return
 
-        for experiment in self.collectors:
-            self.experiments.append(ExperimentConfig(experiment))
+        for experiment in collectors:
+            self.experiments.append(ExperimentConfig(**experiment))
 
 
 class TestbedConfig():
@@ -47,10 +44,10 @@ class TestbedConfig():
         self.machines: List[TestbedMachine] = []
 
         for network in json["networks"]:
-            self.networks.append(TestbedNetwork(network))
+            self.networks.append(TestbedNetwork(**network))
         
         for machine in json["machines"]:
-            self.machines.append(TestbedMachine(machine))
+            self.machines.append(TestbedMachine(**machine))
 
 
 class CLIParameters():
