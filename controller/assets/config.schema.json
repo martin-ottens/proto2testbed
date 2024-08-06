@@ -99,7 +99,9 @@
                                     "type": "string",
                                     "enum": [
                                         "iperf3-client",
-                                        "iperf3-server"
+                                        "iperf3-server",
+                                        "ping",
+                                        "procmon"
                                     ]
                                 },
                                 "name": {
@@ -147,9 +149,6 @@
                                                     "udp": {
                                                         "type": "boolean"
                                                     },
-                                                    "time": {
-                                                        "type": "number"
-                                                    },
                                                     "streams": {
                                                         "type": "number"
                                                     },
@@ -161,8 +160,7 @@
                                                     }
                                                 },
                                                 "required": [
-                                                    "host",
-                                                    "time"
+                                                    "host"
                                                 ],
                                                 "additionalItems": false
                                             }
