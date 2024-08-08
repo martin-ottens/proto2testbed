@@ -16,21 +16,21 @@ class CollectorConfig(ABC):
     pass
 
 class IperfServerCollectorConfig(CollectorConfig, JSONSerializer):
-    def __init__(self, host: str = "0.0.0.0", port: int = 5001) -> None:
+    def __init__(self, host: str = "0.0.0.0", port: int = 5201) -> None:
         self.host = host
         self.port = port
         
 
 class IperfClientCollectorConfig(CollectorConfig, JSONSerializer):
-    def __init__(self, host: str, port: int = 5001, reverse: bool = None, 
+    def __init__(self, host: str, port: int = 5201, reverse: bool = None, 
                  udp: bool = None, streams: int = None, 
-                 bandwidth_bps: int = None, tcp_no_delay: bool = None) -> None:
+                 bandwidth_kbps: int = None, tcp_no_delay: bool = None) -> None:
         self.host = host
         self.port = port
         self.reverse = reverse
         self.udp = udp
         self.streams = streams
-        self.bandwidth_bps = bandwidth_bps
+        self.bandwidth_kbps = bandwidth_kbps
         self.tcp_no_delay = tcp_no_delay
 
 class PingCollectorConfig(CollectorConfig, JSONSerializer):
@@ -41,7 +41,7 @@ class ProcmonCollectorConfig(CollectorConfig, JSONSerializer):
 
 class ExperimentConfig(JSONSerializer):
     def __init__(self, name: str, collector: str, delay: int = 0, 
-                 timeout: int = -1, settings = None) -> None:
+                 timeout: int = 30, settings = None) -> None:
         self.name: str = name
         self.delay: int = delay
         self.timeout: int = timeout

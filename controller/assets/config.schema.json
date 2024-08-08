@@ -152,7 +152,7 @@
                                                     "streams": {
                                                         "type": "number"
                                                     },
-                                                    "bandwitdth_bps": {
+                                                    "bandwitdth_kbps": {
                                                         "type": "number"
                                                     },
                                                     "tcp_no_delay": {
