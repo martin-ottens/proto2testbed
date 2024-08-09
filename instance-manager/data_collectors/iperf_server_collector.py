@@ -12,7 +12,10 @@ class IperfServerCollector(BaseCollector):
         if not isinstance(settings, IperfServerCollectorConfig):
             raise Exception("Received invalid config type!")
         
-        command = ["/usr/bin/iperf3", "--json-stream", "--interval", "1", "--forceflush", "--one-off"]
+        command = ["/usr/bin/iperf3", "--json-stream", "--forceflush", "--one-off"]
+
+        command.append("--interval")
+        command.append(str(settings.report_interval))
 
         command.append("--port")
         command.append(str(settings.port))
@@ -51,4 +54,4 @@ class IperfServerCollector(BaseCollector):
         except Exception as ex:
             raise Exception(f"Iperf3 error: {ex}")
 
-        return process.returncode == 0
+        return process.wait() == 0

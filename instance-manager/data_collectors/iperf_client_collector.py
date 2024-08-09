@@ -14,7 +14,7 @@ class IperfClientCollector(BaseCollector):
         if not isinstance(settings, IperfClientCollectorConfig):
             raise Exception("Received invalid config type!")
         
-        command = ["/usr/bin/iperf3", "--json-stream", "--interval", "1", "--forceflush"]
+        command = ["/usr/bin/iperf3", "--json-stream", "--forceflush"]
 
         if settings.reverse is True:
             command.append("--reverse")
@@ -39,6 +39,9 @@ class IperfClientCollector(BaseCollector):
         
         command.append("--time")
         command.append(str(runtime))
+
+        command.append("--interval")
+        command.append(str(settings.report_interval))
 
         command.append("--connect-timeout")
         command.append(str(IperfClientCollector.__CONNECT_TIMEOUT))
@@ -80,4 +83,4 @@ class IperfClientCollector(BaseCollector):
         except Exception as ex:
             raise Exception(f"Iperf3 error: {ex}")
 
-        return process.returncode == 0
+        return process.wait() == 0

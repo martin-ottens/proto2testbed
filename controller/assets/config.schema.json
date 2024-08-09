@@ -110,7 +110,7 @@
                                 "delay": {
                                     "type": "number"
                                 },
-                                "timeout": {
+                                "runtime": {
                                     "type": "number"
                                 },
                                 "settings": {
@@ -120,6 +120,7 @@
                             "required": [
                                 "collector",
                                 "name",
+                                "runtime",
                                 "settings"
                             ],
                             "additionalItems": false,
@@ -157,6 +158,9 @@
                                                     },
                                                     "tcp_no_delay": {
                                                         "type": "boolean"
+                                                    },
+                                                    "report_interval": {
+                                                        "type": "int"
                                                     }
                                                 },
                                                 "required": [
@@ -185,9 +189,52 @@
                                                     },
                                                     "port": {
                                                         "type": "number"
+                                                    },
+                                                    "report_interval": {
+                                                        "type": "int"
                                                     }
                                                 },
                                                 "required": [],
+                                                "additionalItems": false
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "if": {
+                                        "properties": {
+                                            "collector": {
+                                                "const": "ping"
+                                            }
+                                        }
+                                    },
+                                    "then": {
+                                        "properties": {
+                                            "settings": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "target": {
+                                                        "type": "string"
+                                                    },
+                                                    "source": {
+                                                        "type": "string"
+                                                    },
+                                                    "interval": {
+                                                        "type": "int"
+                                                    },
+                                                    "packetsize": {
+                                                        "type": "int"
+                                                    },
+                                                    "ttl": {
+                                                        "type": "int"
+                                                    },
+                                                    "timeout": {
+                                                        "type": "int"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "target"
+                                                ],
                                                 "additionalItems": false
                                             }
                                         }

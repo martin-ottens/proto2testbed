@@ -5,7 +5,7 @@ import psutil
 from multiprocessing import Process, Manager
 from threading import Event, Thread
 
-from common.collector_configs import Collectors, ExperimentConfig, CollectorConfig, IperfClientCollectorConfig
+from common.collector_configs import Collectors, ExperimentConfig, CollectorConfig, PingCollectorConfig
 
 from data_collectors.base_collector import BaseCollector
 from data_collectors.iperf_client_collector import IperfClientCollector
@@ -47,7 +47,7 @@ class CollectorController(Thread):
         to the management server!
         """
         try:
-            rc = self.collector.start_collection(self.settings, self.config.timeout)
+            rc = self.collector.start_collection(self.settings, self.config.runtime)
             if not rc:
                 self.shared_state["error_flag"] = True
                 self.shared_state["error_string"] = f"Collector finished with return code: {rc}"
@@ -61,7 +61,7 @@ class CollectorController(Thread):
         time.sleep(self.config.delay)
 
         process.start()
-        process.join(self.collector.get_runtime_upper_bound(self.config.timeout) + 1)
+        process.join(self.collector.get_runtime_upper_bound(self.config.runtime) + 1)
 
         if process.is_alive():
             # TODO: Error, process is still alive -> report
@@ -91,9 +91,9 @@ class CollectorController(Thread):
     def get_experiment_name(self) -> str:
         return self.config.name
 
-config: CollectorConfig = IperfClientCollectorConfig("localhost", tcp_no_delay=True)
+config: CollectorConfig = PingCollectorConfig("10.20.20.20")
 
-exp: ExperimentConfig = ExperimentConfig("lol", "iperf3-client", timeout=10, settings=config.__dict__)
+exp: ExperimentConfig = ExperimentConfig("lol", "ping", runtime=10, settings=config.__dict__)
 
 cont: CollectorController =  CollectorController(exp)
 cont.start()
