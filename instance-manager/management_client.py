@@ -31,6 +31,7 @@ class ManagementClient():
         self.mgmt_server = mgmt_server
         self.socket = None
         self.sendlock = Lock()
+        self.partial_data = ""
 
     def __del__(self):
         self.stop()
@@ -66,13 +67,40 @@ class ManagementClient():
                 self.socket.sendall(downstream_message.get_json_bytes())
         except Exception as ex:
             raise Exception("Unable to send message to management server") from ex
+    
+    def _check_if_valid_json(self, str) -> bool:
+        try:
+            json.loads(str)
+            return True
+        except Exception as _:
+            return False
 
     def wait_for_command(self) -> Any:
+        if len(self.partial_data) != 0:
+            if self._check_if_valid_json(self.partial_data):
+                tmp = self.partial_data
+                self.partial_data = ""
+                return json.loads(tmp)
+
         try:
             self.socket.settimeout(None)
             result = self.socket.recv(ManagementClient.__MAX_FRAME_LEN)
             if len(result) == 0:
                 raise Exception("Management server has disconnected")
-            return json.loads(result.decode("utf-8"))
+            
+            self.partial_data = self.partial_data + result.decode("utf-8")
+
+            if "}\n{" in self.partial_data:
+                # Multipart message
+                parts = self.partial_data.split("}\n{", maxsplit=1)
+                parts[0] = parts[0] + "}"
+                parts[1] = "{" + parts[1]
+                self.partial_data = parts[1]
+                return json.loads(parts[0])
+            else:
+                # Singlepart message
+                tmp = self.partial_data
+                self.partial_data = ""
+                return json.loads(tmp)
         except Exception as ex:
             raise Exception("Unable to read message from management server") from ex
