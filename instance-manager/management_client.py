@@ -1,7 +1,9 @@
 import socket
 import time
+import sys
 
 from typing import Any
+from threading import Lock
 
 from common.instance_manager_message import *
 
@@ -28,6 +30,7 @@ class ManagementClient():
     def __init__(self, mgmt_server):
         self.mgmt_server = mgmt_server
         self.socket = None
+        self.sendlock = Lock()
 
     def __del__(self):
         self.stop()
@@ -37,6 +40,7 @@ class ManagementClient():
         while True:
             try:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 self.socket.connect(self.mgmt_server)
                 return
             except Exception as ex:
@@ -58,7 +62,8 @@ class ManagementClient():
 
     def send_to_server(self, downstream_message: DownstreamMassage):
         try:
-            self.socket.sendall(downstream_message.get_json_bytes())
+            with self.sendlock:
+                self.socket.sendall(downstream_message.get_json_bytes())
         except Exception as ex:
             raise Exception("Unable to send message to management server") from ex
 

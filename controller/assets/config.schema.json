@@ -191,7 +191,7 @@
                                                         "type": "number"
                                                     },
                                                     "report_interval": {
-                                                        "type": "int"
+                                                        "type": "number"
                                                     }
                                                 },
                                                 "required": [],

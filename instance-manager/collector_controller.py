@@ -99,7 +99,7 @@ class CollectorController(Thread):
                                         f"Experiment {self.config.name} finished")
             self.mgmt_client.send_to_server(message)
         else:
-            message = DownstreamMassage(InstanceStatus.MSG_SUCCESS, 
+            message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
                                         f"Experiment {self.config.name} reported error: \n{self.shared_state['error_string']}")
             self.mgmt_client.send_to_server(message)
         

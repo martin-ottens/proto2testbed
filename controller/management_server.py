@@ -76,10 +76,13 @@ class ManagementClientConnection(threading.Thread):
                     case InstanceStatus.FAILED | InstanceStatus.EXPERIMENT_FAILED:
                         self.client.set_state(state_manager.AgentManagementState.FAILED)
                         if message_obj.message is not None:
-                            logger.error(f"Management: Client {self.client.name} reported failure with message: {message_obj.message}.")
+                            logger.error(f"Management: Client {self.client.name} reported failure with message: {message_obj.message}")
                         else:
                             logger.error(f"Management: Client {self.client.name} reported failure without message.")
-                        break
+                        if message_obj.get_status() == InstanceStatus.FAILED:
+                            break
+                        else:
+                            continue
                     case InstanceStatus.EXPERIMENT_DONE:
                         self.client.set_state(state_manager.AgentManagementState.FINISHED)
                         logger.info(f"Management: Client {self.client.name} reported finished experiments.")

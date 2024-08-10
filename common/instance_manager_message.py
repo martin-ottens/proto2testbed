@@ -9,7 +9,7 @@ from common.interfaces import JSONSerializer
 class InstanceStatus(Enum):
     STARTED = "started"
     INITIALIZED = "initialized"
-    MSG_SUCCESS = "msg_sucsess"
+    MSG_SUCCESS = "msg_success"
     MSG_INFO = "msg_info"
     MSG_ERROR = "msg_error"
     FAILED = "failed"

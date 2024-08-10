@@ -1,5 +1,6 @@
 import json
 import subprocess
+import traceback
 
 from data_collectors.base_collector import BaseCollector
 from common.collector_configs import CollectorConfig, IperfServerCollectorConfig
@@ -52,6 +53,7 @@ class IperfServerCollector(BaseCollector):
                         continue
 
         except Exception as ex:
-            raise Exception(f"Iperf3 error: {ex}")
+            traceback.print_exception(ex)
+            raise Exception(f"Iperf3 server error: {ex}")
 
         return process.wait() == 0

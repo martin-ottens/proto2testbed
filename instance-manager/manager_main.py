@@ -116,7 +116,7 @@ def main():
             
             if failed != 0:
                 message = DownstreamMassage(InstanceStatus.EXPERIMENT_FAILED, 
-                                            f"{failed} experiments failed.")
+                                            f"{failed} E10xperiment(s) failed.")
                 manager.send_to_server(message)
             else:
                 message = DownstreamMassage(InstanceStatus.EXPERIMENT_DONE)
