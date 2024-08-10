@@ -160,7 +160,7 @@
                                                         "type": "boolean"
                                                     },
                                                     "report_interval": {
-                                                        "type": "int"
+                                                        "type": "number"
                                                     }
                                                 },
                                                 "required": [
@@ -220,21 +220,59 @@
                                                         "type": "string"
                                                     },
                                                     "interval": {
-                                                        "type": "int"
+                                                        "type": "number"
                                                     },
                                                     "packetsize": {
-                                                        "type": "int"
+                                                        "type": "number"
                                                     },
                                                     "ttl": {
-                                                        "type": "int"
+                                                        "type": "number"
                                                     },
                                                     "timeout": {
-                                                        "type": "int"
+                                                        "type": "number"
                                                     }
                                                 },
                                                 "required": [
                                                     "target"
                                                 ],
+                                                "additionalItems": false
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "if": {
+                                        "properties": {
+                                            "collector": {
+                                                "const": "procmon"
+                                            }
+                                        }
+                                    },
+                                    "then": {
+                                        "properties": {
+                                            "settings": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "interval": {
+                                                        "type": "number"
+                                                    },
+                                                    "interfaces": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "processes": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "system": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "required": [],
                                                 "additionalItems": false
                                             }
                                         }

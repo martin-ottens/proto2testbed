@@ -5,7 +5,7 @@ import psutil
 from multiprocessing import Process, Manager
 from threading import Event, Thread
 
-from common.collector_configs import Collectors, ExperimentConfig, CollectorConfig, PingCollectorConfig
+from common.collector_configs import Collectors, ExperimentConfig, CollectorConfig, ProcmonCollectorConfig
 
 from data_collectors.base_collector import BaseCollector
 from data_collectors.iperf_client_collector import IperfClientCollector
@@ -91,9 +91,9 @@ class CollectorController(Thread):
     def get_experiment_name(self) -> str:
         return self.config.name
 
-config: CollectorConfig = PingCollectorConfig("10.20.20.20")
+config: CollectorConfig = ProcmonCollectorConfig(interfaces=["wlp0s20f3"])
 
-exp: ExperimentConfig = ExperimentConfig("lol", "ping", runtime=10, settings=config.__dict__)
+exp: ExperimentConfig = ExperimentConfig("lol", "procmon", runtime=10, settings=config.__dict__)
 
 cont: CollectorController =  CollectorController(exp)
 cont.start()

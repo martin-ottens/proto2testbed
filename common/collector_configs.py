@@ -1,6 +1,8 @@
 from abc import ABC
 from enum import Enum
 
+from typing import List
+
 from common.interfaces import JSONSerializer
 
 class Collectors(str, Enum):
@@ -47,7 +49,12 @@ class PingCollectorConfig(CollectorConfig, JSONSerializer):
         self.timeout = timeout
 
 class ProcmonCollectorConfig(CollectorConfig, JSONSerializer):
-    pass
+    def __init__(self, interval: int = 1, interfaces: List[str] = None,
+                 processes: List[str] = None, system: bool = True) -> None:
+        self.interval = interval
+        self.interfaces = interfaces
+        self.processes = processes
+        self.system = system
 
 class ExperimentConfig(JSONSerializer):
     def __init__(self, name: str, collector: str, delay: int = 0, 
