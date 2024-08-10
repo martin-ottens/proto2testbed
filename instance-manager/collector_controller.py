@@ -3,9 +3,12 @@ import signal
 import psutil
 
 from multiprocessing import Process, Manager
-from threading import Event, Thread
+from threading import Event, Thread, Barrier
 
-from common.collector_configs import Collectors, ExperimentConfig, CollectorConfig, ProcmonCollectorConfig
+from common.collector_configs import Collectors, ExperimentConfig
+from common.instance_manager_message import InstanceStatus
+
+from management_client import ManagementClient, DownstreamMassage
 
 from data_collectors.base_collector import BaseCollector
 from data_collectors.iperf_client_collector import IperfClientCollector
@@ -28,11 +31,14 @@ class CollectorController(Thread):
             case _:
                 raise Exception(f"Unmapped Collector {collector}")
             
-    def __init__(self, config: ExperimentConfig) -> None:
+    def __init__(self, config: ExperimentConfig, client: ManagementClient,
+                 start_barrier: Barrier) -> None:
         super(CollectorController, self).__init__()
         self.config = config
         self.collector: BaseCollector = CollectorController.map_collector(config.collector)
+        self.mgmt_client: ManagementClient = client
         self.settings = config.settings
+        self.barrier: Barrier = start_barrier
         self.is_terminated = Event()
         self.manager = Manager()
         self.shared_state = self.manager.dict()
@@ -58,43 +64,52 @@ class CollectorController(Thread):
     def run(self):
         process = Process(target=self.__fork_run, args=())
         
+        self.barrier.wait()
+        
         time.sleep(self.config.delay)
 
         process.start()
         process.join(self.collector.get_runtime_upper_bound(self.config.runtime) + 1)
 
         if process.is_alive():
-            # TODO: Error, process is still alive -> report
-            print("Still runs :(")
+            message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
+                                        f"Experiment {self.config.name} still runs after timeout.")
+            self.mgmt_client.send_to_server(message)
             try:
                 parent = psutil.Process(process.ident)
                 for child in parent.children(recursive=True):
                     try: child.send_signal(signal.SIGTERM)
                     except Exception as ex:
-                        # TODO: Log error
+                        message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
+                                                    f"Experiment {self.config.name}:\n Unable to kill childs: {ex}")
+                        self.mgmt_client.send_to_server(message)
                         continue
             except Exception as ex:
-                # TODO: Log error
+                message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
+                                            f"Experiment {self.config.name}:\n Unable get childs: {ex}")
+                self.mgmt_client.send_to_server(message)
                 pass
 
             process.terminate()
             
         process.join()
         
-        print("Has terminated!")
-        print(self.shared_state["error_string"])
+        if not self.shared_state["error_flag"]:
+            message = DownstreamMassage(InstanceStatus.MSG_SUCCESS, 
+                                        f"Experiment {self.config.name} finished")
+            self.mgmt_client.send_to_server(message)
+        else:
+            message = DownstreamMassage(InstanceStatus.MSG_SUCCESS, 
+                                        f"Experiment {self.config.name} reported error: \n{self.shared_state['error_string']}")
+            self.mgmt_client.send_to_server(message)
+        
         self.is_terminated.set()
 
     def has_terminated(self) -> bool:
         return self.is_terminated.is_set()
     
+    def error_occured(self) -> bool:
+        return self.shared_state["error_flag"]
+    
     def get_experiment_name(self) -> str:
         return self.config.name
-
-config: CollectorConfig = ProcmonCollectorConfig(interfaces=["wlp0s20f3"])
-
-exp: ExperimentConfig = ExperimentConfig("lol", "procmon", runtime=10, settings=config.__dict__)
-
-cont: CollectorController =  CollectorController(exp)
-cont.start()
-cont.join()

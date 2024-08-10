@@ -13,7 +13,10 @@
             "enum": [
                 "started",
                 "initialized",
-                "message",
+                "msg_success",
+                "msg_info",
+                "msg_error",
+                "exp_done",
                 "failed"
             ]
         },

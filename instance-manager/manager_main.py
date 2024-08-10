@@ -1,27 +1,20 @@
 #!/usr/bin/python3
 
-from typing import Any
-
 import subprocess
 import json
-import socket
-import time
-import sys
 import os
 import tempfile
 import shutil
 import urllib.request
+from threading import Barrier
+
+from management_client import ManagementClient, DownstreamMassage
+from collector_controller import CollectorController
 
 from common.instance_manager_message import *
 
 FILE_SERVER_PORT = 4242
 MGMT_SERVER_PORT = 4243
-MGMT_SERVER_RETRY = 5
-MGMT_SERVER_WAITRETRY = 5
-MGMT_SERVER_MAXLEN = 4096
-
-def get_hostname() -> str:
-    return socket.getfqdn()
 
 def get_default_gateway() -> str:
     proc = subprocess.run(["/usr/sbin/ip", "-json", "route"], capture_output=True, shell=False)
@@ -38,67 +31,6 @@ def get_default_gateway() -> str:
     
     raise Exception(f"Unable to obtain default route!")
 
-class DownstreamMassage():
-    def __init__(self, status, message = None):
-        self.message = InstanceManagerDownstream(get_hostname(), status, message)
-    
-    def set_message(self, message):
-            self.message.message = message
-
-    def get_json_bytes(self) -> bytes:
-        return self.message.to_json().encode("utf-8") + b'\n'
-
-class ManagementClient():
-    __MAX_FRAME_LEN = 8192
-
-    def __init__(self, mgmt_server):
-        self.mgmt_server = mgmt_server
-        self.socket = None
-
-    def __del__(self):
-        self.stop()
-    
-    def start(self) -> None:
-        retries_left = MGMT_SERVER_RETRY
-        while True:
-            try:
-                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.socket.connect(self.mgmt_server)
-                return
-            except Exception as ex:
-                print(f"Unable to connect to {self.mgmt_server}: {ex}", file=sys.stderr, flush=True)
-
-                if retries_left == 0:
-                    raise Exception("Unable to connect to managemt server in timeout") from ex
-
-                time.sleep(MGMT_SERVER_WAITRETRY)
-                self.socket.close()
-                self.socket = None
-
-                retries_left -= 1
-
-    def stop(self) -> None:
-        if self.socket != None:
-            self.socket.close()
-            self.socket = None
-
-    def send_to_server(self, downstream_message: DownstreamMassage):
-        try:
-            self.socket.sendall(downstream_message.get_json_bytes())
-        except Exception as ex:
-            raise Exception("Unable to send message to management server") from ex
-
-    def wait_for_command(self) -> Any:
-        try:
-            self.socket.settimeout(None)
-            result = self.socket.recv(ManagementClient.__MAX_FRAME_LEN)
-            if len(result) == 0:
-                raise Exception("Management server has disconnected")
-            return json.loads(result.decode("utf-8"))
-        except Exception as ex:
-            raise Exception("Unable to read message from management server") from ex
-
-
 def main():
     management_server_addr = get_default_gateway()
     manager = None
@@ -108,7 +40,7 @@ def main():
         manager.start()
 
         # 1. Instance is started
-        message = DownstreamMassage("started")
+        message = DownstreamMassage(InstanceStatus.STARTED)
         manager.send_to_server(message)
 
         # 2. Install instance and report status
@@ -126,7 +58,6 @@ def main():
         init_message = InitializeMessageUpstream(**installation_data)
 
         # 2.2 Download initialization script from file server
-        
         if init_message.script is not None:
             exec_dir = tempfile.mkdtemp()
             setup_script_basename = os.path.basename(init_message.script)
@@ -134,7 +65,7 @@ def main():
             try:
                 urllib.request.urlretrieve(f"http://{management_server_addr}:{FILE_SERVER_PORT}/{init_message.script}", setup_script)
             except Exception as ex:
-                message = DownstreamMassage("failed", "Unable to fetch script file")
+                message = DownstreamMassage(InstanceStatus.FAILED, "Unable to fetch script file")
                 manager.send_to_server(message)
                 raise Exception(f"Unable to retrive script file {init_message.script} from file server") from ex
 
@@ -148,24 +79,49 @@ def main():
             try:
                 proc = subprocess.run(["/bin/bash", setup_script_basename], capture_output=True, shell=False)
             except Exception as ex:
-                message = DownstreamMassage("failed", 
+                message = DownstreamMassage(InstanceStatus.FAILED, 
                                             f"Setup script failed:\nMESSAGE: {ex}")
                 manager.send_to_server(message)
                 raise Exception(f"Unable to run setup_script") from ex
             
             if proc is not None and proc.returncode != 0:
-                message = DownstreamMassage("failed", 
+                message = DownstreamMassage(InstanceStatus.FAILED, 
                                             f"Setup script failed ({proc.returncode})\nSTDOUT: {proc.stdout}\nSTDERR: {proc.stderr}")
                 manager.send_to_server(message)
                 raise Exception(f"Unable to run setup_script': {proc.stderr}")
 
         # 2.4. Report status to management server
-        message = DownstreamMassage("initialized")
+        message = DownstreamMassage(InstanceStatus.INITIALIZED)
         manager.send_to_server(message)
 
-        experiment_data = manager.wait_for_command()
-        print(ExperimentMessageUpstream.from_json(experiment_data).experiments[0].settings, flush=True)
-        time.sleep(1000000)
+        # 3. Get experiments
+        while True:
+            experiment_data = manager.wait_for_command()
+            experiments = ExperimentMessageUpstream.from_json(experiment_data)
+            
+            barrier = Barrier(len(experiments.experiments) + 1)
+            threads: List[CollectorController] = []
+            for experiment in experiments.experiments:
+                t = CollectorController(experiment, manager, barrier)
+                t.start()
+                threads.append(t)
+            
+            barrier.wait()
+            
+            failed = 0
+            for t in threads:
+                t.join()
+                if t.error_occured():
+                    failed += 1
+            
+            if failed != 0:
+                message = DownstreamMassage(InstanceStatus.EXPERIMENT_FAILED, 
+                                            f"{failed} experiments failed.")
+                manager.send_to_server(message)
+            else:
+                message = DownstreamMassage(InstanceStatus.EXPERIMENT_DONE)
+                manager.send_to_server(message)
+            
     except Exception as ex:
         raise ex
     finally:

@@ -9,8 +9,12 @@ from common.interfaces import JSONSerializer
 class InstanceStatus(Enum):
     STARTED = "started"
     INITIALIZED = "initialized"
-    MESSAGE = "message"
+    MSG_SUCCESS = "msg_sucsess"
+    MSG_INFO = "msg_info"
+    MSG_ERROR = "msg_error"
     FAILED = "failed"
+    EXPERIMENT_FAILED = "exp_failed"
+    EXPERIMENT_DONE = "exp_done"
     UNKNOWN = "unknown"
 
     def __str__(self):
@@ -48,7 +52,7 @@ class InitializeMessageUpstream(JSONSerializer):
 
 # TODO: InfluxDB will become object as well
 class ExperimentMessageUpstream(JSONSerializer):
-    def __init__(self, status: str, influx: str, 
+    def __init__(self, status: str, influx: str,
                  experiments: List[ExperimentConfig] = None) -> None:
         self.status = status
         self.influx = influx

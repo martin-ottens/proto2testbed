@@ -71,20 +71,33 @@ class ManagementClientConnection(threading.Thread):
                     case InstanceStatus.INITIALIZED:
                         self.client.set_state(state_manager.AgentManagementState.INITIALIZED)
                         logger.info(f"Management: Client {self.client.name} initialized.")
-                    case InstanceStatus.MESSAGE:
+                    case InstanceStatus.MSG_ERROR | InstanceStatus.MSG_INFO | InstanceStatus.MSG_SUCCESS:
                         pass
-                    case InstanceStatus.FAILED:
+                    case InstanceStatus.FAILED | InstanceStatus.EXPERIMENT_FAILED:
                         self.client.set_state(state_manager.AgentManagementState.FAILED)
                         if message_obj.message is not None:
                             logger.error(f"Management: Client {self.client.name} reported failure with message: {message_obj.message}.")
                         else:
                             logger.error(f"Management: Client {self.client.name} reported failure without message.")
                         break
+                    case InstanceStatus.EXPERIMENT_DONE:
+                        self.client.set_state(state_manager.AgentManagementState.FINISHED)
+                        logger.info(f"Management: Client {self.client.name} reported finished experiments.")
                     case _:
                         logger.warning(f"Management: Client {self.client.name}: Unkown message type '{message_obj.status}'")
 
                 if message_obj.message is not None:
-                    logger.warning(f"Management: Client {self.client.name} sends message: {message_obj.message}")
+                    match message_obj.get_status():
+                        case InstanceStatus.MSG_INFO:
+                            fn = logger.info
+                        case InstanceStatus.MSG_ERROR:
+                            fn = logger.error
+                        case InstanceStatus.MSG_SUCCESS:
+                            fn = logger.success
+                        case _:
+                            fn = logger.warning
+                    
+                    fn(f"Management: Client {self.client.name} sends message: {message_obj.message}")
 
             except socket.timeout:
                 continue

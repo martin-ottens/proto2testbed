@@ -229,7 +229,6 @@ class Controller(Dismantable):
             self.wait_before_release(on_demand=True)
             return
 
-        # TODO: Wait for machines to become started and directly set them up
         logger.info("Waiting for VMs to start and initialize ...")
         if not self.state_manager.wait_for_machines_to_become_state(AgentManagementState.INITIALIZED):
             logger.critical("VMs are not ready or error during initialization!")
@@ -241,9 +240,23 @@ class Controller(Dismantable):
             self.wait_before_release(on_demand=True)
             return
         
+        logger.info("Startig experiments on VMs.")
         for machine in SettingsWrapper.testbed_config.machines:
             state = self.state_manager.get_machine(machine.name)
             message = ExperimentMessageUpstream("experiement", "TODO", machine.experiments)
             state.send_message(message.to_json().encode("utf-8"))
+            state.set_state(AgentManagementState.IN_EXPERIMENT)
+            
+        logger.info("Waiting for VMs to finish experiments ...")
+        if not self.state_manager.wait_for_machines_to_become_state(AgentManagementState.FINISHED):
+            logger.critical("VMs have reported failed experiments!")
+            self.dismantle()
+            return
+        logger.success("All VMs reported finished experiments!")
+            
+        if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
+            self.wait_before_release(on_demand=True)
+            return
 
+        # TODO: Shutdown testbed automatically after successful or failed experiments
         self.wait_before_release()
