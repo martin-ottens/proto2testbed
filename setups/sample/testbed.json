@@ -25,13 +25,20 @@
             ],
             "collectors": [
                 {
-                    "collector": "iperf3-client",
-                    "name": "vmb-iperf3-client",
-                    "delay": 1,
-                    "timeout": 20,
+                    "collector": "iperf3-server",
+                    "name": "vma-iperf-server",
+                    "delay": 0,
+                    "runtime": 50,
+                    "settings": {}
+                },
+                {
+                    "collector": "procmon",
+                    "name": "procmon-vma",
+                    "delay": 5,
+                    "runtime": 20,
                     "settings": {
-                        "host": "127.0.0.1",
-                        "time": 30
+                        "interfaces": ["enp0s3"],
+                        "system": true
                     }
                 }
             ]
@@ -51,12 +58,21 @@
             "collectors": [
                 {
                     "collector": "iperf3-client",
-                    "name": "vmb-iperf3-client",
+                    "name": "vma-iperf-client",
                     "delay": 1,
-                    "timeout": 20,
+                    "runtime": 30,
                     "settings": {
-                        "host": "127.0.0.1",
-                        "time": 30
+                        "host": "10.0.0.1"
+                    }
+                },
+                {
+                    "collector": "procmon",
+                    "name": "procmon-vmb",
+                    "delay": 5,
+                    "runtime": 20,
+                    "settings": {
+                        "interfaces": ["enp0s3"],
+                        "system": true
                     }
                 }
             ]

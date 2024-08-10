@@ -1,5 +1,4 @@
 #!/bin/bash
 
-echo "$VARIABLE" > vmb.test.txt
-echo "$INSTANCE_NAME" >> vmb.test.txt
-echo "$FILESERVER_ADDRESS" >> vmb.test.txt
+ip address add 10.0.0.2/24 dev enp0s3
+ip link set up dev enp0s3

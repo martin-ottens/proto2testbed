@@ -1,5 +1,4 @@
 #!/bin/bash
 
-echo "$VARIABLE" > vma.test.txt
-echo "$INSTANCE_NAME" >> vma.test.txt
-echo "$FILESERVER_ADDRESS" >> vma.test.txt
+ip address add 10.0.0.1/24 dev enp0s3
+ip link set up dev enp0s3
