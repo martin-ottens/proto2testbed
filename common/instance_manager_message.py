@@ -5,6 +5,7 @@ from typing import Dict, List
 
 from common.collector_configs import ExperimentConfig
 from common.interfaces import JSONSerializer
+from common.configs import InfluxDBConfig
 
 class InstanceStatus(Enum):
     STARTED = "started"
@@ -52,15 +53,17 @@ class InitializeMessageUpstream(JSONSerializer):
 
 # TODO: InfluxDB will become object as well
 class ExperimentMessageUpstream(JSONSerializer):
-    def __init__(self, status: str, influx: str,
+    def __init__(self, status: str, influxdb: InfluxDBConfig,
                  experiments: List[ExperimentConfig] = None) -> None:
         self.status = status
-        self.influx = influx
+        self.influxdb = influxdb
         self.experiments = experiments
 
     @staticmethod
     def from_json(json):
         obj = ExperimentMessageUpstream(**json)
+
+        obj.influxdb = InfluxDBConfig(**json["influxdb"])
 
         if obj.experiments is None:
             return obj

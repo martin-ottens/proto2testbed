@@ -2,6 +2,7 @@ import traceback
 
 from data_collectors.base_collector import BaseCollector
 from data_collectors.iperf_common import run_iperf
+from data_collectors.influxdb_adapter import InfluxDBAdapter
 from common.collector_configs import CollectorConfig, IperfClientCollectorConfig
 
 class IperfClientCollector(BaseCollector):
@@ -10,7 +11,7 @@ class IperfClientCollector(BaseCollector):
     def get_runtime_upper_bound(self, runtime: int) -> int:
         return runtime + IperfClientCollector.__CONNECT_TIMEOUT
 
-    def start_collection(self, settings: CollectorConfig, runtime: int) -> bool:
+    def start_collection(self, settings: CollectorConfig, runtime: int, adapter: InfluxDBAdapter) -> bool:
         if not isinstance(settings, IperfClientCollectorConfig):
             raise Exception("Received invalid config type!")
         

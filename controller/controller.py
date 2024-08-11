@@ -10,7 +10,7 @@ from helper.network_helper import NetworkBridge
 from helper.fileserver_helper import FileServer
 from helper.vm_helper import VMWrapper
 from utils.interfaces import Dismantable
-from utils.config_tools import load_config, load_vm_initialization
+from utils.config_tools import load_config, load_vm_initialization, load_influxdb
 from utils.settings import SettingsWrapper
 from management_server import ManagementServer
 from state_manager import MachineStateManager, AgentManagementState
@@ -177,11 +177,7 @@ class Controller(Dismantable):
         return True
     
     def wait_before_release(self, on_demand: bool = False):
-        sleep_for = SettingsWrapper.testbed_config.settings.auto_dismantle_seconds
-        if SettingsWrapper.cli_paramaters.wait == -1:
-            sleep_for = -1
-        elif SettingsWrapper.cli_paramaters.wait != 0:
-            sleep_for = SettingsWrapper.cli_paramaters.wait
+        sleep_for = SettingsWrapper.cli_paramaters.wait
 
         if on_demand:
             if sleep_for != -1:
@@ -210,6 +206,19 @@ class Controller(Dismantable):
         
         file_server_addr = (str(self.mgmt_gateway), FILESERVER_PORT, )
         mgmt_server_addr = (str(self.mgmt_gateway), MANAGEMENT_SERVER_PORT, )
+        
+        try:
+            influx_db = load_influxdb(str(self.mgmt_gateway), SettingsWrapper.cli_paramaters.experiment, 
+                                    SettingsWrapper.cli_paramaters.dont_use_influx, SettingsWrapper.cli_paramaters.influx_path)
+        except Exception as _:
+            logger.critical("Unable to load InfluxDB data!")
+            self.dismantle()
+            return
+        
+        if influx_db.disabled:
+            logger.info("InfluxDB experiment data storage is disabled!")
+        else:
+            logger.info(f"Experiment data will be saved to InfluxDB {influx_db.database} with tag experiment={influx_db.series_name}")
 
         if not load_vm_initialization(SettingsWrapper.testbed_config, self.base_path, self.state_manager, f"http://{file_server_addr[0]}:{file_server_addr[1]}"):
             logger.critical("Critical error while loading VM initialization!")
@@ -243,7 +252,7 @@ class Controller(Dismantable):
         logger.info("Startig experiments on VMs.")
         for machine in SettingsWrapper.testbed_config.machines:
             state = self.state_manager.get_machine(machine.name)
-            message = ExperimentMessageUpstream("experiement", "TODO", machine.experiments)
+            message = ExperimentMessageUpstream("experiement", influx_db, machine.experiments)
             state.send_message(message.to_json().encode("utf-8"))
             state.set_state(AgentManagementState.IN_EXPERIMENT)
             
@@ -258,5 +267,4 @@ class Controller(Dismantable):
             self.wait_before_release(on_demand=True)
             return
 
-        # TODO: Shutdown testbed automatically after successful or failed experiments
-        self.wait_before_release()
+        return # Dismantling handeled by main

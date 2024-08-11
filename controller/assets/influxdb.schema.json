@@ -1,0 +1,31 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "influxdb.schema.json",
+    "title": "InfluxDB Config Schema",
+    "description": "Schema for optinal InfluxDB config",
+    "type": "object",
+    "properties": {
+        "database": {
+            "type": "string"
+        },
+        "series_name": {
+            "type": "string"
+        },
+        "host": {
+            "type": "string"
+        },
+        "port": {
+            "type": "number"
+        },
+        "org": {
+            "type": "string"
+        },
+        "token": {
+            "type": "string"
+        }
+    },
+    "required": [
+        "database"
+    ],
+    "additionalItems": false
+}

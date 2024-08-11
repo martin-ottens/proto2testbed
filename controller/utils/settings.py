@@ -6,7 +6,6 @@ from common.collector_configs import ExperimentConfig
 @dataclass
 class TestbedSettings():
     machines_internet_access: bool = True
-    auto_dismantle_seconds: int = 180
     management_network: str = "172.16.99.0/24"
 
 @dataclass
@@ -39,7 +38,7 @@ class TestbedMachine():
 
 class TestbedConfig():
     def __init__(self, json) -> None:
-        self.settings: TestbedSettings = TestbedSettings(json["settings"])
+        self.settings: TestbedSettings = TestbedSettings(**json["settings"])
         self.networks: List[TestbedNetwork] = []
         self.machines: List[TestbedMachine] = []
 
@@ -57,6 +56,9 @@ class CLIParameters():
         self.wait: int = None
         self.sudo_mode: bool = False
         self.clean: bool = False
+        self.experiment: str = None
+        self.dont_use_influx: bool = False
+        self.influx_path: str = None
 
 
 class SettingsWrapper():

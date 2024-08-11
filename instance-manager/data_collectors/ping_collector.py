@@ -2,9 +2,10 @@ import subprocess
 
 from data_collectors.base_collector import BaseCollector
 from common.collector_configs import CollectorConfig, PingCollectorConfig
+from data_collectors.influxdb_adapter import InfluxDBAdapter
 
 class PingCollector(BaseCollector):
-    def start_collection(self, settings: CollectorConfig, runtime: int) -> bool:
+    def start_collection(self, settings: CollectorConfig, runtime: int, adapter: InfluxDBAdapter) -> bool:
         if not isinstance(settings, PingCollectorConfig):
             raise Exception("Received invalid config type!")
         

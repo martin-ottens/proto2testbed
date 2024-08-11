@@ -102,7 +102,7 @@ def main():
             barrier = Barrier(len(experiments.experiments) + 1)
             threads: List[CollectorController] = []
             for experiment in experiments.experiments:
-                t = CollectorController(experiment, manager, barrier)
+                t = CollectorController(experiment, manager, barrier, experiments.influxdb)
                 t.start()
                 threads.append(t)
             

@@ -1,4 +1,6 @@
 import json
+import random
+import os
 
 from pathlib import Path
 from loguru import logger
@@ -8,6 +10,8 @@ from collections import namedtuple
 import state_manager
 from utils.settings import *
 from utils.system_commands import get_asset_relative_to
+
+from common.configs import InfluxDBConfig
 
 def load_config(config_path: Path) -> TestbedConfig:
     if not config_path.exists():
@@ -55,3 +59,52 @@ def load_vm_initialization(config: TestbedConfig, base_path: Path, state_manager
 
     return True
     
+
+def load_influxdb(gateway_host: str, series_name: str = None, 
+                  store_disabled: bool = False, config_path: Path = None) -> InfluxDBConfig:
+    if series_name is None:
+        series_name = "".join(random.choices('0123456789abcdef', k=7))
+        if not store_disabled:
+            logger.info(f"InfluxDB experiment tag randomly generated -> {series_name}")
+
+    if config_path is None:
+        if not store_disabled and "INFLUXDB_DATABASE" not in os.environ.keys():
+            logger.critical("INFLUXDB_DATABASE not set in environment. Set varaible or specify config.")
+            raise Exception("INFLUXDB_DATABASE not set in environment")
+        host = os.environ.get("INFLUXDB_HOST", gateway_host)
+        port = os.environ.get("INFLUXDB_PORT", 8086)
+        org  = os.environ.get("INFLUXDB_ORG", None)
+        token = os.environ.get("INFLUXDB_TOKEN", None)
+        database = os.environ.get("INFLUXDB_DATABASE")
+
+        return InfluxDBConfig(database=database, series_name=series_name, host=host,
+                              port=port, org=org, token=token, disabled=store_disabled)
+    else:
+        if not config_path.exists():
+            raise Exception(f"Unable to load specified InfluxDB config '{config_path}'")
+        
+        try:
+            with open(config_path, "r") as handle:
+                config = json.load(handle)
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Unable to parse InfluxDB config json")
+            raise Exception(f"Unable to parse config {config_path}")
+
+        with open(get_asset_relative_to(__file__, "../assets/influxdb.schema.json"), "r") as handle:
+            schema = json.load(handle)
+
+        try:
+            validate(instance=config, schema=schema)
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Unable to validate InfluxDB config scheme")
+            raise Exception(f"Unable to parse config {config_path}")
+        
+        if "series_name" not in config.keys():
+            config["series_name"] = series_name
+        
+        if "host" not in config.keys():
+            config["host"] = gateway_host
+
+        config["disabled"] = store_disabled
+
+        return InfluxDBConfig(**config)

@@ -7,9 +7,11 @@ from threading import Event, Thread, Barrier
 
 from common.collector_configs import Collectors, ExperimentConfig
 from common.instance_manager_message import InstanceStatus
+from common.configs import InfluxDBConfig
 
 from management_client import ManagementClient, DownstreamMassage
 
+from data_collectors.influxdb_adapter import InfluxDBAdapter
 from data_collectors.base_collector import BaseCollector
 from data_collectors.iperf_client_collector import IperfClientCollector
 from data_collectors.iperf_server_collector import IperfServerCollector
@@ -32,7 +34,7 @@ class CollectorController(Thread):
                 raise Exception(f"Unmapped Collector {collector}")
             
     def __init__(self, config: ExperimentConfig, client: ManagementClient,
-                 start_barrier: Barrier) -> None:
+                 start_barrier: Barrier, influx_config: InfluxDBConfig) -> None:
         super(CollectorController, self).__init__()
         self.config = config
         self.collector: BaseCollector = CollectorController.map_collector(config.collector)
@@ -45,6 +47,8 @@ class CollectorController(Thread):
         self.shared_state["error_flag"] = False
         self.shared_state["error_string"] = None
 
+        self.influx_config: InfluxDBConfig = influx_config
+
     def __fork_run(self):
         """
         Important: This method will be forked away from main instance_manager
@@ -52,14 +56,19 @@ class CollectorController(Thread):
         shared_state has to be used! Only the main process has a connection to
         to the management server!
         """
+
+        local_influx_adapter = InfluxDBAdapter(self.influx_config)
+
         try:
-            rc = self.collector.start_collection(self.settings, self.config.runtime)
+            rc = self.collector.start_collection(self.settings, self.config.runtime, local_influx_adapter)
             if not rc:
                 self.shared_state["error_flag"] = True
                 self.shared_state["error_string"] = f"Collector finished with return code: {rc}"
         except Exception as ex:
                 self.shared_state["error_flag"] = True
                 self.shared_state["error_string"] = str(ex)
+        finally:
+            local_influx_adapter.close()
 
     def run(self):
         process = Process(target=self.__fork_run, args=())

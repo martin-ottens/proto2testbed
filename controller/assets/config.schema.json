@@ -11,9 +11,6 @@
                 "machines_internet_access": {
                     "type": "boolean"
                 },
-                "auto_dismantle_seconds": {
-                    "type": "number"
-                },
                 "management_network": {
                     "type": "string"
                 }
