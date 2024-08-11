@@ -1,8 +1,7 @@
-import json
-import subprocess
 import traceback
 
 from data_collectors.base_collector import BaseCollector
+from data_collectors.iperf_common import run_iperf
 from common.collector_configs import CollectorConfig, IperfServerCollectorConfig
 
 class IperfServerCollector(BaseCollector):
@@ -13,7 +12,7 @@ class IperfServerCollector(BaseCollector):
         if not isinstance(settings, IperfServerCollectorConfig):
             raise Exception("Received invalid config type!")
         
-        command = ["/usr/bin/iperf3", "--json-stream", "--forceflush", "--one-off"]
+        command = ["/usr/bin/iperf3", "--forceflush", "--one-off"]
 
         command.append("--interval")
         command.append(str(settings.report_interval))
@@ -24,36 +23,7 @@ class IperfServerCollector(BaseCollector):
         command.append(settings.host)
 
         try:
-            process = subprocess.Popen(command, shell=False, 
-                                       stdout=subprocess.PIPE, 
-                                       stderr=subprocess.STDOUT)
-        except Exception as ex:
-            raise Exception(f"Unable to start Iperf3 server: {ex}")
-
-        total_bytes = 0
-        total_seconds = 0
-        report_index = 0
-        try:
-            while process.poll() is None:
-                line = process.stdout.readline().decode("utf-8")
-                if line is None or line == "":
-                    break
-                json_line = json.loads(line)
-
-                match json_line["event"]:
-                    case "error":
-                        raise Exception(json_line["data"])
-                    case "interval":
-                        report_index  += 1
-                        total_bytes   += json_line["data"]["sum"]["bytes"]
-                        total_seconds += json_line["data"]["sum"]["seconds"]
-                        this_bps       = json_line["data"]["sum"]["bits_per_second"]
-                        print(f"{report_index}: bytes={total_bytes},seonds={total_seconds},bps={this_bps}")
-                    case _:
-                        continue
-
+           return run_iperf(command) == 0
         except Exception as ex:
             traceback.print_exception(ex)
             raise Exception(f"Iperf3 server error: {ex}")
-
-        return process.wait() == 0
