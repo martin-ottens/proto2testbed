@@ -11,6 +11,8 @@ import re
 from typing import List
 from enum import Enum
 
+from data_collectors.influxdb_adapter import InfluxDBAdapter
+
 class IPerfMode(Enum):
     UNKONWN = 0,
     TCP_CLIENT = 1,
@@ -53,55 +55,72 @@ def rate_to_bytes(bits: float, unit: str) -> int:
             raise Exception(f"Unknown data rate unit '{unit}'")
 
 
-def parse_line_tcp_client(time, stream, line):
+def parse_line_tcp_client(adapter: InfluxDBAdapter, time, stream, line):
     if len(line) != 7:
         raise Exception(f"Invalid iperf3 log line received.")
     
-    transfer = size_to_bytes(float(line[0]), line[1])
-    bitrate = rate_to_bytes(float(line[2]), line[3])
-    retransmit = int(line[4])
-    congestion = size_to_bytes(float(line[5]), line[6])
+    data = {
+        "time": time,
+        "stream": stream,
+        "transfer": size_to_bytes(float(line[0]), line[1]),
+        "bitrate": rate_to_bytes(float(line[2]), line[3]),
+        "retransmit": int(line[4]),
+        "congestion": size_to_bytes(float(line[5]), line[6])
+    }
     
-    print("TCP_CLIENT", time, stream, transfer, bitrate, retransmit, congestion)
+    adapter.add("iperf-tcp-client", data)
 
 
-def parse_line_tcp_server(time, stream, line):
+
+def parse_line_tcp_server(adapter: InfluxDBAdapter, time, stream, line):
     if len(line) != 4:
         raise Exception(f"Invalid iperf3 log line received.")
+
+    data = {
+        "time": time,
+        "stream": stream,
+        "transfer": size_to_bytes(float(line[0]), line[1]),
+        "bitrate": rate_to_bytes(float(line[2]), line[3]),
+    }
     
-    transfer = size_to_bytes(float(line[0]), line[1])
-    bitrate = rate_to_bytes(float(line[2]), line[3])
-
-    print("TCP_SERVER", time, stream, transfer, bitrate)
+    adapter.add("iperf-tcp-server", data)
 
 
-def parse_line_udp_client(time, stream, line):
+def parse_line_udp_client(adapter: InfluxDBAdapter, time, stream, line):
     if len(line) != 5:
         raise Exception(f"Invalid iperf3 log line received.")
     
-    transfer = size_to_bytes(float(line[0]), line[1])
-    bitrate = rate_to_bytes(float(line[2]), line[3])
-    datagrams = int(line[4])
+    data = {
+        "time": time,
+        "stream": stream,
+        "transfer": size_to_bytes(float(line[0]), line[1]),
+        "bitrate": rate_to_bytes(float(line[2]), line[3]),
+        "datagrams": int(line[4])
+    }
     
-    print("UDP_CLIENT", time, stream, transfer, bitrate, datagrams)
+    adapter.add("iperf-udp-client", data)
 
 
-def parse_line_udp_server(time, stream, line):
+def parse_line_udp_server(adapter: InfluxDBAdapter, time, stream, line):
     if len(line) != 8:
         raise Exception(f"Invalid iperf3 log line received.")
-    
-    transfer = size_to_bytes(float(line[0]), line[1])
-    bitrate = rate_to_bytes(float(line[2]), line[3])
-    jitter = float(line[4])
 
     dgram = line[6].split("/")
-    datagrams_lost = int(dgram[0])
-    datagrams_total = int(dgram[1])
 
-    print("UDP_SERVER", time, stream, transfer, bitrate, jitter, datagrams_lost, datagrams_total)
+    data = {
+        "time": time,
+        "stream": stream,
+        "transfer": size_to_bytes(float(line[0]), line[1]),
+        "bitrate": rate_to_bytes(float(line[2]), line[3]),
+        "jitter": float(line[4]),
+        "datagrams_lost": int(dgram[0]),
+        "datagrams_total": int(dgram[1])
+    }
+    
+    adapter.add("iperf-udp-server", data)
 
 
-def run_iperf(cli: List[str]) -> int:
+def run_iperf(cli: List[str], adapter: InfluxDBAdapter) -> int:
     process = subprocess.Popen(cli, shell=False, 
                                stdout=subprocess.PIPE, 
                                stderr=subprocess.PIPE)
@@ -180,19 +199,19 @@ def run_iperf(cli: List[str]) -> int:
 
             match mode:
                 case IPerfMode.TCP_CLIENT:
-                    parse_line_tcp_client(time_spec, stream, line_parts)
+                    parse_line_tcp_client(adapter, time_spec, stream, line_parts)
                 case IPerfMode.TCP_SERVER:
-                    parse_line_tcp_server(time_spec, stream, line_parts)
+                    parse_line_tcp_server(adapter, time_spec, stream, line_parts)
                 case IPerfMode.UDP_CLIENT:
-                    parse_line_udp_client(time_spec, stream, line_parts)
+                    parse_line_udp_client(adapter, time_spec, stream, line_parts)
                 case IPerfMode.UDP_SERVER:
-                    parse_line_udp_server(time_spec, stream, line_parts)
-        
+                    parse_line_udp_server(adapter, time_spec, stream, line_parts)
+
     rc = process.wait()
     if rc != 0:
         raise Exception(process.stderr.readline().decode("utf-8"))
     
-    if mode == IPerfMode.UNKONWN or pos != LogPosition.SUMMARY:
+    if mode == IPerfMode.UNKONWN:
         raise Exception("Unable to complete iperf log parsing!")
     
     return rc

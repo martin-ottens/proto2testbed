@@ -53,7 +53,8 @@ class PingCollector(BaseCollector):
                     continue
 
                 parts = line.split(" ")
-                timestamp = float(parts.pop(0).replace("[", "").replace("]", ""))
+                #timestamp = float(parts.pop(0).replace("[", "").replace("]", ""))
+                parts.pop(0)
 
                 reachable = True
 
@@ -71,10 +72,14 @@ class PingCollector(BaseCollector):
                     continue
                 current_seq = icmp_seq
 
-                ping = float(results.get("time", -1))
-                ttl = int(results.get("ttl", -1))
-
-                print(reachable, icmp_seq, ping, ttl, timestamp)
+                data = {
+                    "time": results.get("time", -1),
+                    "ttl": int(results.get("ttl", -1)),
+                    "reachable": reachable,
+                    "icmp_seq": icmp_seq
+                }
+                
+                adapter.add("ping", data)
 
         except Exception as ex:
             raise Exception(f"Ping error: {ex}")

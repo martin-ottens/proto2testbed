@@ -17,11 +17,17 @@
         "port": {
             "type": "number"
         },
-        "org": {
+        "user": {
             "type": "string"
         },
-        "token": {
+        "password": {
             "type": "string"
+        },
+        "timeout": {
+            "type": "number"
+        },
+        "retries": {
+            "type": "number"
         }
     },
     "required": [

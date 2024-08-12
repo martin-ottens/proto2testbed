@@ -6,10 +6,11 @@ from data_collectors.influxdb_adapter import InfluxDBAdapter
 from common.collector_configs import CollectorConfig, IperfClientCollectorConfig
 
 class IperfClientCollector(BaseCollector):
-    __CONNECT_TIMEOUT = 5
+    __CONNECT_TIMEOUT_MULTIPLIER = 0.1
+    __STATIC_DELAY_BEFORE_START = 5
 
     def get_runtime_upper_bound(self, runtime: int) -> int:
-        return runtime + IperfClientCollector.__CONNECT_TIMEOUT
+        return runtime + int(IperfClientCollector.__CONNECT_TIMEOUT_MULTIPLIER * runtime) + IperfClientCollector.__STATIC_DELAY_BEFORE_START
 
     def start_collection(self, settings: CollectorConfig, runtime: int, adapter: InfluxDBAdapter) -> bool:
         if not isinstance(settings, IperfClientCollectorConfig):
@@ -45,7 +46,7 @@ class IperfClientCollector(BaseCollector):
         command.append(str(settings.report_interval))
 
         command.append("--connect-timeout")
-        command.append(str(IperfClientCollector.__CONNECT_TIMEOUT))
+        command.append(str(max(IperfClientCollector.__STATIC_DELAY_BEFORE_START, IperfClientCollector.__CONNECT_TIMEOUT_MULTIPLIER * runtime)))
 
         command.append("--port")
         command.append(str(settings.port))
@@ -53,7 +54,7 @@ class IperfClientCollector(BaseCollector):
         command.append(settings.host)
 
         try:
-           return run_iperf(command) == 0
+           return run_iperf(command, adapter) == 0
         except Exception as ex:
             traceback.print_exception(ex)
             raise Exception(f"Iperf3 server error: {ex}")

@@ -8,7 +8,7 @@ import shutil
 import urllib.request
 from threading import Barrier
 
-from management_client import ManagementClient, DownstreamMassage
+from management_client import ManagementClient, DownstreamMassage, get_hostname
 from collector_controller import CollectorController
 
 from common.instance_manager_message import *
@@ -33,6 +33,7 @@ def get_default_gateway() -> str:
 
 def main():
     management_server_addr = get_default_gateway()
+    instance_name = get_hostname()
     manager = None
     exec_dir = None
     try:
@@ -102,7 +103,7 @@ def main():
             barrier = Barrier(len(experiments.experiments) + 1)
             threads: List[CollectorController] = []
             for experiment in experiments.experiments:
-                t = CollectorController(experiment, manager, barrier, experiments.influxdb)
+                t = CollectorController(experiment, manager, barrier, experiments.influxdb, instance_name)
                 t.start()
                 threads.append(t)
             

@@ -210,8 +210,8 @@ class Controller(Dismantable):
         try:
             influx_db = load_influxdb(str(self.mgmt_gateway), SettingsWrapper.cli_paramaters.experiment, 
                                     SettingsWrapper.cli_paramaters.dont_use_influx, SettingsWrapper.cli_paramaters.influx_path)
-        except Exception as _:
-            logger.critical("Unable to load InfluxDB data!")
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Unable to load InfluxDB data!")
             self.dismantle()
             return
         
@@ -259,6 +259,7 @@ class Controller(Dismantable):
         logger.info("Waiting for VMs to finish experiments ...")
         if not self.state_manager.wait_for_machines_to_become_state(AgentManagementState.FINISHED):
             logger.critical("VMs have reported failed experiments!")
+            time.sleep(10000)
             self.dismantle()
             return
         logger.success("All VMs reported finished experiments!")

@@ -24,7 +24,7 @@ class IperfServerCollector(BaseCollector):
         command.append(settings.host)
 
         try:
-           return run_iperf(command) == 0
+           return run_iperf(command, adapter) == 0
         except Exception as ex:
             traceback.print_exception(ex)
             raise Exception(f"Iperf3 server error: {ex}")

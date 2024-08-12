@@ -27,14 +27,14 @@
                     "collector": "iperf3-server",
                     "name": "vma-iperf-server",
                     "delay": 0,
-                    "runtime": 50,
+                    "runtime": 100,
                     "settings": {}
                 },
                 {
                     "collector": "procmon",
                     "name": "procmon-vma",
                     "delay": 5,
-                    "runtime": 20,
+                    "runtime": 60,
                     "settings": {
                         "interfaces": ["enp0s3"],
                         "system": true
@@ -57,9 +57,9 @@
             "collectors": [
                 {
                     "collector": "iperf3-client",
-                    "name": "vma-iperf-client",
+                    "name": "vmb-iperf-client",
                     "delay": 1,
-                    "runtime": 30,
+                    "runtime": 60,
                     "settings": {
                         "host": "10.0.0.1"
                     }
@@ -68,7 +68,7 @@
                     "collector": "procmon",
                     "name": "procmon-vmb",
                     "delay": 5,
-                    "runtime": 20,
+                    "runtime": 60,
                     "settings": {
                         "interfaces": ["enp0s3"],
                         "system": true

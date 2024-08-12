@@ -64,9 +64,11 @@ class ProcmonCollector(BaseCollector):
             return result
         
         def report(system_, processes_, interfaces_) -> None:
-            print("System", system_)
-            for k, v in processes_.items(): print("Process", k, v)
-            for k, v in interfaces_.items(): print("Interface", k, v)
+            adapter.add("proc_system", system_)
+            for k, v in processes_.items(): 
+                adapter.add("proc_process", v, {"process": k})
+            for k, v in interfaces_.items():
+                adapter.add("proc_interface", v, {"interface": k})
         
         # Processes -> t=0 Offset
         processes = {}

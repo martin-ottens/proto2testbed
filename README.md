@@ -2,13 +2,13 @@
 
 ## Installation of required Dependencies on Host
 ```bash
-apt install qemu-utils qemu-system-x86 qemu-system-gui bidge-utils iptables net-tools genisoimage python3 iproute2
+apt install qemu-utils qemu-system-x86 qemu-system-gui bidge-utils iptables net-tools genisoimage python3 iproute2 influxdb influxdb-client
 ```
 
 ## Python Dependencies
 ### Debian Packages
 ```bash
-apt install python3-jinja2 python3-pexpect python3-logura python3-jsonschema
+apt install python3-jinja2 python3-pexpect python3-loguru python3-jsonschema python3-influxdb
 ```
 
 ### Virtual Environment

@@ -3,9 +3,10 @@ import random
 import os
 
 from pathlib import Path
+from typing import Optional
 from loguru import logger
 from jsonschema import validate
-from collections import namedtuple
+from influxdb import InfluxDBClient
 
 import state_manager
 from utils.settings import *
@@ -58,10 +59,39 @@ def load_vm_initialization(config: TestbedConfig, base_path: Path, state_manager
         state_manager.add_machine(machine.name, script_file, env_variables, fileserver_base)
 
     return True
-    
 
-def load_influxdb(gateway_host: str, series_name: str = None, 
-                  store_disabled: bool = False, config_path: Path = None) -> InfluxDBConfig:
+
+def check_influx_connection(config: InfluxDBConfig) -> bool:
+    if config.disabled:
+        return True
+    
+    if config.user is not None:
+        client = InfluxDBClient(host=config.host, port=config.port, 
+                                user=config.user, password=config.password, 
+                                retries=config.retries, timeout=config.timeout)
+    else:
+        client = InfluxDBClient(host=config.host, port=config.port,
+                                retries=config.retries, timeout=config.timeout)
+
+    try:
+        databases = client.get_list_database()
+    except Exception as ex:
+        logger.opt(exception=ex).critical("Unable to connect to InfluxDB")
+        client.close()
+        return False
+
+    if not len(list(filter(lambda x: x["name"] == config.database, databases))):
+        logger.critical(f"InfluxDB database '{config.database}' not found!")
+        client.close()
+        return False
+    
+    logger.info(f"InfluxDB is up & running, database '{config.database}' was found.")
+    client.close()
+    return True
+
+
+def load_influxdb(gateway_host: str, series_name: Optional[str] = None, 
+                  store_disabled: bool = False, config_path: Optional[Path] = None) -> InfluxDBConfig:
     if series_name is None:
         series_name = "".join(random.choices('0123456789abcdef', k=7))
         if not store_disabled:
@@ -71,14 +101,16 @@ def load_influxdb(gateway_host: str, series_name: str = None,
         if not store_disabled and "INFLUXDB_DATABASE" not in os.environ.keys():
             logger.critical("INFLUXDB_DATABASE not set in environment. Set varaible or specify config.")
             raise Exception("INFLUXDB_DATABASE not set in environment")
+
         host = os.environ.get("INFLUXDB_HOST", gateway_host)
         port = os.environ.get("INFLUXDB_PORT", 8086)
-        org  = os.environ.get("INFLUXDB_ORG", None)
-        token = os.environ.get("INFLUXDB_TOKEN", None)
+        user  = os.environ.get("INFLUXDB_USER", None)
+        password = os.environ.get("INFLUXDB_PASSWORD", None)
         database = os.environ.get("INFLUXDB_DATABASE")
 
-        return InfluxDBConfig(database=database, series_name=series_name, host=host,
-                              port=port, org=org, token=token, disabled=store_disabled)
+        influx_config =  InfluxDBConfig(database=database, series_name=series_name, host=host,
+                                        port=port, user=user, password=password, disabled=store_disabled)
+        
     else:
         if not config_path.exists():
             raise Exception(f"Unable to load specified InfluxDB config '{config_path}'")
@@ -107,4 +139,9 @@ def load_influxdb(gateway_host: str, series_name: str = None,
 
         config["disabled"] = store_disabled
 
-        return InfluxDBConfig(**config)
+        influx_config = InfluxDBConfig(**config)
+
+    if not check_influx_connection(influx_config):
+        raise Exception("Unable to verify InfluxDB connection!")
+
+    return influx_config
