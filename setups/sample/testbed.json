@@ -9,6 +9,14 @@
             "physical_ports": []
         }
     ],
+    "integration": {
+        "mode": "await",
+        "invoke_after": "startup",
+        "settings": {
+            "start_script": "integration/oneshot.sh",
+            "wait_for_exit": 120
+        } 
+    },
     "machines": [
         {
             "name": "vma",

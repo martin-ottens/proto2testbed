@@ -27,9 +27,6 @@ class IntegrationHelper(Dismantable):
 
         self.process = None
 
-    def __del__(self) -> None:
-        self.dismantle()
-
     def __kill_process_with_child(self, process: Process):
         try:
             parent = psutil.Process(process.ident)
@@ -49,29 +46,31 @@ class IntegrationHelper(Dismantable):
             logger.critical(f"Integration: Unable to get {name} script file '{script_file}'!")
             return None
 
-        if not (script_file.stat() & (stat.S_IXUSR & stat.S_IXGRP & stat.S_IXOTH)):
+        if not bool(script_file.stat().st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)):
             logger.critical(f"Integration: {name.capitalize()} script file '{script_file}' has invalid permissions!")
             return None
 
         return script_file
 
 
-    def __run_subprocess(self, script_path):
+    def __run_subprocess(self, script_path: Path):
         """
         Important: This method will be forked away from the main process!
         """
 
-        for k, v in self.settings.environment.items():
-            os.environ[k] = v
+        if self.settings.environment is not None:
+            for k, v in self.settings.environment.items():
+                os.environ[k] = v
         
         try:
-            proc = invoke_subprocess(["/bin/bash", script_path], capture_output=True, shell=False)
-            if proc is not None (proc.returncode != 0 or proc.stderr != ""):
+            proc = invoke_subprocess(["/bin/bash", str(script_path)], capture_output=True, shell=False)
+            stderr = proc.stderr.decode("utf-8")
+            if proc is not None and (proc.returncode != 0 or stderr != ""):
                 self.shared_state["error_flag"] = True
-                if proc.stderr != "":
-                    self.shared_state["error_string"] = f"Failed with exit code {proc.returncode}\nSTDOUT: {proc.stdout}\nSTDERR; {proc.stderr}"
+                if stderr != "":
+                    self.shared_state["error_string"] = f"Failed with exit code {proc.returncode}\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {stderr}"
                 else:
-                    self.shared_state["error_string"] = f"Failed with exit code {proc.returncode}\nSTDOUT: {proc.stdout}"
+                    self.shared_state["error_string"] = f"Failed with exit code {proc.returncode}\nSTDOUT: {proc.stdout.decode('utf-8')}"
         except Exception as ex:
             self.shared_state["error_flag"] = True
             self.shared_state["error_string"] = f"Error during execution: {ex}"
@@ -88,6 +87,7 @@ class IntegrationHelper(Dismantable):
 
         self.process = Process(target=self.__run_subprocess, args=(start_script, ))
         start_time = time.time()
+        self.process.start()
 
         time.sleep(0.1)
 
@@ -129,21 +129,29 @@ class IntegrationHelper(Dismantable):
         if stage != self.settings.invoke_after:
             return None
         
-        logger.info(f"Integration: Starting {self.settings.mode} as stage {stage}.")
+        status = False
+        try:
+            match self.settings.mode:
+                case IntegrationMode.NONE:
+                    return None
+                case IntegrationMode.AWAIT:
+                    if not isinstance(self.settings.settings, AwaitIntegrationSettings):
+                        raise Exception("Invalid integration setting supplied!")
+                    status =  self.start_await(self.settings.settings)
+                case IntegrationMode.STARTSTOP:
+                    if not isinstance(self.settings.settings, StartStopIntegrationSettings):
+                        raise Exception("Invalid integration setting supplied!")
+                    status = self.start_startstop(self.settings.settings)
+                case _:
+                    raise Exception("Invalid integration mode supplied!")
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Integration: Unable to start integration!")
+            return False
         
-        match self.settings.mode:
-            case IntegrationMode.NONE:
-                return None
-            case IntegrationMode.AWAIT:
-                if not isinstance(self.settings.settings, AwaitIntegrationSettings):
-                    raise Exception("Invalid integration setting supplied!")
-                return self.start_await(self.settings.settings)
-            case IntegrationMode.STARTSTOP:
-                if not isinstance(self.settings.settings, StartStopIntegrationSettings):
-                    raise Exception("Invalid integration setting supplied!")
-                return self.start_startstop(self.settings.settings)
-            case _:
-                raise Exception("Invalid integration mode supplied!")
+        if status:
+            logger.success(f"Integration: Starting {self.settings.mode} as stage {stage}.")
+        
+        return status
         
     def dismantle_await(self, context: Optional[Tuple[float, int]]) -> None:
         if context is None or self.process is None:
@@ -153,12 +161,12 @@ class IntegrationHelper(Dismantable):
         if context[1] != -1:
             to_wait = context[1] - (time.time() - context[0])
             if to_wait > 0:
-                logger.info(f"Integration: Waiting {to_wait} seconds for script to complete.")
+                logger.info(f"Integration: Waiting up to {to_wait:.2f} seconds for script to complete.")
                 self.process.join(to_wait)
         
         if self.process.is_alive():
             if context[1] != -1:
-                logger.critical(f"Integration: Script runs did not finished in {context[2]} seconds, terminating ...")
+                logger.critical(f"Integration: Script runs did not finished in {context[1]} seconds, terminating ...")
             self.__kill_process_with_child(self.process)
 
         if self.shared_state["error_flag"]:
@@ -187,8 +195,12 @@ class IntegrationHelper(Dismantable):
 
     def dismantle(self) -> None:
         if self.dismantle_action is not None:
-            self.dismantle_action(self.dismantle_context)
-            logger.info("Integration: Integration was stopped.")
+            try:
+                self.dismantle_action(self.dismantle_context)
+                logger.success("Integration: Integration was stopped.")
+            except Exception as ex:
+                logger.opt(exception=ex).error("Integration: Unable to top integtation!")
+            self.dismantle_action = None
 
     def get_name(self) -> str:
         return "IntegrationHelper"

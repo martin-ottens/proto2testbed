@@ -34,16 +34,16 @@ class StartStopIntegrationSettings(IntegrationSettings):
     wait_for_exit: int = 5
 
 class IntegrationMode(Enum):
-    NONE = "none",
-    AWAIT = "await",
-    STARTSTOP = "startsop"
+    NONE = "none"
+    AWAIT = "await"
+    STARTSTOP = "startstop"
 
     def __str__(self):
         return str(self.value)
     
 class InvokeIntegrationAfter(Enum):
-    STARTUP = "startup",
-    NETWORK = "network",
+    STARTUP = "startup"
+    NETWORK = "network"
     INIT = "init"
 
     def __str__(self):
@@ -51,8 +51,9 @@ class InvokeIntegrationAfter(Enum):
     
 class Integration():
     def __init__(self, mode: str, environment: Optional[Dict[str, str]] = None,
-                 invoke_after: str = str(InvokeIntegrationAfter.INIT), wait_after_invoke: str = 0,
+                 invoke_after: str = str(InvokeIntegrationAfter.STARTUP), wait_after_invoke: str = 0,
                  settings: Optional[Any] = None) -> None:
+
         self.mode: IntegrationMode = IntegrationMode(mode)
         self.environment = environment
         self.invoke_after: InvokeIntegrationAfter = InvokeIntegrationAfter(invoke_after)

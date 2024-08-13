@@ -113,7 +113,7 @@ class ManagementClientConnection(threading.Thread):
             try:
                 data = self.client_socket.recv(ManagementClientConnection.__MAX_FRAME_LEN)
                 if len(data) == 0:
-                    logger.info(f"Management: Client {self.addr} disconnected")
+                    logger.debug(f"Management: Client {self.addr} disconnected (0 bytes read)")
                     break
 
                 partial_data = partial_data + data.decode("utf-8")

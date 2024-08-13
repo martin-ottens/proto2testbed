@@ -32,9 +32,13 @@ class Controller(Dismantable):
 
         self.base_path = Path(SettingsWrapper.cli_paramaters.config)
         self.config_path = self.base_path / "testbed.json"
-        SettingsWrapper.testbed_config = load_config(self.config_path)
 
-        self.integration_helper = IntegrationHelper(SettingsWrapper.testbed_config.integration, self.base_path)
+        try:
+            SettingsWrapper.testbed_config = load_config(self.config_path)
+            self.integration_helper = IntegrationHelper(SettingsWrapper.testbed_config.integration, self.base_path)
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Internal error loading config!")
+            raise Exception("Internal config loading error!")
     
     def _destory(self) -> None:
         self.setup_env = None
