@@ -9,9 +9,11 @@ from threading import Event
 from helper.network_helper import NetworkBridge
 from helper.fileserver_helper import FileServer
 from helper.vm_helper import VMWrapper
+from helper.integration_helper import IntegrationHelper
 from utils.interfaces import Dismantable
 from utils.config_tools import load_config, load_vm_initialization, load_influxdb
 from utils.settings import SettingsWrapper
+from utils.settings import InvokeIntegrationAfter
 from management_server import ManagementServer
 from state_manager import MachineStateManager, AgentManagementState
 from common.instance_manager_message import ExperimentMessageUpstream
@@ -31,6 +33,8 @@ class Controller(Dismantable):
         self.base_path = Path(SettingsWrapper.cli_paramaters.config)
         self.config_path = self.base_path / "testbed.json"
         SettingsWrapper.testbed_config = load_config(self.config_path)
+
+        self.integration_helper = IntegrationHelper(SettingsWrapper.testbed_config.integration, self.base_path)
     
     def _destory(self) -> None:
         self.setup_env = None
@@ -93,6 +97,13 @@ class Controller(Dismantable):
             except Exception as ex:
                 logger.opt(exception=ex).critical(f"Unable to setup additional network {network.name}")
                 return False
+        
+        integration_start = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.NETWORK)
+        if integration_start == False :
+            logger.critical("Critical error during integration start!")
+            return False
+        elif integration_start == True:
+            self.dismantables.insert(0, self.integration_helper)
             
         # Setup VMs
         machines = {}
@@ -200,8 +211,17 @@ class Controller(Dismantable):
             return
         
     def main(self):
+        integration_start = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP)
+        if integration_start == False :
+            logger.critical("Critical error during integration start!")
+            self.dismantle()
+            return
+        elif integration_start == True:
+            self.dismantables.insert(0, self.integration_helper)
+
         if not self.setup_local_network():
             logger.critical("Critical error during local network setup!")
+            self.dismantle()
             return
         
         file_server_addr = (str(self.mgmt_gateway), FILESERVER_PORT, )
@@ -244,6 +264,14 @@ class Controller(Dismantable):
             self.dismantle()
             return
         logger.success("All VMs reported up & ready!")
+
+        integration_start = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.INIT)
+        if integration_start == False :
+            logger.critical("Critical error during integration start!")
+            self.dismantle()
+            return
+        elif integration_start == True:
+            self.dismantables.insert(0, self.integration_helper)
 
         if SettingsWrapper.cli_paramaters.pause == "INIT":
             self.wait_before_release(on_demand=True)

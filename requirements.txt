@@ -3,3 +3,4 @@ pexpect
 loguru
 jsonschema
 influxdb
+psutil
