@@ -43,7 +43,11 @@ if __name__ == "__main__":
         logger.add(sys.stdout, level="TRACE")
     
     parameters = CLIParameters()
-    parameters.config = f"{os.getcwd()}/{args.TESTBED_CONFIG}"
+    if os.path.isabs(args.TESTBED_CONFIG):
+        parameters.config = args.TESTBED_CONFIG
+    else:
+        parameters.config = f"{os.getcwd()}/{args.TESTBED_CONFIG}"
+
     parameters.pause = args.pause
     parameters.wait = args.wait
     parameters.sudo_mode = args.sudo
