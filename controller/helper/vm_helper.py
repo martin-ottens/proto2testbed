@@ -18,8 +18,7 @@ class VMWrapper(Dismantable):
     __QEMU_COMMAND_TEMPLATE = """qemu-system-x86_64 \
                                 -boot c \
                                 -m {memory} \
-                                -enable-kvm \
-                                -cpu host \
+                                {kvm} \
                                 -smp {cores} \
                                 -machine q35 \
                                 -hda {image} \
@@ -28,6 +27,8 @@ class VMWrapper(Dismantable):
                                 -cdrom {cloud_init_iso} \
                                 -display none \
                                 -monitor stdio"""
+    __QEMU_KVM_OPTIONS = """-enable-kvm \
+                            -cpu host"""
     __CLOUD_INIT_ISO_TEMPLATE = """genisoimage \
                                    -output {output} \
                                    -volid cidata \
@@ -36,7 +37,8 @@ class VMWrapper(Dismantable):
 
     def __init__(self, name: str, management: Dict[str, str], 
                  extra_interfaces: List[str], image: str,
-                 cores: int = 2, memory: int = 1024, debug: bool = False):
+                 cores: int = 2, memory: int = 1024, debug: bool = False, 
+                 disable_kvm: bool = False) -> None:
         self.name = name
         self.debug = debug
         self.qemu_handle = None
@@ -104,7 +106,8 @@ class VMWrapper(Dismantable):
                 cores=cores,
                 image=image,
                 nics=interfaces,
-                cloud_init_iso=cloud_init_iso
+                cloud_init_iso=cloud_init_iso,
+                kvm=(VMWrapper.__QEMU_KVM_OPTIONS if not disable_kvm else '')
             )
         except Exception as ex:
             self.tempdir.cleanup()

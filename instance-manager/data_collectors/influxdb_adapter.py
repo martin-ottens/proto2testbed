@@ -3,12 +3,13 @@ from influxdb import InfluxDBClient
 from common.configs import InfluxDBConfig
 
 class InfluxDBAdapter():
-    def __init__(self, influxdb_config: InfluxDBConfig, collector_name: str, instance_name: str):
+    def __init__(self, influxdb_config: InfluxDBConfig, collector_name: str, 
+                 instance_name: str, dont_store: bool = False) -> None:
         self.influxdb_config = influxdb_config
         self.collector_name = collector_name
         self.instance_name = instance_name
         
-        if influxdb_config.disabled:
+        if influxdb_config.disabled or dont_store:
             self.client = None
         elif influxdb_config.user is not None:
             self.client = InfluxDBClient(host=influxdb_config.host, port=influxdb_config.port,

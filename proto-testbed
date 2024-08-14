@@ -1,5 +1,7 @@
 #!/bin/bash
 
-REPO_BASE=$(realpath $(dirname $0))
+# Resolve symlinks by passing $0 to realpath
+SCRIPT=$(realpath "$0")
+REPO_BASE=$(dirname "$SCRIPT")
 
 python3 $REPO_BASE/controller/main.py ${@:1}

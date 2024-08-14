@@ -61,7 +61,7 @@ class CollectorController(Thread):
         """
 
         try:
-            local_influx_adapter = InfluxDBAdapter(self.influx_config, self.get_experiment_name(), self.instance_name)
+            local_influx_adapter = InfluxDBAdapter(self.influx_config, self.get_experiment_name(), self.instance_name, self.config.dont_store)
             rc = self.collector.start_collection(self.settings, self.config.runtime, local_influx_adapter)
             if not rc:
                 self.shared_state["error_flag"] = True

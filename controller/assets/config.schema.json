@@ -207,6 +207,9 @@
                                 "runtime": {
                                     "type": "number"
                                 },
+                                "dont_store": {
+                                    "type": "boolean"
+                                },
                                 "settings": {
                                     "type": "object"
                                 }

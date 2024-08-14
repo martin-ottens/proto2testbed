@@ -24,13 +24,15 @@ if __name__ == "__main__":
                         help="Only print INFO, ERROR, SUCCESS or CRITICAL log messages")
     parser.add_argument("--wait", required=False, type=int, default=-1, 
                         help="Wait before shutdown, -1 = wait forever (default), x >= 0 = wait x seconds")
-    parser.add_argument("--sudo", "-s", action="store_true", required=False, default=False,
+    parser.add_argument("--sudo", action="store_true", required=False, default=False,
                         help="Prepend 'sudo' to all commands (non-interactive), root required otherwise")
+    parser.add_argument("--no_kvm", action="store_true", required=False, default=False,
+                        help="Disable KVM virtualization in QEMU")
     parser.add_argument("--experiment", "-e", required=False, default=None, type=str, 
                         help="Name of experiment series, auto generated if omitted")
     parser.add_argument("--dont_store", "-d", required=False, default=False, action="store_true", 
                         help="Dont store experiment results to InfluxDB on host")
-    parser.add_argument("--influxdb", "-i", required=False, default=None, type=str, 
+    parser.add_argument("--influxdb", required=False, default=None, type=str, 
                         help="Path to InfluxDB config, use defaults/environment if omitted")
     
     args = parser.parse_args()
@@ -51,6 +53,7 @@ if __name__ == "__main__":
     parameters.pause = args.pause
     parameters.wait = args.wait
     parameters.sudo_mode = args.sudo
+    parameters.disable_kvm = args.no_kvm
     parameters.clean = args.clean
     parameters.experiment = args.experiment
     parameters.dont_use_influx = args.dont_store

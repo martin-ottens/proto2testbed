@@ -58,10 +58,11 @@ class ProcmonCollectorConfig(CollectorConfig, JSONSerializer):
 
 class ExperimentConfig(JSONSerializer):
     def __init__(self, name: str, collector: str, delay: int = 0, 
-                 runtime: int = 30, settings = None) -> None:
+                 runtime: int = 30, dont_store: bool = False, settings = None) -> None:
         self.name: str = name
         self.delay: int = delay
         self.runtime: int = runtime
+        self.dont_store: bool = dont_store
 
         self.collector = Collectors(collector)
 

@@ -112,6 +112,7 @@ class CLIParameters():
         self.pause: str = None
         self.wait: int = None
         self.sudo_mode: bool = False
+        self.disable_kvm: bool = False
         self.clean: bool = False
         self.experiment: str = None
         self.dont_use_influx: bool = False
