@@ -138,7 +138,9 @@ class Controller(Dismantable):
                                     extra_interfaces=extra_interfaces.keys(),
                                     image=str(diskimage_path),
                                     cores=machine.cores,
-                                    memory=machine.memory)
+                                    memory=machine.memory,
+                                    disable_kvm=SettingsWrapper.cli_paramaters.disable_kvm,
+                                    netmodel=machine.netmodel)
                 self.dismantables.insert(0, wrapper)
                 wrapper.start_instance()
                 extra_interfaces[f"v_{index}_m"] = "br-mgmt"

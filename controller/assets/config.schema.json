@@ -168,6 +168,14 @@
                     "memory": {
                         "type": "number"
                     },
+                    "netmodel": {
+                        "type": "string",
+                        "enum": [
+                            "virtio",
+                            "e1000",
+                            "rtl8139"
+                        ]
+                    },
                     "networks": {
                         "oneOf": [
                             {

@@ -14,7 +14,7 @@ from utils.interfaces import Dismantable
 from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_relative_to
 
 class VMWrapper(Dismantable):
-    __QEMU_NIC_TEMPLATE     = "-nic tap,model=e1000,ifname={tapname},mac={mac} "
+    __QEMU_NIC_TEMPLATE     = "-nic tap,model={model},ifname={tapname},mac={mac} "
     __QEMU_COMMAND_TEMPLATE = """qemu-system-x86_64 \
                                 -boot c \
                                 -m {memory} \
@@ -38,7 +38,7 @@ class VMWrapper(Dismantable):
     def __init__(self, name: str, management: Dict[str, str], 
                  extra_interfaces: List[str], image: str,
                  cores: int = 2, memory: int = 1024, debug: bool = False, 
-                 disable_kvm: bool = False) -> None:
+                 disable_kvm: bool = False, netmodel: str = "virtio") -> None:
         self.name = name
         self.debug = debug
         self.qemu_handle = None
@@ -96,9 +96,9 @@ class VMWrapper(Dismantable):
             hash_hex = hashlib.sha256(name.encode()).hexdigest()
             base_mac = hash_hex[1:2] + 'e:' + hash_hex[2:4] + ':' + hash_hex[4:6] + ':' + hash_hex[6:8] + ':' + hash_hex[8:10] + ':' + hash_hex[10:11]
             
-            interfaces = VMWrapper.__QEMU_NIC_TEMPLATE.format(tapname=management["interface"], mac=(base_mac + "0"))
+            interfaces = VMWrapper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management["interface"], mac=(base_mac + "0"))
             for index, name in enumerate(extra_interfaces):
-                interfaces += VMWrapper.__QEMU_NIC_TEMPLATE.format(tapname=name, mac=(base_mac + str(index + 1)))
+                interfaces += VMWrapper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=name, mac=(base_mac + str(index + 1)))
 
             # Prepare qemu command
             self.qemu_command = VMWrapper.__QEMU_COMMAND_TEMPLATE.format(

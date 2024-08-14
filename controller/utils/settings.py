@@ -74,7 +74,7 @@ class TestbedMachine():
     def __init__(self, name: str, diskimage: str, setup_script: str = None, 
                  environment: Dict[str, str]=  None, cores: int = 2, 
                  memory: int = 1024, networks: List[str] = None,
-                 collectors = None) -> None:
+                 netmodel: str = "virtio", collectors = None) -> None:
         self.name: str = name
         self.diskimage: str = diskimage
         self.setup_script: str = setup_script
@@ -82,6 +82,7 @@ class TestbedMachine():
         self.cores: int = cores
         self.memory: int = memory
         self.networks: List[str] = networks
+        self.netmodel: str = netmodel
 
         self.experiments: List[ExperimentConfig] = []
 
