@@ -22,10 +22,9 @@ SECONDS = "s"
 DATA_SIZE = "bytes"
 DATA_RATE = "bits/s"
 
-# TODO: procmon change _ to -
 MAPPING = {
     "ping": {
-        "time": (MILLISECONDS, "ICMP RTT"),
+        "rtt": (MILLISECONDS, "ICMP RTT"),
         "ttl": (None, "TTL of response packet"),
         "reachable": (None, "Target reachable")
     },
@@ -220,6 +219,11 @@ def main(client: InfluxDBClient, experiment: str, config: str, out: str):
         machine_name = machine["name"]
         logger.info(f"Processing instance {machine_name}")
         os.makedirs(f"{out}/{machine_name}", exist_ok=True)
+
+        if machine["collectors"] is None:
+            logger.warning(f"No experiments found for instance {machine_name}")
+            continue
+
         for collector in machine["collectors"]:
             collector_type = collector["collector"]
             collector_name = collector["name"]

@@ -284,6 +284,9 @@ class Controller(Dismantable):
         logger.info("Waiting for VMs to finish experiments ...")
         if not self.state_manager.wait_for_machines_to_become_state(AgentManagementState.FINISHED):
             logger.critical("VMs have reported failed experiments!")
+            if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
+                self.wait_before_release(on_demand=True)
+                return True
             return False
         logger.success("All VMs reported finished experiments!")
             

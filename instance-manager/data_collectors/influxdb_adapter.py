@@ -21,9 +21,12 @@ class InfluxDBAdapter():
             self.client.switch_database(influxdb_config.database)
     
     def add(self, series_name: str, points, additional_tags = None):
+        if points is None:
+            return
+
         if self.client is None:
             points_as_str = ", ".join(list(map(lambda x: f"{x[0]}={x[1]}", points.items())))
-            print(f"DATA {series_name}@{self.collector_name} {f'({additional_tags})' if additional_tags is not None else ''}): {points_as_str}")
+            print(f"DATA {series_name}@{self.collector_name} {f'({additional_tags})' if additional_tags is not None else ''}): {points_as_str}", flush=True)
             return
 
         data = [

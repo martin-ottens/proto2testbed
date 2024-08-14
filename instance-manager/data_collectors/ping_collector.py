@@ -73,7 +73,7 @@ class PingCollector(BaseCollector):
                 current_seq = icmp_seq
 
                 data = {
-                    "time": results.get("time", -1),
+                    "rtt": results.get("time", -1),
                     "ttl": int(results.get("ttl", -1)),
                     "reachable": reachable,
                     "icmp_seq": icmp_seq

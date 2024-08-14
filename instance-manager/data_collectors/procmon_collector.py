@@ -64,7 +64,8 @@ class ProcmonCollector(BaseCollector):
             return result
         
         def report(system_, processes_, interfaces_) -> None:
-            adapter.add("proc-system", system_)
+            if system_ is not None:
+                adapter.add("proc-system", system_)
             for k, v in processes_.items(): 
                 adapter.add("proc-process", v, {"process": k})
             for k, v in interfaces_.items():
