@@ -59,6 +59,12 @@ if __name__ == "__main__":
         sys.exit(1)
 
     controller = Controller()
-    controller.main()
+    status = controller.main()
     controller.dismantle()
-    logger.success("Testbed was dismantled!")
+
+    if status:
+        logger.success("Testbed was dismantled!")
+        sys.exit(0)
+    else:
+        logger.critical("Testbed was dismantled after error.")
+        sys.exit(1)

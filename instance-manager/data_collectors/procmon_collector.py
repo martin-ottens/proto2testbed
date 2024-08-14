@@ -50,7 +50,7 @@ class ProcmonCollector(BaseCollector):
                 "cpu_idle": cpu.idle,
                 "cpu_iowait": cpu.iowait,
                 "cpu_irq": cpu.irq,
-                "cpu.softirq": cpu.softirq,
+                "cpu_softirq": cpu.softirq,
                 "mem_used": mem.used,
                 "mem_free": mem.free,
                 "mem_buffers": mem.buffers,
@@ -64,11 +64,11 @@ class ProcmonCollector(BaseCollector):
             return result
         
         def report(system_, processes_, interfaces_) -> None:
-            adapter.add("proc_system", system_)
+            adapter.add("proc-system", system_)
             for k, v in processes_.items(): 
-                adapter.add("proc_process", v, {"process": k})
+                adapter.add("proc-process", v, {"process": k})
             for k, v in interfaces_.items():
-                adapter.add("proc_interface", v, {"interface": k})
+                adapter.add("proc-interface", v, {"interface": k})
         
         # Processes -> t=0 Offset
         processes = {}

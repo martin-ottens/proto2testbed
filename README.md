@@ -11,6 +11,11 @@ apt install qemu-utils qemu-system-x86 qemu-system-gui bidge-utils iptables net-
 apt install python3-jinja2 python3-pexpect python3-loguru python3-jsonschema python3-influxdb python3-psutil
 ```
 
+#### Additional Debian Packages (Plot rendering)
+```bash
+apt install python3-numpy python3-matplotlib
+```
+
 ### Virtual Environment
 ```bash
 apt install python3-virtualenv python3-pip

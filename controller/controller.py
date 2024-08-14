@@ -214,19 +214,17 @@ class Controller(Dismantable):
         except KeyboardInterrupt:
             return
         
-    def main(self):
+    def main(self) -> bool:
         integration_start = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP)
         if integration_start == False :
             logger.critical("Critical error during integration start!")
-            self.dismantle()
-            return
+            return False
         elif integration_start == True:
             self.dismantables.insert(0, self.integration_helper)
 
         if not self.setup_local_network():
             logger.critical("Critical error during local network setup!")
-            self.dismantle()
-            return
+            return False
         
         file_server_addr = (str(self.mgmt_gateway), FILESERVER_PORT, )
         mgmt_server_addr = (str(self.mgmt_gateway), MANAGEMENT_SERVER_PORT, )
@@ -236,8 +234,7 @@ class Controller(Dismantable):
                                     SettingsWrapper.cli_paramaters.dont_use_influx, SettingsWrapper.cli_paramaters.influx_path)
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to load InfluxDB data!")
-            self.dismantle()
-            return
+            return False
         
         if influx_db.disabled:
             logger.info("InfluxDB experiment data storage is disabled!")
@@ -246,40 +243,36 @@ class Controller(Dismantable):
 
         if not load_vm_initialization(SettingsWrapper.testbed_config, self.base_path, self.state_manager, f"http://{file_server_addr[0]}:{file_server_addr[1]}"):
             logger.critical("Critical error while loading VM initialization!")
-            return
+            return False
 
         if not self.start_management_infrastructure(file_server_addr, mgmt_server_addr):
             logger.critical("Critical error during start of management infrastructure!")
-            self.dismantle()
-            return
+            return False
 
         if not self.setup_infrastructure():
             logger.critical("Critical error during setup, dismantling!")
-            self.dismantle()
-            return
+            return False
         
         if SettingsWrapper.cli_paramaters.pause == "SETUP":
             self.wait_before_release(on_demand=True)
-            return
+            return True
 
         logger.info("Waiting for VMs to start and initialize ...")
         if not self.state_manager.wait_for_machines_to_become_state(AgentManagementState.INITIALIZED):
             logger.critical("VMs are not ready or error during initialization!")
-            self.dismantle()
-            return
+            return False
         logger.success("All VMs reported up & ready!")
 
         integration_start = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.INIT)
         if integration_start == False :
             logger.critical("Critical error during integration start!")
-            self.dismantle()
-            return
+            return False
         elif integration_start == True:
             self.dismantables.insert(0, self.integration_helper)
 
         if SettingsWrapper.cli_paramaters.pause == "INIT":
             self.wait_before_release(on_demand=True)
-            return
+            return True
         
         logger.info("Startig experiments on VMs.")
         for machine in SettingsWrapper.testbed_config.machines:
@@ -291,13 +284,11 @@ class Controller(Dismantable):
         logger.info("Waiting for VMs to finish experiments ...")
         if not self.state_manager.wait_for_machines_to_become_state(AgentManagementState.FINISHED):
             logger.critical("VMs have reported failed experiments!")
-            time.sleep(10000)
-            self.dismantle()
-            return
+            return False
         logger.success("All VMs reported finished experiments!")
             
         if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
             self.wait_before_release(on_demand=True)
-            return
+            return True
 
-        return # Dismantling handeled by main
+        return True # Dismantling handeled by main
