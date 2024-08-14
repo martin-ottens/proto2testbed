@@ -6,7 +6,9 @@ import os
 import tempfile
 import shutil
 import urllib.request
+
 from threading import Barrier
+from pathlib import Path
 
 from management_client import ManagementClient, DownstreamMassage, get_hostname
 from collector_controller import CollectorController
@@ -15,6 +17,7 @@ from common.instance_manager_message import *
 
 FILE_SERVER_PORT = 4242
 MGMT_SERVER_PORT = 4243
+STATE_FILE = "/tmp/im-setup-succeeded"
 
 def get_default_gateway() -> str:
     proc = subprocess.run(["/usr/sbin/ip", "-json", "route"], capture_output=True, shell=False)
@@ -44,52 +47,55 @@ def main():
         message = DownstreamMassage(InstanceStatus.STARTED)
         manager.send_to_server(message)
 
-        # 2. Install instance and report status
-        # 2.1. Get initialization data from management server
-        installation_data = manager.wait_for_command()
-        if "status" not in installation_data or installation_data.get("status") != "initialize":
-            raise Exception("Invalid message received from management server")
+        if not Path(STATE_FILE).is_file():
+            # 2. Install instance and report status
+            # 2.1. Get initialization data from management server
+            installation_data = manager.wait_for_command()
+            if "status" not in installation_data or installation_data.get("status") != "initialize":
+                raise Exception("Invalid message received from management server")
 
-        if "script" not in installation_data or "environment" not in installation_data:
-            raise Exception("Initialization message error: Fields are missing")
+            if "script" not in installation_data or "environment" not in installation_data:
+                raise Exception("Initialization message error: Fields are missing")
 
-        if not isinstance(installation_data.get("environment"), dict):
-            raise Exception("Initialization message error: Environment should be a dict")
-        
-        init_message = InitializeMessageUpstream(**installation_data)
-
-        # 2.2 Download initialization script from file server
-        if init_message.script is not None:
-            exec_dir = tempfile.mkdtemp()
-            setup_script_basename = os.path.basename(init_message.script)
-            setup_script = f"{exec_dir}/{setup_script_basename}"
-            try:
-                urllib.request.urlretrieve(f"http://{management_server_addr}:{FILE_SERVER_PORT}/{init_message.script}", setup_script)
-            except Exception as ex:
-                message = DownstreamMassage(InstanceStatus.FAILED, "Unable to fetch script file")
-                manager.send_to_server(message)
-                raise Exception(f"Unable to retrive script file {init_message.script} from file server") from ex
-
-            # 2.3. Setup execution environment and launch script
-            os.chmod(setup_script, 0o744)
-            os.chdir(exec_dir)
-            for key, value in init_message.environment.items():
-                os.environ[key] = value
+            if not isinstance(installation_data.get("environment"), dict):
+                raise Exception("Initialization message error: Environment should be a dict")
             
-            proc = None
-            try:
-                proc = subprocess.run(["/bin/bash", setup_script_basename], capture_output=True, shell=False)
-            except Exception as ex:
-                message = DownstreamMassage(InstanceStatus.FAILED, 
-                                            f"Setup script failed:\nMESSAGE: {ex}")
-                manager.send_to_server(message)
-                raise Exception(f"Unable to run setup_script") from ex
-            
-            if proc is not None and proc.returncode != 0:
-                message = DownstreamMassage(InstanceStatus.FAILED, 
-                                            f"Setup script failed ({proc.returncode})\nSTDOUT: {proc.stdout}\nSTDERR: {proc.stderr}")
-                manager.send_to_server(message)
-                raise Exception(f"Unable to run setup_script': {proc.stderr}")
+            init_message = InitializeMessageUpstream(**installation_data)
+
+            # 2.2 Download initialization script from file server
+            if init_message.script is not None:
+                exec_dir = tempfile.mkdtemp()
+                setup_script_basename = os.path.basename(init_message.script)
+                setup_script = f"{exec_dir}/{setup_script_basename}"
+                try:
+                    urllib.request.urlretrieve(f"http://{management_server_addr}:{FILE_SERVER_PORT}/{init_message.script}", setup_script)
+                except Exception as ex:
+                    message = DownstreamMassage(InstanceStatus.FAILED, "Unable to fetch script file")
+                    manager.send_to_server(message)
+                    raise Exception(f"Unable to retrive script file {init_message.script} from file server") from ex
+
+                # 2.3. Setup execution environment and launch script
+                os.chmod(setup_script, 0o744)
+                os.chdir(exec_dir)
+                for key, value in init_message.environment.items():
+                    os.environ[key] = value
+                
+                proc = None
+                try:
+                    proc = subprocess.run(["/bin/bash", setup_script_basename], capture_output=True, shell=False)
+                except Exception as ex:
+                    message = DownstreamMassage(InstanceStatus.FAILED, 
+                                                f"Setup script failed:\nMESSAGE: {ex}")
+                    manager.send_to_server(message)
+                    raise Exception(f"Unable to run setup_script") from ex
+                
+                if proc is not None and proc.returncode != 0:
+                    message = DownstreamMassage(InstanceStatus.FAILED, 
+                                                f"Setup script failed ({proc.returncode})\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {proc.stderr.decode('utf-8')}")
+                    manager.send_to_server(message)
+                    raise Exception(f"Unable to run setup_script': {proc.stderr}")
+
+                Path(STATE_FILE).touch()
 
         # 2.4. Report status to management server
         message = DownstreamMassage(InstanceStatus.INITIALIZED)
