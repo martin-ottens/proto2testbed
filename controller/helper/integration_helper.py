@@ -149,7 +149,7 @@ class IntegrationHelper(Dismantable):
             return False
         
         if status:
-            logger.success(f"Integration: Starting {self.settings.mode} as stage {stage}.")
+            logger.success(f"Integration: Starting mode '{self.settings.mode}' at stage {stage}.")
         
         return status
         

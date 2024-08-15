@@ -26,7 +26,7 @@ if __name__ == "__main__":
         client.switch_database(args.influx_database)
 
         client.delete_series(tags={"experiment": args.experiment})
-        logger.success(f"All data with tag={args.experiment} deleted")
+        logger.success(f"All data with tag experiment={args.experiment} deleted")
     except Exception as ex:
         logger.opt(exception=ex).critical("Exception during deletion")
         sys.exit(0)

@@ -9,6 +9,7 @@ import signal
 
 from typing import Optional, List
 from pathlib import Path
+from loguru import logger
 
 import pexpect.expect
 
@@ -50,17 +51,20 @@ def run_one_command_on_vm(command: str, proc: pexpect.spawn,
     wait_for_shell_on_vm(proc, timeout=timeout)
     proc.sendline("echo $?")
     proc.readline()
-    rc = int(proc.readline().strip().split("\r")[1])
+    try:
+        rc = int(proc.readline().strip().split("\r")[1])
+    except Exception as _:
+        rc = int(proc.readline().strip().split("\r")[1])
     wait_for_shell_on_vm(proc)
     if rc != expected_rc:
-        print(f"Command '{command}' finished with unexpected exit code: {rc} != {expected_rc}")
+        logger.error(f"Command '{command}' finished with unexpected exit code: {rc} != {expected_rc}")
         return False
     else:
-        print(f"Command '{command}' was executed on VM.")
+        logger.success(f"Command '{command}' was executed on VM.")
         return True
 
 
-def main(command: str, deb_file: str, extra: Optional[List[str]], debug: bool = False) -> None:
+def main(command: str, deb_file: str, extra: Optional[List[str]], debug: bool = False) -> bool:
     proc: pexpect.spawn
     with pexpect.spawn(command, timeout=PEXPECT_TIMEOUT, encoding="utf-8") as proc:
         if debug:
@@ -83,35 +87,38 @@ def main(command: str, deb_file: str, extra: Optional[List[str]], debug: bool = 
             proc.expect("Password:")
             proc.sendline(PEXPECT_ROOT_PASSWD)
             wait_for_shell_on_vm(proc)
-            run_one_command_on_vm("ls", proc)
 
             if not run_one_command_on_vm(COMMANDS["prepare"], proc):
-                print("Unable to prepare for installation of instance-manager.deb package")
+                logger.critical("Unable to prepare for installation of instance-manager.deb package")
                 proc.kill(signal.SIGTERM)
                 return
 
             if not run_one_command_on_vm(COMMANDS["mount"], proc):
-                print("Unable to mount instance-manager.deb package")
+                logger.critical("Unable to mount instance-manager.deb package")
                 proc.kill(signal.SIGTERM)
                 return
 
             if not run_one_command_on_vm(COMMANDS["install"].format(package=deb_file), 
                                          proc, timeout=2 * PEXPECT_TIMEOUT):
-                print("Unable to install instance-manager.deb package")
+                logger.critical("Unable to install instance-manager.deb package")
                 proc.kill(signal.SIGTERM)
                 return
             
+            extra_error = False
             if extra is not None:
                 for extra_command in extra:
-                    run_one_command_on_vm(extra_command, proc)
+                    extra_error = extra_error | run_one_command_on_vm(extra_command, proc)
 
             proc.sendline(COMMANDS["shutdown"])
-            print("Shutting down VM ... ", end="")
+            logger.info("Shutting down VM ... ")
             proc.expect(pexpect.EOF)
-            print("done.")
-        except pexpect.TIMEOUT:
-            print("Timeout occured running command on VM!")
+            logger.success("VM was shut down.")
+
+            return extra_error
+        except pexpect.TIMEOUT as ex:
+            logger.opt(exception=ex).critical("Timeout occured running command on VM!")
             proc.kill(signal.SIGTERM)
+            sys.exit(1)
 
 
 if __name__ == "__main__":
@@ -129,11 +136,22 @@ if __name__ == "__main__":
                         help="Do not make any changes to the base image")
     args = parser.parse_args()
 
+    logger.info(f"Preparing QEMU image {args.IMAGE}")
+
     if args.extra is not None:
-        with open(args.extra, "r") as handle:
-            extra_commands = handle.readlines()
+        logger.info(f"Running extra preparation commands from file {args.extra}")
+        try:
+            with open(args.extra, "r") as handle:
+                extra_commands = handle.readlines()
+            
+            extra_commands = list(filter(lambda y: y != "", map(lambda x: x.strip(), extra_commands)))
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Unable to load extra command file")
     else:
         extra_commands = None
+
+    if args.dry_run:
+        logger.warning("Dry run enabled, no persistent modifications to the image will be made")
 
     resolve_path = os.path.realpath(Path(args.PACKAGE), strict=True)
     resolve_path_parts = os.path.split(resolve_path)
@@ -141,4 +159,12 @@ if __name__ == "__main__":
     deb_file = resolve_path_parts[1]
 
     command = create_qemu_command(args.IMAGE, deb_path, args.no_kvm, args.dry_run)
-    main(command, deb_file, extra_commands, args.debug)
+    try:
+        if not main(command, deb_file, extra_commands, args.debug):
+            logger.error("At least one extra command failed, image may be faulty.")
+            sys.exit(2)
+    except Exception as ex:
+        logger.opt(exception=ex).critical("Unable to prepare image, image will be faulty.")
+        sys.exit(1)
+
+    logger.success("Image was prepared successfully.")
