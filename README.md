@@ -69,6 +69,8 @@ When creating the image on a virtual machine itself, you can pass `--no_kvm` to 
 **Remember:** Only one testbed can be executed on the host at any given time!
 
 ### Start the experiment
+Before starting: Change the image path for all testbed machines (in this repo: `"diskimage": "/root/debian-test.qcow2"`) in `setups/sample/testbed.json` to the correct path of the image created in the previous step.
+
 ```bash
 export INFLUXDB_DATABASE=testbed
 ./proto-testbed -e exmaple ../setups/sample
