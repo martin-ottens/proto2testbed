@@ -114,7 +114,7 @@ def main(command: str, deb_file: str, extra: Optional[List[str]], debug: bool = 
             proc.expect(pexpect.EOF)
             logger.success("VM was shut down.")
 
-            return extra_error
+            return not extra_error
         except pexpect.TIMEOUT as ex:
             logger.opt(exception=ex).critical("Timeout occured running command on VM!")
             proc.kill(signal.SIGTERM)
