@@ -28,9 +28,11 @@ if __name__ == "__main__":
                         help="Prepend 'sudo' to all commands (non-interactive), root required otherwise")
     parser.add_argument("--no_kvm", action="store_true", required=False, default=False,
                         help="Disable KVM virtualization in QEMU")
-    parser.add_argument("--experiment", "-e", required=False, default=None, type=str, 
+    parser.add_argument("-s", "--skip_integration", action="store_true", required=False, default=False,
+                        help="Skip the execution of integrations")
+    parser.add_argument( "-e", "--experiment", required=False, default=None, type=str, 
                         help="Name of experiment series, auto generated if omitted")
-    parser.add_argument("--dont_store", "-d", required=False, default=False, action="store_true", 
+    parser.add_argument("-d", "--dont_store", required=False, default=False, action="store_true", 
                         help="Dont store experiment results to InfluxDB on host")
     parser.add_argument("--influxdb", required=False, default=None, type=str, 
                         help="Path to InfluxDB config, use defaults/environment if omitted")
@@ -58,6 +60,7 @@ if __name__ == "__main__":
     parameters.experiment = args.experiment
     parameters.dont_use_influx = args.dont_store
     parameters.influx_path = args.influxdb
+    parameters.skip_integration = args.skip_integration
 
     SettingsWrapper.cli_paramaters = parameters
 

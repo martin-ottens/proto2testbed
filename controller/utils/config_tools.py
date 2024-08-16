@@ -95,7 +95,7 @@ def load_influxdb(gateway_host: str, series_name: Optional[str] = None,
     if series_name is None:
         series_name = "".join(random.choices('0123456789abcdef', k=7))
         if not store_disabled:
-            logger.info(f"InfluxDB experiment tag randomly generated -> {series_name}")
+            logger.warning(f"InfluxDB experiment tag randomly generated -> {series_name}")
 
     if config_path is None:
         if not store_disabled and "INFLUXDB_DATABASE" not in os.environ.keys():

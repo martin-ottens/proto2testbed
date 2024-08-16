@@ -239,9 +239,9 @@ class Controller(Dismantable):
             return False
         
         if influx_db.disabled:
-            logger.info("InfluxDB experiment data storage is disabled!")
+            logger.warning("InfluxDB experiment data storage is disabled!")
         else:
-            logger.info(f"Experiment data will be saved to InfluxDB {influx_db.database} with tag experiment={influx_db.series_name}")
+            logger.success(f"Experiment data will be saved to InfluxDB {influx_db.database} with tag experiment={influx_db.series_name}")
 
         if not load_vm_initialization(SettingsWrapper.testbed_config, self.base_path, self.state_manager, f"http://{file_server_addr[0]}:{file_server_addr[1]}"):
             logger.critical("Critical error while loading VM initialization!")

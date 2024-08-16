@@ -75,9 +75,6 @@ class IntegrationHelper(Dismantable):
             self.shared_state["error_flag"] = True
             self.shared_state["error_string"] = f"Error during execution: {ex}"
 
-    def dismantle_await(self) -> None:
-        pass
-
     def start_await(self, settings: AwaitIntegrationSettings) -> bool:
         start_script = self.__get_and_check_script(settings.start_script, "start")
 
@@ -129,6 +126,10 @@ class IntegrationHelper(Dismantable):
         if stage != self.settings.invoke_after:
             return None
         
+        if stage == self.settings.invoke_after and SettingsWrapper.cli_paramaters.skip_integration:
+            logger.warning(f"Integration: Start of '{str(self.settings.mode).upper()}' integration at stage {stage} skipped.")
+            return None
+
         status = False
         try:
             match self.settings.mode:
@@ -149,7 +150,7 @@ class IntegrationHelper(Dismantable):
             return False
         
         if status:
-            logger.success(f"Integration: Starting mode '{self.settings.mode}' at stage {stage}.")
+            logger.success(f"Integration: Starting mode '{str(self.settings.mode).upper()}' at stage {stage}.")
         
         return status
         

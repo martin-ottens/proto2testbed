@@ -26,7 +26,7 @@ QEMU_COMMAND_TEMPLATE = """qemu-system-x86_64 -m 1G -hda {image} \
 COMMANDS = {
     "prepare": "export DEBIAN_FRONTEND=noninteractive",
     "mount": "mount -t 9p -o trans=virtio host0 /mnt",
-    "install": "apt-get install -y /mnt/{package}",
+    "install": "apt-get reinstall -y /mnt/{package}",
     "shutdown": "shutdown now"
 }
 
@@ -107,7 +107,7 @@ def main(command: str, deb_file: str, extra: Optional[List[str]], debug: bool = 
             extra_error = False
             if extra is not None:
                 for extra_command in extra:
-                    extra_error = extra_error | run_one_command_on_vm(extra_command, proc)
+                    extra_error = extra_error | (not run_one_command_on_vm(extra_command, proc))
 
             proc.sendline(COMMANDS["shutdown"])
             logger.info("Shutting down VM ... ")
