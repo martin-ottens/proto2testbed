@@ -16,6 +16,5 @@ build-manager-package:
     - make -C ./instance-manager all
   artifacts:
     name: "Instance Manager .deb Package"
-    expire_in: 1 day
     paths:
       - ./instance-manager/instance-manager.deb
