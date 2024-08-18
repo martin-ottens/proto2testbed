@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import re
 import os
 import sys
 
@@ -10,6 +11,7 @@ import dateutil.parser as dateparser
 from influxdb import InfluxDBClient
 from loguru import logger
 from typing import List, Optional, Tuple
+from pathlib import Path
 
 MILLISECONDS = "ms"
 SECONDS = "s"
@@ -71,7 +73,7 @@ MAPPING = {
     }
 }
 
-def main(client: InfluxDBClient, experiment: str, config: str, out: str):
+def main(client: InfluxDBClient, experiment: str, config, out: str):
 
     def map_collector_to_type(machine_name: str, collector_name: str, collector_type: str) -> List[Tuple[str, Optional[str]]]:
     
@@ -170,13 +172,9 @@ def main(client: InfluxDBClient, experiment: str, config: str, out: str):
                 export_one(path, field, data, plotinfo, collector_delay, 
                          f"Experiment: {experiment}, Series: {collector_name}@{machine_name}, Collector: {field}@{item[0]}{add_title}")
 
-
-    with open(config, "r") as handle:
-        testbed = json.load(handle)
-
     os.makedirs(out, exist_ok=True)
 
-    for machine in testbed["machines"]:
+    for machine in config["machines"]:
         machine_name = machine["name"]
         logger.info(f"Processing instance {machine_name}")
         os.makedirs(f"{out}/{machine_name}", exist_ok=True)
@@ -194,6 +192,36 @@ def main(client: InfluxDBClient, experiment: str, config: str, out: str):
             handle_one_series(f"{out}/{machine_name}/{collector_name}", machine_name, collector_name,
                               map_collector_to_type(machine_name, collector_name, collector_type), collector_delay)
 
+def load_config(path: str, skip_substitution: bool = False):
+    if not Path(path).exists():
+        logger.critical(f"Unable to find file '{path}' in given setup.")
+        return None
+
+    with open(path, "r") as handle:
+        config_str = handle.read()
+
+    placeholders = list(map(lambda x: x.strip(), re.findall(r'{{\s*(.*?)\s*}}', config_str)))
+    if skip_substitution:
+        if placeholders is not None and len(placeholders) != 0:
+            logger.warning(f"Config '{path}' contains placeholders, but substitution is disabled")
+            logger.warning(f"Found placeholders: {', '.join(list(map(lambda x: f'{{{{{x}}}}}', placeholders)))}")
+    else:
+        missing_replacements = []
+        for placeholder in placeholders:
+            replacement = os.environ.get(placeholder, None)
+            if replacement is None:
+                missing_replacements.append(f"{{{{{placeholder}}}}}")
+                continue
+
+            config_str = config_str.replace(f"{{{{{placeholder}}}}}", replacement)
+            logger.debug(f"Replaced {{{{{placeholder}}}}} with value '{replacement}'")
+        
+        if len(missing_replacements) != 0:
+            logger.critical(f"Unable to get environment variables for placeholders {', '.join(missing_replacements)}: Variables not set.")
+            return None
+    
+    return json.loads(config_str)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, help="Path to Testbed config", required=True)
@@ -204,6 +232,8 @@ if __name__ == "__main__":
     parser.add_argument("--influx_user", type=str, help="InfluxDB user", required=False, default=None)
     parser.add_argument("--influx_pass", type=str, help="InfluxDB password", required=False, default=None)
     parser.add_argument("--output", type=str, help="Export output path", required=False, default="./out")
+    parser.add_argument("--skip_substitution", action="store_true", required=False, default=False, 
+                        help="Skip substitution of placeholders with environment variable values in config")
     args = parser.parse_args()
 
     try:
@@ -215,7 +245,11 @@ if __name__ == "__main__":
 
         client.switch_database(args.influx_database)
 
-        main(client, args.experiment, args.config, args.output)
+        config = load_config(args.config, args.skip_substitution)
+        if config is None:
+            raise Exception("Unable to process given config.")
+
+        main(client, args.experiment, config, args.output)
     except Exception as ex:
         logger.opt(exception=ex).critical("Exception during execution")
         sys.exit(1)

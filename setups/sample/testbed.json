@@ -1,7 +1,8 @@
 {
     "settings": {
         "machines_internet_access": true,
-        "management_network": "172.16.99.0/24"
+        "management_network": "172.16.99.0/24",
+        "diskimage_basepath": "/images/"
     },
     "networks": [
         {
@@ -20,7 +21,7 @@
     "machines": [
         {
             "name": "vma",
-            "diskimage": "/root/debian-test.qcow2",
+            "diskimage": "debian-test.qcow2",
             "setup_script": "vma/setup.sh",
             "environment": {
                 "VARIABLE": "Hello from VM A Setup!"
@@ -52,7 +53,7 @@
         },
         {
             "name": "vmb",
-            "diskimage": "/root/debian-test.qcow2",
+            "diskimage": "debian-test.qcow2",
             "setup_script": "vmb/setup.sh",
             "environment": {
                 "VARIABLE": "Hello from VM B Setup!"

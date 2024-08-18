@@ -9,6 +9,7 @@ from common.collector_configs import ExperimentConfig
 class TestbedSettings():
     machines_internet_access: bool = True
     management_network: str = "172.16.99.0/24"
+    diskimage_basepath: str = "./"
 
 @dataclass
 class TestbedNetwork():
@@ -107,19 +108,19 @@ class TestbedConfig():
             self.machines.append(TestbedMachine(**machine))
 
 
+@dataclass
 class CLIParameters():
-    def __init__(self) -> None:
-        self.config: str = None
-        self.pause: str = None
-        self.wait: int = None
-        self.sudo_mode: bool = False
-        self.disable_kvm: bool = False
-        self.clean: bool = False
-        self.experiment: str = None
-        self.dont_use_influx: bool = False
-        self.influx_path: str = None
-        self.skip_integration: bool = False
-        self.skip_substitution: bool = False
+    config: str = None
+    pause: str = None
+    wait: int = None
+    sudo_mode: bool = False
+    disable_kvm: bool = False
+    clean: bool = False
+    experiment: str = None
+    dont_use_influx: bool = False
+    influx_path: str = None
+    skip_integration: bool = False
+    skip_substitution: bool = False
 
 
 class SettingsWrapper():

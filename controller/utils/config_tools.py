@@ -38,12 +38,11 @@ def load_config(config_path: Path, skip_substitution: bool = False) -> TestbedCo
                 missing_replacements.append(f"{{{{{placeholder}}}}}")
                 continue
 
-            config_str.replace(f"{{{{{placeholder}}}}}", replacement)
+            config_str = config_str.replace(f"{{{{{placeholder}}}}}", replacement)
             logger.debug(f"Replaced {{{{{placeholder}}}}} with value '{replacement}'")
         
         if len(missing_replacements) != 0:
             raise Exception(f"Unable to get environment variables for placeholders {', '.join(missing_replacements)}: Variables not set.")
-
 
     try:
         config =  json.loads(config_str)

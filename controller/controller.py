@@ -113,6 +113,7 @@ class Controller(Dismantable):
         # Setup VMs
         machines = {}
         wait_for_interfaces = ["br-mgmt"]
+        diskimage_basepath = Path(SettingsWrapper.testbed_config.settings.diskimage_basepath)
         for index, machine in enumerate(SettingsWrapper.testbed_config.machines):
             extra_interfaces = {}
 
@@ -125,7 +126,7 @@ class Controller(Dismantable):
                 diskimage_path = Path(machine.diskimage)
 
                 if not diskimage_path.is_absolute():
-                    diskimage_path = self.base_path / diskimage_path
+                    diskimage_path =  diskimage_basepath / diskimage_path
                 
                 if not diskimage_path.exists():
                     raise Exception(f"Unable to find diskimage '{diskimage_path}'")

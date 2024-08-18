@@ -1,7 +1,6 @@
 import pexpect
 import hashlib
 import tempfile
-import subprocess
 import os
 import sys
 
