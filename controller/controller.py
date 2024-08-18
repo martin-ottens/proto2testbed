@@ -34,7 +34,8 @@ class Controller(Dismantable):
         self.config_path = self.base_path / "testbed.json"
 
         try:
-            SettingsWrapper.testbed_config = load_config(self.config_path)
+            SettingsWrapper.testbed_config = load_config(self.config_path, 
+                                                         SettingsWrapper.cli_paramaters.skip_substitution)
             self.integration_helper = IntegrationHelper(SettingsWrapper.testbed_config.integration, self.base_path)
         except Exception as ex:
             logger.opt(exception=ex).critical("Internal error loading config!")

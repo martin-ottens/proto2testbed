@@ -36,6 +36,8 @@ if __name__ == "__main__":
                         help="Dont store experiment results to InfluxDB on host")
     parser.add_argument("--influxdb", required=False, default=None, type=str, 
                         help="Path to InfluxDB config, use defaults/environment if omitted")
+    parser.add_argument("--skip_substitution", action="store_true", required=False, default=False, 
+                        help="Skip substitution of placeholders with environment variable values in config")
     
     args = parser.parse_args()
 
@@ -61,6 +63,7 @@ if __name__ == "__main__":
     parameters.dont_use_influx = args.dont_store
     parameters.influx_path = args.influxdb
     parameters.skip_integration = args.skip_integration
+    parameters.skip_substitution = args.skip_substitution
 
     SettingsWrapper.cli_paramaters = parameters
 

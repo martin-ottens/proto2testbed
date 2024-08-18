@@ -1,6 +1,7 @@
 import json
 import random
 import os
+import re
 
 from pathlib import Path
 from typing import Optional
@@ -14,16 +15,40 @@ from utils.system_commands import get_asset_relative_to
 
 from common.configs import InfluxDBConfig
 
-def load_config(config_path: Path) -> TestbedConfig:
+def load_config(config_path: Path, skip_substitution: bool = False) -> TestbedConfig:
     if not config_path.exists():
         raise Exception("Unable to find 'testbed.json' in given setup.")
 
     try:
         with open(config_path, "r") as handle:
-            config = json.load(handle)
+            config_str: str = handle.read()
     except Exception as ex:
-        logger.opt(exception=ex).critical("Unable to parse config json")
-        raise Exception(f"Unable to parse config {config_path}")
+        raise Exception(f"Unable to load config '{config_path}'") from ex
+    
+    placeholders = list(map(lambda x: x.strip(), re.findall(r'{{\s*(.*?)\s*}}', config_str)))
+    if skip_substitution:
+        if placeholders is not None and len(placeholders) != 0:
+            logger.warning(f"Config '{config_path}' contains placeholders, but substitution is disabled")
+            logger.warning(f"Found placeholders: {', '.join(list(map(lambda x: f'{{{{{x}}}}}', placeholders)))}")
+    else:
+        missing_replacements = []
+        for placeholder in placeholders:
+            replacement = os.environ.get(placeholder, None)
+            if replacement is None:
+                missing_replacements.append(f"{{{{{placeholder}}}}}")
+                continue
+
+            config_str.replace(f"{{{{{placeholder}}}}}", replacement)
+            logger.debug(f"Replaced {{{{{placeholder}}}}} with value '{replacement}'")
+        
+        if len(missing_replacements) != 0:
+            raise Exception(f"Unable to get environment variables for placeholders {', '.join(missing_replacements)}: Variables not set.")
+
+
+    try:
+        config =  json.loads(config_str)
+    except Exception as ex:
+        raise Exception(f"Unable to parse contents from config '{config_path}'") from ex
 
     with open(get_asset_relative_to(__file__, "../assets/config.schema.json"), "r") as handle:
         schema = json.load(handle)
@@ -32,7 +57,7 @@ def load_config(config_path: Path) -> TestbedConfig:
         validate(instance=config, schema=schema)
     except Exception as ex:
         logger.opt(exception=ex).critical("Unable to validate config scheme")
-        raise Exception(f"Unable to parse config {config_path}")
+        raise Exception(f"Unable to parse config '{config_path}'")
     
     return TestbedConfig(config)
 

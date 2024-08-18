@@ -119,6 +119,7 @@ class CLIParameters():
         self.dont_use_influx: bool = False
         self.influx_path: str = None
         self.skip_integration: bool = False
+        self.skip_substitution: bool = False
 
 
 class SettingsWrapper():
