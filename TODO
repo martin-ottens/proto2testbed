@@ -1,0 +1,6 @@
+- Rename "machine" to "instance" in config & source code
+- Timeout for critical steps (Instance start, Instance init, Instance Experiment)
+- Add a collector that allows to run an arbitrary program/script on Instance
+- Rename "collector" in config & source code
+- Rework integration with abstraction layer in source code
+- Allow installation of multiple integrations, add delay for each
