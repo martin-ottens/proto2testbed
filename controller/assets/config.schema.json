@@ -206,7 +206,8 @@
                                         "iperf3-client",
                                         "iperf3-server",
                                         "ping",
-                                        "procmon"
+                                        "procmon",
+                                        "run-program"
                                     ]
                                 },
                                 "name": {
@@ -381,6 +382,40 @@
                                                     }
                                                 },
                                                 "required": [],
+                                                "additionalItems": false
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "if": {
+                                        "properties": {
+                                            "collector": {
+                                                "const": "run-program"
+                                            }
+                                        }
+                                    },
+                                    "then": {
+                                        "properties": {
+                                            "settings": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "command": {
+                                                        "type": "string"
+                                                    },
+                                                    "ignore_timeout": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "environment": {
+                                                        "type": [
+                                                            "object",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "command"
+                                                ],
                                                 "additionalItems": false
                                             }
                                         }

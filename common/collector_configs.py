@@ -1,7 +1,7 @@
 from abc import ABC
 from enum import Enum
 
-from typing import List
+from typing import List, Dict, Optional
 
 from common.interfaces import JSONSerializer
 
@@ -10,6 +10,7 @@ class Collectors(str, Enum):
     IPERF3_CLIENT = "iperf3-client"
     PING = "ping"
     PROCMON = "procmon"
+    RUN_PROGRAM = "run-program"
 
     def __str__(self):
         return str(self.value)
@@ -56,6 +57,13 @@ class ProcmonCollectorConfig(CollectorConfig, JSONSerializer):
         self.processes = processes
         self.system = system
 
+class RunProgramCollectorConfig(CollectorConfig, JSONSerializer):
+    def __init__(self, command: str, ignore_timeout: bool = False, 
+                 environment: Optional[Dict[str, str]] = None) -> None:
+        self.command = command
+        self.ignore_timeout = ignore_timeout
+        self.environment = environment
+
 class ExperimentConfig(JSONSerializer):
     def __init__(self, name: str, collector: str, delay: int = 0, 
                  runtime: int = 30, dont_store: bool = False, settings = None) -> None:
@@ -75,5 +83,7 @@ class ExperimentConfig(JSONSerializer):
                 self.settings = PingCollectorConfig(**settings)
             case Collectors.PROCMON:
                 self.settings = ProcmonCollectorConfig(**settings)
+            case Collectors.RUN_PROGRAM:
+                self.settings = RunProgramCollectorConfig(**settings)
             case _:
                 raise Exception(f"Unkown collector type {collector}")

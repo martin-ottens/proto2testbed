@@ -18,6 +18,7 @@ from data_collectors.iperf_client_collector import IperfClientCollector
 from data_collectors.iperf_server_collector import IperfServerCollector
 from data_collectors.ping_collector import PingCollector
 from data_collectors.procmon_collector import ProcmonCollector
+from data_collectors.run_program_collector import RunProgramCollector
 
 class CollectorController(Thread):
     @staticmethod
@@ -31,6 +32,8 @@ class CollectorController(Thread):
                 return PingCollector()
             case Collectors.PROCMON:
                 return ProcmonCollector()
+            case Collectors.RUN_PROGRAM:
+                return RunProgramCollector()
             case _:
                 raise Exception(f"Unmapped Collector {collector}")
             
