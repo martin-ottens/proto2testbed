@@ -174,7 +174,7 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
 
     os.makedirs(out, exist_ok=True)
 
-    for instance in config["instance"]:
+    for instance in config["instances"]:
         instance_name = instance["name"]
         logger.info(f"Processing instance {instance_name}")
         os.makedirs(f"{out}/{instance_name}", exist_ok=True)
