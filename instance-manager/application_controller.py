@@ -6,43 +6,43 @@ import traceback
 from multiprocessing import Process, Manager
 from threading import Event, Thread, Barrier
 
-from common.collector_configs import Collectors, ExperimentConfig
+from common.application_configs import Applications, ApplicationConfig
 from common.instance_manager_message import InstanceStatus
 from common.configs import InfluxDBConfig
 
 from management_client import ManagementClient, DownstreamMassage
 
-from data_collectors.influxdb_adapter import InfluxDBAdapter
-from data_collectors.base_collector import BaseCollector
-from data_collectors.iperf_client_collector import IperfClientCollector
-from data_collectors.iperf_server_collector import IperfServerCollector
-from data_collectors.ping_collector import PingCollector
-from data_collectors.procmon_collector import ProcmonCollector
-from data_collectors.run_program_collector import RunProgramCollector
+from applications.influxdb_adapter import InfluxDBAdapter
+from applications.base_application import BaseApplication
+from applications.iperf_client_application import IperfClientApplication
+from applications.iperf_server_application import IperfServerApplication
+from applications.ping_application import PingApplication
+from applications.procmon_application import ProcmonApplication
+from applications.run_program_application import RunProgramApplication
 
-class CollectorController(Thread):
+class ApplicationController(Thread):
     @staticmethod
-    def map_collector(collector: Collectors) -> BaseCollector:
-        match collector:
-            case Collectors.IPERF3_SERVER:
-                return IperfServerCollector()
-            case Collectors.IPERF3_CLIENT:
-                return IperfClientCollector()
-            case Collectors.PING:
-                return PingCollector()
-            case Collectors.PROCMON:
-                return ProcmonCollector()
-            case Collectors.RUN_PROGRAM:
-                return RunProgramCollector()
+    def map_application(application: Applications) -> BaseApplication:
+        match application:
+            case Applications.IPERF3_SERVER:
+                return IperfServerApplication()
+            case Applications.IPERF3_CLIENT:
+                return IperfClientApplication()
+            case Applications.PING:
+                return PingApplication()
+            case Applications.PROCMON:
+                return ProcmonApplication()
+            case Applications.RUN_PROGRAM:
+                return RunProgramApplication()
             case _:
-                raise Exception(f"Unmapped Collector {collector}")
+                raise Exception(f"Unmapped application {application}")
             
-    def __init__(self, config: ExperimentConfig, client: ManagementClient,
+    def __init__(self, config: ApplicationConfig, client: ManagementClient,
                  start_barrier: Barrier, influx_config: InfluxDBConfig, 
                  instance_name: str) -> None:
-        super(CollectorController, self).__init__()
+        super(ApplicationController, self).__init__()
         self.config = config
-        self.collector: BaseCollector = CollectorController.map_collector(config.collector)
+        self.application: BaseApplication = ApplicationController.map_application(config.application)
         self.mgmt_client: ManagementClient = client
         self.settings = config.settings
         self.barrier: Barrier = start_barrier
@@ -64,11 +64,11 @@ class CollectorController(Thread):
         """
 
         try:
-            local_influx_adapter = InfluxDBAdapter(self.influx_config, self.get_experiment_name(), self.instance_name, self.config.dont_store)
-            rc = self.collector.start_collection(self.settings, self.config.runtime, local_influx_adapter)
+            local_influx_adapter = InfluxDBAdapter(self.influx_config, self.get_application_name(), self.instance_name, self.config.dont_store)
+            rc = self.application.start_collection(self.settings, self.config.runtime, local_influx_adapter)
             if not rc:
                 self.shared_state["error_flag"] = True
-                self.shared_state["error_string"] = f"Collector finished with return code: {rc}"
+                self.shared_state["error_string"] = f"Application finished with return code: {rc}"
         except Exception as ex:
             traceback.print_exception(ex)
             self.shared_state["error_flag"] = True
@@ -84,11 +84,11 @@ class CollectorController(Thread):
         time.sleep(self.config.delay)
 
         process.start()
-        process.join(self.collector.get_runtime_upper_bound(self.config.runtime) + 1)
+        process.join(self.application.get_runtime_upper_bound(self.config.runtime) + 1)
 
         if process.is_alive():
             message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
-                                        f"Experiment {self.config.name} still runs after timeout.")
+                                        f"Application {self.config.name} still runs after timeout.")
             self.mgmt_client.send_to_server(message)
             try:
                 parent = psutil.Process(process.ident)
@@ -96,12 +96,12 @@ class CollectorController(Thread):
                     try: child.send_signal(signal.SIGTERM)
                     except Exception as ex:
                         message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
-                                                    f"Experiment {self.config.name}:\n Unable to kill childs: {ex}")
+                                                    f"Application {self.config.name}:\n Unable to kill childs: {ex}")
                         self.mgmt_client.send_to_server(message)
                         continue
             except Exception as ex:
                 message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
-                                            f"Experiment {self.config.name}:\n Unable get childs: {ex}")
+                                            f"Application {self.config.name}:\n Unable get childs: {ex}")
                 self.mgmt_client.send_to_server(message)
                 pass
 
@@ -111,11 +111,11 @@ class CollectorController(Thread):
         
         if not self.shared_state["error_flag"]:
             message = DownstreamMassage(InstanceStatus.MSG_SUCCESS, 
-                                        f"Experiment {self.config.name} finished")
+                                        f"Application {self.config.name} finished")
             self.mgmt_client.send_to_server(message)
         else:
             message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
-                                        f"Experiment {self.config.name} reported error: \n{self.shared_state['error_string']}")
+                                        f"Application {self.config.name} reported error: \n{self.shared_state['error_string']}")
             self.mgmt_client.send_to_server(message)
         
         self.is_terminated.set()
@@ -126,5 +126,5 @@ class CollectorController(Thread):
     def error_occured(self) -> bool:
         return self.shared_state["error_flag"]
     
-    def get_experiment_name(self) -> str:
+    def get_application_name(self) -> str:
         return self.config.name

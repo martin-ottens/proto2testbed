@@ -1,19 +1,19 @@
 import traceback
 
-from data_collectors.base_collector import BaseCollector
-from data_collectors.iperf_common import run_iperf
-from data_collectors.influxdb_adapter import InfluxDBAdapter
-from common.collector_configs import CollectorConfig, IperfClientCollectorConfig
+from applications.base_application import BaseApplication
+from applications.iperf_common import run_iperf
+from applications.influxdb_adapter import InfluxDBAdapter
+from common.application_configs import ApplicationConfig, IperfClientApplicationConfig
 
-class IperfClientCollector(BaseCollector):
+class IperfClientApplication(BaseApplication):
     __CONNECT_TIMEOUT_MULTIPLIER = 0.1
     __STATIC_DELAY_BEFORE_START = 5
 
     def get_runtime_upper_bound(self, runtime: int) -> int:
-        return runtime + int(IperfClientCollector.__CONNECT_TIMEOUT_MULTIPLIER * runtime) + IperfClientCollector.__STATIC_DELAY_BEFORE_START
+        return runtime + int(IperfClientApplication.__CONNECT_TIMEOUT_MULTIPLIER * runtime) + IperfClientApplication.__STATIC_DELAY_BEFORE_START
 
-    def start_collection(self, settings: CollectorConfig, runtime: int, adapter: InfluxDBAdapter) -> bool:
-        if not isinstance(settings, IperfClientCollectorConfig):
+    def start_collection(self, settings: ApplicationConfig, runtime: int, adapter: InfluxDBAdapter) -> bool:
+        if not isinstance(settings, IperfClientApplicationConfig):
             raise Exception("Received invalid config type!")
         
         command = ["/usr/bin/iperf3", "--forceflush"]
@@ -46,7 +46,7 @@ class IperfClientCollector(BaseCollector):
         command.append(str(settings.report_interval))
 
         command.append("--connect-timeout")
-        command.append(str(max(IperfClientCollector.__STATIC_DELAY_BEFORE_START, IperfClientCollector.__CONNECT_TIMEOUT_MULTIPLIER * runtime)))
+        command.append(str(max(IperfClientApplication.__STATIC_DELAY_BEFORE_START, IperfClientApplication.__CONNECT_TIMEOUT_MULTIPLIER * runtime)))
 
         command.append("--port")
         command.append(str(settings.port))

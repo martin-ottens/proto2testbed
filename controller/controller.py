@@ -16,7 +16,7 @@ from utils.settings import SettingsWrapper
 from utils.settings import InvokeIntegrationAfter
 from management_server import ManagementServer
 from state_manager import MachineStateManager, AgentManagementState
-from common.instance_manager_message import ExperimentMessageUpstream
+from common.instance_manager_message import ApplicationsMessageUpstream
 
 FILESERVER_PORT = 4242
 MANAGEMENT_SERVER_PORT = 4243
@@ -278,21 +278,21 @@ class Controller(Dismantable):
             self.wait_before_release(on_demand=True)
             return True
         
-        logger.info("Startig experiments on VMs.")
+        logger.info("Startig applications on VMs.")
         for machine in SettingsWrapper.testbed_config.machines:
             state = self.state_manager.get_machine(machine.name)
-            message = ExperimentMessageUpstream("experiement", influx_db, machine.experiments)
+            message = ApplicationsMessageUpstream("experiement", influx_db, machine.applications)
             state.send_message(message.to_json().encode("utf-8"))
             state.set_state(AgentManagementState.IN_EXPERIMENT)
             
-        logger.info("Waiting for VMs to finish experiments ...")
+        logger.info("Waiting for VMs to finish applications ...")
         if not self.state_manager.wait_for_machines_to_become_state(AgentManagementState.FINISHED):
-            logger.critical("VMs have reported failed experiments!")
+            logger.critical("VMs have reported failed applications!")
             if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
                 self.wait_before_release(on_demand=True)
                 return True
             return False
-        logger.success("All VMs reported finished experiments!")
+        logger.success("All VMs reported finished applications!")
             
         if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
             self.wait_before_release(on_demand=True)

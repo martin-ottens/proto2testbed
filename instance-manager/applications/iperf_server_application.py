@@ -1,16 +1,16 @@
 import traceback
 
-from data_collectors.base_collector import BaseCollector
-from data_collectors.iperf_common import run_iperf
-from data_collectors.influxdb_adapter import InfluxDBAdapter
-from common.collector_configs import CollectorConfig, IperfServerCollectorConfig
+from applications.base_application import BaseApplication
+from applications.iperf_common import run_iperf
+from applications.influxdb_adapter import InfluxDBAdapter
+from common.application_configs import ApplicationConfig, IperfServerApplicationConfig
 
-class IperfServerCollector(BaseCollector):
+class IperfServerApplication(BaseApplication):
     def get_runtime_upper_bound(self, runtime: int) -> int:
         return runtime * 2
 
-    def start_collection(self, settings: CollectorConfig, runtime: int, adapter: InfluxDBAdapter) -> bool:
-        if not isinstance(settings, IperfServerCollectorConfig):
+    def start_collection(self, settings: ApplicationConfig, runtime: int, adapter: InfluxDBAdapter) -> bool:
+        if not isinstance(settings, IperfServerApplicationConfig):
             raise Exception("Received invalid config type!")
         
         command = ["/usr/bin/iperf3", "--forceflush", "--one-off"]

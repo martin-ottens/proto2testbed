@@ -64,15 +64,16 @@ def run_one_command_on_vm(command: str, proc: pexpect.spawn,
         return True
 
 
-def main(command: str, deb_file: str, extra: Optional[List[str]], debug: bool = False) -> bool:
+def main(command: str, deb_file: str, extra: Optional[List[str]], 
+         debug: bool = False, timeout: int = PEXPECT_TIMEOUT) -> bool:
     proc: pexpect.spawn
-    with pexpect.spawn(command, timeout=PEXPECT_TIMEOUT, encoding="utf-8") as proc:
+    with pexpect.spawn(command, timeout=timeout, encoding="utf-8") as proc:
         if debug:
             proc.logfile = sys.stdout
 
         try:
             # Skip GRUB Dialog
-            wait_to = time.time() + PEXPECT_TIMEOUT
+            wait_to = time.time() + timeout
             while True:
                 if proc.expect([PEXPECT_VMNAME + " login:", pexpect.TIMEOUT], timeout=0.5) == 0:
                     break
@@ -88,18 +89,18 @@ def main(command: str, deb_file: str, extra: Optional[List[str]], debug: bool = 
             proc.sendline(PEXPECT_ROOT_PASSWD)
             wait_for_shell_on_vm(proc)
 
-            if not run_one_command_on_vm(COMMANDS["prepare"], proc):
+            if not run_one_command_on_vm(COMMANDS["prepare"], proc, timeout=timeout):
                 logger.critical("Unable to prepare for installation of instance-manager.deb package")
                 proc.kill(signal.SIGTERM)
                 return
 
-            if not run_one_command_on_vm(COMMANDS["mount"], proc):
+            if not run_one_command_on_vm(COMMANDS["mount"], proc, timeout=timeout):
                 logger.critical("Unable to mount instance-manager.deb package")
                 proc.kill(signal.SIGTERM)
                 return
 
             if not run_one_command_on_vm(COMMANDS["install"].format(package=deb_file), 
-                                         proc, timeout=2 * PEXPECT_TIMEOUT):
+                                         proc, timeout=2 * timeout):
                 logger.critical("Unable to install instance-manager.deb package")
                 proc.kill(signal.SIGTERM)
                 return
@@ -107,7 +108,7 @@ def main(command: str, deb_file: str, extra: Optional[List[str]], debug: bool = 
             extra_error = False
             if extra is not None:
                 for extra_command in extra:
-                    extra_error = extra_error | (not run_one_command_on_vm(extra_command, proc))
+                    extra_error = extra_error | (not run_one_command_on_vm(extra_command, proc, timeout=timeout))
 
             proc.sendline(COMMANDS["shutdown"])
             logger.info("Shutting down VM ... ")
@@ -134,6 +135,8 @@ if __name__ == "__main__":
                         help="Forward QEMU stdout and stderr")
     parser.add_argument("--dry_run", "-0", action="store_true", required=False, default=False,
                         help="Do not make any changes to the base image")
+    parser.add_argument("--timeout", "-t", required=False, default=PEXPECT_TIMEOUT, type=int,
+                        help="Base timeout for all commands")
     args = parser.parse_args()
 
     logger.info(f"Preparing QEMU image {args.IMAGE}")
@@ -160,7 +163,7 @@ if __name__ == "__main__":
 
     command = create_qemu_command(args.IMAGE, deb_path, args.no_kvm, args.dry_run)
     try:
-        if not main(command, deb_file, extra_commands, args.debug):
+        if not main(command, deb_file, extra_commands, args.debug, args.timeout):
             logger.error("At least one extra command failed, image may be faulty.")
             sys.exit(2)
     except Exception as ex:

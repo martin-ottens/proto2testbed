@@ -8,7 +8,7 @@ class AgentManagementState(Enum):
     INITIALIZED = 2
     IN_EXPERIMENT = 3
     FINISHED = 4
-    DISMANTLE = 5
+    DISCONNECTED = 5
     FAILED = 99
 
 class MachineState():
@@ -47,12 +47,14 @@ class MachineState():
     def connect(self, addr: Tuple[str, int], connection):
         self.addr = addr
         self.connection = connection
-        self.set_state(AgentManagementState.STARTED)
+
+        if self.get_state() != AgentManagementState.DISCONNECTED:
+            self.set_state(AgentManagementState.STARTED)
 
     def disconnect(self):
         self.addr = None
         self.connection = None
-        self.set_state(AgentManagementState.DISMANTLE)
+        self.set_state(AgentManagementState.DISCONNECTED)
 
 class MachineStateManager():
     def __init__(self):

@@ -1,13 +1,13 @@
 import os
 import subprocess
 
-from data_collectors.base_collector import BaseCollector
-from data_collectors.influxdb_adapter import InfluxDBAdapter
-from common.collector_configs import CollectorConfig, RunProgramCollectorConfig
+from applications.base_application import BaseApplication
+from applications.influxdb_adapter import InfluxDBAdapter
+from common.application_configs import ApplicationConfig, RunProgramApplicationConfig
 
-class RunProgramCollector(BaseCollector):
-    def start_collection(self, settings: CollectorConfig, runtime: int, adapter: InfluxDBAdapter) -> bool:
-        if not isinstance(settings, RunProgramCollectorConfig):
+class RunProgramApplication(BaseApplication):
+    def start_collection(self, settings: ApplicationConfig, runtime: int, adapter: InfluxDBAdapter) -> bool:
+        if not isinstance(settings, RunProgramApplicationConfig):
             raise Exception("Received invalid config type!")
         
         if settings.environment is not None:

@@ -3,13 +3,13 @@ import time
 
 from typing import Dict
 
-from data_collectors.base_collector import BaseCollector
-from data_collectors.influxdb_adapter import InfluxDBAdapter
-from common.collector_configs import CollectorConfig, ProcmonCollectorConfig
+from applications.base_application import BaseApplication
+from applications.influxdb_adapter import InfluxDBAdapter
+from common.application_configs import ApplicationConfig, ProcmonApplicationConfig
 
-class ProcmonCollector(BaseCollector):
-    def start_collection(self, settings: CollectorConfig, runtime: int, adapter: InfluxDBAdapter) -> bool:
-        if not isinstance(settings, ProcmonCollectorConfig):
+class ProcmonApplication(BaseApplication):
+    def start_collection(self, settings: ApplicationConfig, runtime: int, adapter: InfluxDBAdapter) -> bool:
+        if not isinstance(settings, ProcmonApplicationConfig):
             raise Exception("Received invalid config type!")
         
 

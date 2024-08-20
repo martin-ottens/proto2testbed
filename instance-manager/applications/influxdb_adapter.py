@@ -3,10 +3,10 @@ from influxdb import InfluxDBClient
 from common.configs import InfluxDBConfig
 
 class InfluxDBAdapter():
-    def __init__(self, influxdb_config: InfluxDBConfig, collector_name: str, 
+    def __init__(self, influxdb_config: InfluxDBConfig, application_name: str, 
                  instance_name: str, dont_store: bool = False) -> None:
         self.influxdb_config = influxdb_config
-        self.collector_name = collector_name
+        self.application_name = application_name
         self.instance_name = instance_name
         
         if influxdb_config.disabled or dont_store:
@@ -27,14 +27,14 @@ class InfluxDBAdapter():
 
         if self.client is None:
             points_as_str = ", ".join(list(map(lambda x: f"{x[0]}={x[1]}", points.items())))
-            print(f"DATA {series_name}@{self.collector_name} {f'({additional_tags})' if additional_tags is not None else ''}): {points_as_str}", flush=True)
+            print(f"DATA {series_name}@{self.application_name} {f'({additional_tags})' if additional_tags is not None else ''}): {points_as_str}", flush=True)
             return
 
         data = [
             {
                 "measurement": series_name,
                 "tags": {
-                    "collector": self.collector_name,
+                    "application": self.application_name,
                     "instance": self.instance_name,
                     "experiment": self.influxdb_config.series_name
                 },

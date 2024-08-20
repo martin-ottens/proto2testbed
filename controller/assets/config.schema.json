@@ -192,7 +192,7 @@
                             }
                         ]
                     },
-                    "collectors": {
+                    "applications": {
                         "type": [
                             "array",
                             "null"
@@ -200,7 +200,7 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "collector": {
+                                "application": {
                                     "type": "string",
                                     "enum": [
                                         "iperf3-client",
@@ -227,7 +227,7 @@
                                 }
                             },
                             "required": [
-                                "collector",
+                                "application",
                                 "name",
                                 "runtime",
                                 "settings"
@@ -237,7 +237,7 @@
                                 {
                                     "if": {
                                         "properties": {
-                                            "collector": {
+                                            "application": {
                                                 "const": "iperf3-client"
                                             }
                                         }
@@ -283,7 +283,7 @@
                                 {
                                     "if": {
                                         "properties": {
-                                            "collector": {
+                                            "application": {
                                                 "const": "iperf3-server"
                                             }
                                         }
@@ -312,7 +312,7 @@
                                 {
                                     "if": {
                                         "properties": {
-                                            "collector": {
+                                            "application": {
                                                 "const": "ping"
                                             }
                                         }
@@ -352,7 +352,7 @@
                                 {
                                     "if": {
                                         "properties": {
-                                            "collector": {
+                                            "application": {
                                                 "const": "procmon"
                                             }
                                         }
@@ -390,7 +390,7 @@
                                 {
                                     "if": {
                                         "properties": {
-                                            "collector": {
+                                            "application": {
                                                 "const": "run-program"
                                             }
                                         }
@@ -432,7 +432,7 @@
                     "setup_script",
                     "environment",
                     "networks",
-                    "collectors"
+                    "applications"
                 ]
             }
         }

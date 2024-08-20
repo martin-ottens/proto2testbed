@@ -1,10 +1,10 @@
 BASENAME = instance-manager
 
 COMMON_FILES = $(shell find ./common/ -type f -name '*')
-COLLECTORS = $(shell find ./data_collectors/ -type f -name '*')
+APPLICATIONS = $(shell find ./applications/ -type f -name '*')
 MAIN_SOURCES = $(shell find . -maxdepth 1 -type f -name '*.py')
 
-SOURCES := $(COMMON_FILES) $(COLLECTORS) $(MAIN_SOURCES)
+SOURCES := $(COMMON_FILES) $(APPLICATIONS) $(MAIN_SOURCES)
 
 .PHONY: clean
 
@@ -14,7 +14,7 @@ all: control instance-manager.service postinst $(SOURCES)
 	mkdir -p $(BASENAME)/lib/systemd/system
 	cp control postinst $(BASENAME)/DEBIAN/.
 	cp instance-manager.service $(BASENAME)/lib/systemd/system/.
-	cp -r *.py data_collectors/ $(BASENAME)/usr/lib/instance-manager/.
+	cp -r *.py applications/ $(BASENAME)/usr/lib/instance-manager/.
 	cp -Lr common $(BASENAME)/usr/lib/instance-manager/.
 	dpkg-deb --build $(BASENAME)
 

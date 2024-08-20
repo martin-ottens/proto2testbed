@@ -3,7 +3,7 @@ from enum import Enum
 from abc import ABC
 from dataclasses import dataclass
 
-from common.collector_configs import ExperimentConfig
+from common.application_configs import ApplicationConfig
 
 @dataclass
 class TestbedSettings():
@@ -75,7 +75,7 @@ class TestbedMachine():
     def __init__(self, name: str, diskimage: str, setup_script: str = None, 
                  environment: Dict[str, str]=  None, cores: int = 2, 
                  memory: int = 1024, networks: List[str] = None,
-                 netmodel: str = "virtio", collectors = None) -> None:
+                 netmodel: str = "virtio", applications = None) -> None:
         self.name: str = name
         self.diskimage: str = diskimage
         self.setup_script: str = setup_script
@@ -85,13 +85,13 @@ class TestbedMachine():
         self.networks: List[str] = networks
         self.netmodel: str = netmodel
 
-        self.experiments: List[ExperimentConfig] = []
+        self.applications: List[ApplicationConfig] = []
 
-        if collectors is None:
+        if applications is None:
             return
 
-        for experiment in collectors:
-            self.experiments.append(ExperimentConfig(**experiment))
+        for application in applications:
+            self.applications.append(ApplicationConfig(**application))
 
 
 class TestbedConfig():

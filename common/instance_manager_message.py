@@ -3,7 +3,7 @@ import json
 from enum import Enum
 from typing import Dict, List
 
-from common.collector_configs import ExperimentConfig
+from common.application_configs import ApplicationConfig
 from common.interfaces import JSONSerializer
 from common.configs import InfluxDBConfig
 
@@ -51,26 +51,25 @@ class InitializeMessageUpstream(JSONSerializer):
         self.script = script
         self.environment = environment
 
-# TODO: InfluxDB will become object as well
-class ExperimentMessageUpstream(JSONSerializer):
+class ApplicationsMessageUpstream(JSONSerializer):
     def __init__(self, status: str, influxdb: InfluxDBConfig,
-                 experiments: List[ExperimentConfig] = None) -> None:
+                 applications: List[ApplicationConfig] = None) -> None:
         self.status = status
         self.influxdb = influxdb
-        self.experiments = experiments
+        self.applications = applications
 
     @staticmethod
     def from_json(json):
-        obj = ExperimentMessageUpstream(**json)
+        obj = ApplicationsMessageUpstream(**json)
 
         obj.influxdb = InfluxDBConfig(**json["influxdb"])
 
-        if obj.experiments is None:
+        if obj.applications is None:
             return obj
         
-        obj.experiments = []
-        for experiment in json["experiments"]:
-            obj.experiments.append(ExperimentConfig(**experiment))
+        obj.applications = []
+        for application in json["applications"]:
+            obj.applications.append(ApplicationConfig(**application))
 
         return obj
 

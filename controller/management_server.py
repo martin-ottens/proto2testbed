@@ -54,12 +54,17 @@ class ManagementClientConnection(threading.Thread):
 
         match message_obj.get_status():
             case InstanceStatus.STARTED:
-                self.client.set_state(state_manager.AgentManagementState.STARTED)
-                logger.info(f"Management: Client {self.client.name} started. Sending setup instructions.")
-                self.send_message(InitializeMessageUpstream(
-                    "initialize", 
-                    self.client.get_setup_env()[0], 
-                    self.client.get_setup_env()[1]).to_json().encode("utf-8"))
+                previous = self.client.get_state()
+                if previous == state_manager.AgentManagementState.DISCONNECTED:
+                    logger.error(f"Management: Client {self.client.name} restarted after it was in state {previous}. Instance Manager failed?")
+                    self.client.set_state(state_manager.AgentManagementState.FAILED)
+                else:
+                    self.client.set_state(state_manager.AgentManagementState.STARTED)
+                    logger.info(f"Management: Client {self.client.name} started. Sending setup instructions.")
+                    self.send_message(InitializeMessageUpstream(
+                        "initialize", 
+                        self.client.get_setup_env()[0], 
+                        self.client.get_setup_env()[1]).to_json().encode("utf-8"))
             case InstanceStatus.INITIALIZED:
                 self.client.set_state(state_manager.AgentManagementState.INITIALIZED)
                 logger.info(f"Management: Client {self.client.name} initialized.")
@@ -77,7 +82,7 @@ class ManagementClientConnection(threading.Thread):
                     return True
             case InstanceStatus.EXPERIMENT_DONE:
                 self.client.set_state(state_manager.AgentManagementState.FINISHED)
-                logger.info(f"Management: Client {self.client.name} reported finished experiments.")
+                logger.info(f"Management: Client {self.client.name} reported finished applications.")
             case _:
                 logger.warning(f"Management: Client {self.client.name}: Unkown message type '{message_obj.status}'")
 

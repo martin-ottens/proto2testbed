@@ -11,7 +11,7 @@ from threading import Barrier
 from pathlib import Path
 
 from management_client import ManagementClient, DownstreamMassage, get_hostname
-from collector_controller import CollectorController
+from application_controller import ApplicationController
 
 from common.instance_manager_message import *
 
@@ -101,15 +101,15 @@ def main():
         message = DownstreamMassage(InstanceStatus.INITIALIZED)
         manager.send_to_server(message)
 
-        # 3. Get experiments
+        # 3. Get applications
         while True:
-            experiment_data = manager.wait_for_command()
-            experiments = ExperimentMessageUpstream.from_json(experiment_data)
+            application_data = manager.wait_for_command()
+            applications = ApplicationsMessageUpstream.from_json(application_data)
             
-            barrier = Barrier(len(experiments.experiments) + 1)
-            threads: List[CollectorController] = []
-            for experiment in experiments.experiments:
-                t = CollectorController(experiment, manager, barrier, experiments.influxdb, instance_name)
+            barrier = Barrier(len(applications.applications) + 1)
+            threads: List[ApplicationController] = []
+            for application in applications.applications:
+                t = ApplicationController(application, manager, barrier, applications.influxdb, instance_name)
                 t.start()
                 threads.append(t)
             
@@ -123,7 +123,7 @@ def main():
             
             if failed != 0:
                 message = DownstreamMassage(InstanceStatus.EXPERIMENT_FAILED, 
-                                            f"{failed} Experiment(s) failed.")
+                                            f"{failed} Applications(s) failed.")
                 manager.send_to_server(message)
             else:
                 message = DownstreamMassage(InstanceStatus.EXPERIMENT_DONE)

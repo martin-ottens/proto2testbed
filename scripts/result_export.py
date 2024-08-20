@@ -75,11 +75,11 @@ MAPPING = {
 
 def main(client: InfluxDBClient, experiment: str, config, out: str):
 
-    def map_collector_to_type(machine_name: str, collector_name: str, collector_type: str) -> List[Tuple[str, Optional[str]]]:
+    def map_application_to_type(machine_name: str, application_name: str, application_type: str) -> List[Tuple[str, Optional[str]]]:
     
-        list = client.get_list_series(tags={"experiment": experiment, "collector": collector_name, "instance": machine_name})
+        list = client.get_list_series(tags={"experiment": experiment, "application": application_name, "instance": machine_name})
 
-        if collector_type == "iperf3-server" or collector_type == "iperf3-client":
+        if application_type == "iperf3-server" or application_type == "iperf3-client":
             if len(list) != 1:
                 raise Exception("Invalid number of series for iperf common!")
 
@@ -89,7 +89,7 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
             
             return [(item, None, )]
         
-        if collector_type == "procmon":
+        if application_type == "procmon":
             result = []
             for entry in list:
                 items = entry.split(",")
@@ -109,9 +109,9 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
         
             return result
         
-        return [(collector_type, )]
+        return [(application_type, )]
     
-    def export_one(filename: str, field: str, generator, plotinfo: str, collector_delay: int, title: str):
+    def export_one(filename: str, field: str, generator, plotinfo: str, application_delay: int, title: str):
         results = []
         for entry in generator:
             results.append((int(dateparser.parse(entry["time"]).timestamp()), entry[field]))
@@ -120,42 +120,42 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
         with open(filename, "w") as handle:
             handle.write(f"time,{plotinfo}\n")
             for entry in results:
-                handle.write(f"{entry[0] - t_0 + collector_delay},{entry[1]}\n")
+                handle.write(f"{entry[0] - t_0 + application_delay},{entry[1]}\n")
 
         logger.success(f"Series  to file: {filename}")
 
-    def handle_one_series(basepath: str, machine_name: str, collector_name: str, collector_data: List[Tuple[str, Optional[str]]], collector_delay: int):
+    def handle_one_series(basepath: str, machine_name: str, application_name: str, application_data: List[Tuple[str, Optional[str]]], application_delay: int):
         def query_normal(field, measurement):
             bind_params = {
                 "experiment": experiment,
                 "instance": machine_name,
-                "collector": collector_name,
+                "application": application_name,
             }
-            data = client.query(f"SELECT \"{field}\" FROM \"{measurement}\" WHERE \"collector\" = $collector AND \"experiment\" = $experiment AND \"instance\" = $instance", bind_params=bind_params)
+            data = client.query(f"SELECT \"{field}\" FROM \"{measurement}\" WHERE \"application\" = $application AND \"experiment\" = $experiment AND \"instance\" = $instance", bind_params=bind_params)
             return data.get_points()
 
         def query_process(field, measurement, process):
             bind_params = {
                 "experiment": experiment,
                 "instance": machine_name,
-                "collector": collector_name,
+                "application": application_name,
                 "process": process
             }
-            data = client.query(f"SELECT \"{field}\" FROM \"{measurement}\" WHERE \"collector\" = $collector AND \"experiment\" = $experiment AND \"instance\" = $instance AND \"process\" = $process", bind_params=bind_params)
+            data = client.query(f"SELECT \"{field}\" FROM \"{measurement}\" WHERE \"application\" = $application AND \"experiment\" = $experiment AND \"instance\" = $instance AND \"process\" = $process", bind_params=bind_params)
             return data.get_points()
 
         def query_interface(field, measurement, interface):
             bind_params = {
                 "experiment": experiment,
                 "instance": machine_name,
-                "collector": collector_name,
+                "application": application_name,
                 "interface": interface
             }
-            data = client.query(f"SELECT \"{field}\" FROM \"{measurement}\" WHERE \"collector\" = $collector AND \"experiment\" = $experiment AND \"instance\" = $instance AND \"interface\" = $interface", bind_params=bind_params)
+            data = client.query(f"SELECT \"{field}\" FROM \"{measurement}\" WHERE \"application\" = $application AND \"experiment\" = $experiment AND \"instance\" = $instance AND \"interface\" = $interface", bind_params=bind_params)
             return data.get_points()
 
-        for item in collector_data:
-            logger.info(f"------> Processing collector entry {item[0]}")
+        for item in application_data:
+            logger.info(f"------> Processing application entry {item[0]}")
             for field, plotinfo in MAPPING[item[0]].items():
                 match item[0]:
                     case "proc-process":
@@ -169,8 +169,8 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
                         add_title = ""
                 logger.info(f"--------> Processing field {field}")
                 path = f"{basepath}/{item[0]}_{field}.csv"
-                export_one(path, field, data, plotinfo, collector_delay, 
-                         f"Experiment: {experiment}, Series: {collector_name}@{machine_name}, Collector: {field}@{item[0]}{add_title}")
+                export_one(path, field, data, plotinfo, application_delay, 
+                         f"Experiment: {experiment}, Series: {application_name}@{machine_name}, Application: {field}@{item[0]}{add_title}")
 
     os.makedirs(out, exist_ok=True)
 
@@ -179,18 +179,18 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
         logger.info(f"Processing instance {machine_name}")
         os.makedirs(f"{out}/{machine_name}", exist_ok=True)
 
-        if machine["collectors"] is None:
+        if machine["applications"] is None:
             logger.warning(f"No experiments found for instance {machine_name}")
             continue
 
-        for collector in machine["collectors"]:
-            collector_type = collector["collector"]
-            collector_name = collector["name"]
-            collector_delay = collector.get("delay", 0)
-            logger.info(f"--> Processing collector {collector_name}")
-            os.makedirs(f"{out}/{machine_name}/{collector_name}", exist_ok=True)
-            handle_one_series(f"{out}/{machine_name}/{collector_name}", machine_name, collector_name,
-                              map_collector_to_type(machine_name, collector_name, collector_type), collector_delay)
+        for application in machine["applications"]:
+            application_type = application["application"]
+            application_name = application["name"]
+            application_delay = application.get("delay", 0)
+            logger.info(f"--> Processing application {application_name}")
+            os.makedirs(f"{out}/{machine_name}/{application_name}", exist_ok=True)
+            handle_one_series(f"{out}/{machine_name}/{application_name}", machine_name, application_name,
+                              map_application_to_type(machine_name, application_name, application_type), application_delay)
 
 def load_config(path: str, skip_substitution: bool = False):
     if not Path(path).exists():

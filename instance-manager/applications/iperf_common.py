@@ -11,7 +11,7 @@ import re
 from typing import List
 from enum import Enum
 
-from data_collectors.influxdb_adapter import InfluxDBAdapter
+from applications.influxdb_adapter import InfluxDBAdapter
 
 class IPerfMode(Enum):
     UNKONWN = 0,
