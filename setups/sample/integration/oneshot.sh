@@ -1,4 +1,4 @@
 #!/bin/bash
 
 echo "oneshot" > /tmp/integration
-sleep 60
+sleep 10

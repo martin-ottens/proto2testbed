@@ -1,4 +1,3 @@
-- Rename "machine" to "instance" in config & source code
 - Timeout for critical steps (Instance start, Instance init, Instance Experiment)
 - Rework integration with abstraction layer in source code
 - Allow installation of multiple integrations, add delay for each

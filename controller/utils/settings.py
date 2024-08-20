@@ -71,7 +71,7 @@ class Integration():
             case _:
                 raise Exception(f"Unkown integration mode {mode}")
 
-class TestbedMachine():
+class TestbedInstance():
     def __init__(self, name: str, diskimage: str, setup_script: str = None, 
                  environment: Dict[str, str]=  None, cores: int = 2, 
                  memory: int = 1024, networks: List[str] = None,
@@ -97,15 +97,18 @@ class TestbedMachine():
 class TestbedConfig():
     def __init__(self, json) -> None:
         self.settings: TestbedSettings = TestbedSettings(**json["settings"])
-        self.integration: Integration = Integration(**json["integration"])
+        if "integration" in json.keys():
+            self.integration: Integration = Integration(**json["integration"])
+        else:
+            self.integration = None
         self.networks: List[TestbedNetwork] = []
-        self.machines: List[TestbedMachine] = []
+        self.instances: List[TestbedInstance] = []
 
         for network in json["networks"]:
             self.networks.append(TestbedNetwork(**network))
         
-        for machine in json["machines"]:
-            self.machines.append(TestbedMachine(**machine))
+        for machine in json["instances"]:
+            self.instances.append(TestbedInstance(**machine))
 
 
 @dataclass

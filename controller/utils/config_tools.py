@@ -62,7 +62,7 @@ def load_config(config_path: Path, skip_substitution: bool = False) -> TestbedCo
 
 
 def load_vm_initialization(config: TestbedConfig, base_path: Path, state_manager: state_manager.MachineStateManager, fileserver_base: str) -> bool:
-    for machine in config.machines:
+    for machine in config.instances:
         script_file = None
         env_variables = None
         if machine.setup_script is not None:

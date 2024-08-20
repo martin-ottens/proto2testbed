@@ -12,7 +12,7 @@ from typing import List, Dict
 from utils.interfaces import Dismantable
 from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_relative_to
 
-class VMWrapper(Dismantable):
+class InstanceHelper(Dismantable):
     __QEMU_NIC_TEMPLATE     = "-nic tap,model={model},ifname={tapname},mac={mac} "
     __QEMU_COMMAND_TEMPLATE = """qemu-system-x86_64 \
                                 -boot c \
@@ -85,7 +85,7 @@ class VMWrapper(Dismantable):
                 handle.write(network_config)
 
             cloud_init_iso = str(Path(self.tempdir.name) / "cloud-init.iso")
-            process = invoke_subprocess([VMWrapper.__CLOUD_INIT_ISO_TEMPLATE.format(input=init_files, output=cloud_init_iso)],
+            process = invoke_subprocess([InstanceHelper.__CLOUD_INIT_ISO_TEMPLATE.format(input=init_files, output=cloud_init_iso)],
                                         shell=True)
             
             if process.returncode != 0:
@@ -95,18 +95,18 @@ class VMWrapper(Dismantable):
             hash_hex = hashlib.sha256(name.encode()).hexdigest()
             base_mac = hash_hex[1:2] + 'e:' + hash_hex[2:4] + ':' + hash_hex[4:6] + ':' + hash_hex[6:8] + ':' + hash_hex[8:10] + ':' + hash_hex[10:11]
             
-            interfaces = VMWrapper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management["interface"], mac=(base_mac + "0"))
+            interfaces = InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management["interface"], mac=(base_mac + "0"))
             for index, name in enumerate(extra_interfaces):
-                interfaces += VMWrapper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=name, mac=(base_mac + str(index + 1)))
+                interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=name, mac=(base_mac + str(index + 1)))
 
             # Prepare qemu command
-            self.qemu_command = VMWrapper.__QEMU_COMMAND_TEMPLATE.format(
+            self.qemu_command = InstanceHelper.__QEMU_COMMAND_TEMPLATE.format(
                 memory=memory,
                 cores=cores,
                 image=image,
                 nics=interfaces,
                 cloud_init_iso=cloud_init_iso,
-                kvm=(VMWrapper.__QEMU_KVM_OPTIONS if not disable_kvm else '')
+                kvm=(InstanceHelper.__QEMU_KVM_OPTIONS if not disable_kvm else '')
             )
         except Exception as ex:
             self.tempdir.cleanup()

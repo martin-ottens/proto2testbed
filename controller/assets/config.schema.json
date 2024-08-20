@@ -142,7 +142,7 @@
                 }
             ]
         },
-        "machines": {
+        "instances": {
             "type": "array",
             "items": {
                 "type": "object",
@@ -440,7 +440,7 @@
     "required": [
         "settings",
         "networks",
-        "machines"
+        "instances"
     ],
     "additionalItems": false
 }

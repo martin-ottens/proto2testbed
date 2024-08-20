@@ -8,7 +8,7 @@ from threading import Event
 
 from helper.network_helper import NetworkBridge
 from helper.fileserver_helper import FileServer
-from helper.vm_helper import VMWrapper
+from helper.instance_helper import InstanceHelper
 from helper.integration_helper import IntegrationHelper
 from utils.interfaces import Dismantable
 from utils.config_tools import load_config, load_vm_initialization, load_influxdb
@@ -110,20 +110,20 @@ class Controller(Dismantable):
         elif integration_start == True:
             self.dismantables.insert(0, self.integration_helper)
             
-        # Setup VMs
-        machines = {}
+        # Setup Instances
+        instances = {}
         wait_for_interfaces = ["br-mgmt"]
         diskimage_basepath = Path(SettingsWrapper.testbed_config.settings.diskimage_basepath)
-        for index, machine in enumerate(SettingsWrapper.testbed_config.machines):
+        for index, instance in enumerate(SettingsWrapper.testbed_config.instances):
             extra_interfaces = {}
 
-            for if_index, if_bridge in enumerate(machine.networks):
+            for if_index, if_bridge in enumerate(instance.networks):
                 if_int_name = f"v_{index}_{if_index}"
                 extra_interfaces[if_int_name] = if_bridge
                 wait_for_interfaces.append(if_int_name)
 
             try:
-                diskimage_path = Path(machine.diskimage)
+                diskimage_path = Path(instance.diskimage)
 
                 if not diskimage_path.is_absolute():
                     diskimage_path =  diskimage_basepath / diskimage_path
@@ -131,7 +131,7 @@ class Controller(Dismantable):
                 if not diskimage_path.exists():
                     raise Exception(f"Unable to find diskimage '{diskimage_path}'")
 
-                wrapper = VMWrapper(name=machine.name,
+                wrapper = InstanceHelper(name=instance.name,
                                     management={
                                         "interface": f"v_{index}_m",
                                         "ip": ipaddress.IPv4Interface(f"{self.mgmt_ips.pop(0)}/{self.mgmt_netmask}"),
@@ -139,16 +139,16 @@ class Controller(Dismantable):
                                     },
                                     extra_interfaces=extra_interfaces.keys(),
                                     image=str(diskimage_path),
-                                    cores=machine.cores,
-                                    memory=machine.memory,
+                                    cores=instance.cores,
+                                    memory=instance.memory,
                                     disable_kvm=SettingsWrapper.cli_paramaters.disable_kvm,
-                                    netmodel=machine.netmodel)
+                                    netmodel=instance.netmodel)
                 self.dismantables.insert(0, wrapper)
                 wrapper.start_instance()
                 extra_interfaces[f"v_{index}_m"] = "br-mgmt"
-                machines[machine.name] = (wrapper, extra_interfaces, )
+                instances[instance.name] = (wrapper, extra_interfaces, )
             except Exception as ex:
-                logger.opt(exception=ex).critical(f"Unable to setup and start VM {machine.name}")
+                logger.opt(exception=ex).critical(f"Unable to setup and start instance {instance.name}")
                 return False
 
         # Wait for tap devices to become ready
@@ -165,8 +165,8 @@ class Controller(Dismantable):
 
         # Attach tap devices to bridges
         try:
-            for name, machine in machines.items():
-                wrapper, extra_interfaces = machine
+            for name, instance in instances.items():
+                wrapper, extra_interfaces = instance
                 for interface, bridge in extra_interfaces.items():
                     self.networks[bridge].add_device(interface)
                 logger.info(f"{name} ({wrapper.ip_address}) attached to bridges: {', '.join(extra_interfaces.values())}")
@@ -279,7 +279,7 @@ class Controller(Dismantable):
             return True
         
         logger.info("Startig applications on VMs.")
-        for machine in SettingsWrapper.testbed_config.machines:
+        for machine in SettingsWrapper.testbed_config.instances:
             state = self.state_manager.get_machine(machine.name)
             message = ApplicationsMessageUpstream("experiement", influx_db, machine.applications)
             state.send_message(message.to_json().encode("utf-8"))
