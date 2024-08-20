@@ -220,6 +220,7 @@ class ManagementServer(Dismantable):
         self.keep_running.set()
         try:
             poison_pill = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            poison_pill.settimeout(1)
             poison_pill.connect(self.bind_address)
             poison_pill.close()
         except Exception:

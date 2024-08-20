@@ -72,8 +72,13 @@ if __name__ == "__main__":
         sys.exit(1)
 
     controller = Controller()
-    status = controller.main()
-    controller.dismantle()
+    try:
+        status = controller.main()
+    except Exception as ex:
+        logger.opt(exception=ex).critical("Uncaught Controller Exception")
+        status = False
+    finally:
+        controller.dismantle()
 
     if status:
         logger.success("Testbed was dismantled!")

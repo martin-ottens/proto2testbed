@@ -100,9 +100,9 @@ def bits_to_human_readable(x, pos):
 
 def main(client: InfluxDBClient, experiment: str, config, out: str):
 
-    def map_application_to_type(machine_name: str, application_name: str, application_type: str) -> List[Tuple[str, Optional[str]]]:
+    def map_application_to_type(instance_name: str, application_name: str, application_type: str) -> List[Tuple[str, Optional[str]]]:
     
-        list = client.get_list_series(tags={"experiment": experiment, "application": application_name, "instance": machine_name})
+        list = client.get_list_series(tags={"experiment": experiment, "application": application_name, "instance": instance_name})
 
         if application_type == "iperf3-server" or application_type == "iperf3-client":
             if len(list) != 1:
@@ -163,11 +163,11 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
         plt.close()
         logger.success(f"Plot rendered to file: {filename}")
 
-    def handle_one_series(basepath: str, machine_name: str, application_name: str, application_data: List[Tuple[str, Optional[str]]], application_delay: int):
+    def handle_one_series(basepath: str, instance_name: str, application_name: str, application_data: List[Tuple[str, Optional[str]]], application_delay: int):
         def query_normal(field, measurement):
             bind_params = {
                 "experiment": experiment,
-                "instance": machine_name,
+                "instance": instance_name,
                 "application": application_name,
             }
             data = client.query(f"SELECT \"{field}\" FROM \"{measurement}\" WHERE \"application\" = $application AND \"experiment\" = $experiment AND \"instance\" = $instance", bind_params=bind_params)
@@ -176,7 +176,7 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
         def query_process(field, measurement, process):
             bind_params = {
                 "experiment": experiment,
-                "instance": machine_name,
+                "instance": instance_name,
                 "application": application_name,
                 "process": process
             }
@@ -186,7 +186,7 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
         def query_interface(field, measurement, interface):
             bind_params = {
                 "experiment": experiment,
-                "instance": machine_name,
+                "instance": instance_name,
                 "application": application_name,
                 "interface": interface
             }
@@ -209,27 +209,27 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
                 logger.info(f"--------> Processing field {field}")
                 path = f"{basepath}/{item[0]}_{field}.{OUTPUT_TYPE}"
                 plot_one(path, field, data, plotinfo, application_delay, 
-                         f"Experiment: {experiment}, Series: {application_name}@{machine_name}, Application: {field}@{item[0]}{add_title}")
+                         f"Experiment: {experiment}, Series: {application_name}@{instance_name}, Application: {field}@{item[0]}{add_title}")
 
     os.makedirs(out, exist_ok=True)
 
-    for machine in config["machines"]:
-        machine_name = machine["name"]
-        logger.info(f"Processing instance {machine_name}")
-        os.makedirs(f"{out}/{machine_name}", exist_ok=True)
+    for instance in config["instances"]:
+        instance_name = instance["name"]
+        logger.info(f"Processing instance {instance_name}")
+        os.makedirs(f"{out}/{instance_name}", exist_ok=True)
 
-        if machine["applications"] is None:
-            logger.warning(f"No experiments found for instance {machine_name}")
+        if instance["applications"] is None:
+            logger.warning(f"No experiments found for instance {instance_name}")
             continue
 
-        for application in machine["applications"]:
+        for application in instance["applications"]:
             application_type = application["application"]
             application_name = application["name"]
             application_delay = application.get("delay", 0)
             logger.info(f"--> Processing application {application_name}")
-            os.makedirs(f"{out}/{machine_name}/{application_name}", exist_ok=True)
-            handle_one_series(f"{out}/{machine_name}/{application_name}", machine_name, application_name,
-                              map_application_to_type(machine_name, application_name, application_type), application_delay)
+            os.makedirs(f"{out}/{instance_name}/{application_name}", exist_ok=True)
+            handle_one_series(f"{out}/{instance_name}/{application_name}", instance_name, application_name,
+                              map_application_to_type(instance_name, application_name, application_type), application_delay)
             
 def load_config(path: str, skip_substitution: bool = False):
     if not Path(path).exists():

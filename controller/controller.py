@@ -48,8 +48,9 @@ class Controller(Dismantable):
 
         if self.dismantables is None:
             return
-
-        for dismantable in self.dismantables:
+        
+        while len(self.dismantables) > 0:
+            dismantable = self.dismantables.pop(0)
             try:
                 dismantable.dismantle()
             except Exception as ex:
