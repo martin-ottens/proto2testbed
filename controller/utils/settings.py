@@ -10,6 +10,8 @@ class TestbedSettings():
     machines_internet_access: bool = True
     management_network: str = "172.16.99.0/24"
     diskimage_basepath: str = "./"
+    startup_init_timeout: int = 30
+    experiment_timeout: int = -1
 
 @dataclass
 class TestbedNetwork():

@@ -1,3 +1,5 @@
+import time
+
 from enum import Enum
 from typing import Tuple
 from threading import Lock, Semaphore
@@ -10,6 +12,12 @@ class AgentManagementState(Enum):
     FINISHED = 4
     DISCONNECTED = 5
     FAILED = 99
+
+class WaitResult(Enum):
+    OK = 0
+    FAILED = 1
+    TIMEOUT = 2
+    INTERRUPTED = 3
 
 class MachineState():
     def __init__(self, name: str, script_file: str, setup_env: dict[str, str], manager):
@@ -112,21 +120,35 @@ class MachineStateManager():
                 if new_state == self.waiting_for_state:
                     self.state_change_semaphore.release()
     
-    def wait_for_machines_to_become_state(self, expected_state: AgentManagementState, timeout = None) -> bool:
+    def wait_for_machines_to_become_state(self, expected_state: AgentManagementState, timeout = None) -> WaitResult:
         wait_for_count = 0
         with self.state_change_lock:
             self.state_change_semaphore = Semaphore(0)
             self.waiting_for_state = expected_state
             wait_for_count = sum(map(lambda x: x.get_state() != expected_state, self.map.values()))
         
+        wait_until = time.time() + timeout
         for _ in range(wait_for_count):
-            waited = self.state_change_semaphore.acquire(timeout=timeout)
+            try:
+                this_run_time = time.time()
+                if this_run_time >= wait_until:
+                    waited = False
+                    continue
+
+                waited = self.state_change_semaphore.acquire(timeout=(wait_until - this_run_time))
+            except InterruptedError:
+                self.waiting_for_state = None
+                self.state_change_semaphore = None
+                return WaitResult.INTERRUPTED
         
         with self.state_change_lock:
             self.waiting_for_state = None
             self.state_change_semaphore = None
 
             if not waited:
-                return False
+                return WaitResult.TIMEOUT
 
-            return sum(map(lambda x: x.get_state() == expected_state, self.map.values())) == len(self.map)
+            if sum(map(lambda x: x.get_state() == expected_state, self.map.values())) == len(self.map):
+                return WaitResult.OK
+            else:
+                return WaitResult.FAILED

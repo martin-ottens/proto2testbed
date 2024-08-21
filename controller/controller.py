@@ -15,7 +15,7 @@ from utils.config_tools import load_config, load_vm_initialization, load_influxd
 from utils.settings import SettingsWrapper
 from utils.settings import InvokeIntegrationAfter
 from management_server import ManagementServer
-from state_manager import MachineStateManager, AgentManagementState
+from state_manager import MachineStateManager, AgentManagementState, WaitResult
 from common.instance_manager_message import ApplicationsMessageUpstream
 
 FILESERVER_PORT = 4242
@@ -219,6 +219,16 @@ class Controller(Dismantable):
         except KeyboardInterrupt:
             return
         
+    def get_longest_application_duration(self) -> int:
+        max_value = 0
+        for instance in SettingsWrapper.testbed_config.instances:
+            for application in instance.applications:
+                this_value = application.delay + application.runtime
+                if this_value > max_value:
+                    max_value = this_value
+
+        return max_value
+        
     def main(self) -> bool:
         integration_start = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP)
         if integration_start == False :
@@ -247,7 +257,7 @@ class Controller(Dismantable):
             logger.success(f"Experiment data will be saved to InfluxDB {influx_db.database} with tag experiment={influx_db.series_name}")
 
         if not load_vm_initialization(SettingsWrapper.testbed_config, self.base_path, self.state_manager, f"http://{file_server_addr[0]}:{file_server_addr[1]}"):
-            logger.critical("Critical error while loading VM initialization!")
+            logger.critical("Critical error while loading Instance initialization!")
             return False
 
         if not self.start_management_infrastructure(file_server_addr, mgmt_server_addr):
@@ -262,11 +272,19 @@ class Controller(Dismantable):
             self.wait_before_release(on_demand=True)
             return True
 
-        logger.info("Waiting for VMs to start and initialize ...")
-        if not self.state_manager.wait_for_machines_to_become_state(AgentManagementState.INITIALIZED):
-            logger.critical("VMs are not ready or error during initialization!")
+        logger.info("Waiting for Instances to start and initialize ...")
+        
+        setup_timeout = SettingsWrapper.testbed_config.settings.startup_init_timeout
+        logger.debug(f"Waiting a maximum of {setup_timeout} seconds for Instances to start and initialize.")
+        result: WaitResult =  self.state_manager.wait_for_machines_to_become_state(AgentManagementState.INITIALIZED, 
+                                                                                   timeout=setup_timeout)
+        if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
+            logger.critical("Instances are not ready: Error or timeout during initialization!")
             return False
-        logger.success("All VMs reported up & ready!")
+        elif result == WaitResult.INTERRUPTED:
+            logger.critical("Setup was interrupted, shutting down testbed!")
+            return False
+        logger.success("All Instances reported up & ready!")
 
         integration_start = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.INIT)
         if integration_start == False :
@@ -279,21 +297,43 @@ class Controller(Dismantable):
             self.wait_before_release(on_demand=True)
             return True
         
-        logger.info("Startig applications on VMs.")
+        logger.info("Startig applications on Instances.")
         for machine in SettingsWrapper.testbed_config.instances:
             state = self.state_manager.get_machine(machine.name)
             message = ApplicationsMessageUpstream("experiement", influx_db, machine.applications)
             state.send_message(message.to_json().encode("utf-8"))
             state.set_state(AgentManagementState.IN_EXPERIMENT)
             
-        logger.info("Waiting for VMs to finish applications ...")
-        if not self.state_manager.wait_for_machines_to_become_state(AgentManagementState.FINISHED):
-            logger.critical("VMs have reported failed applications!")
+        logger.info("Waiting for Instances to finish applications ...")
+
+        experiment_timeout = SettingsWrapper.testbed_config.settings.experiment_timeout
+
+        # Calculate by longest application
+        if experiment_timeout == -1:
+            experiment_timeout = self.get_longest_application_duration()
+            if experiment_timeout != 0:
+                experiment_timeout *= 2
+    
+        if experiment_timeout == 0:
+            logger.error("Maximum experiment duration could not be calculated -> No applications installed!")
             if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
                 self.wait_before_release(on_demand=True)
                 return True
             return False
-        logger.success("All VMs reported finished applications!")
+        else:
+            logger.debug(f"Waiting a maximum of {experiment_timeout} seconds for the experiment to finish.")
+            result: WaitResult = self.state_manager.wait_for_machines_to_become_state(AgentManagementState.FINISHED,
+                                                                                    timeout=experiment_timeout)
+            if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
+                logger.critical("Instances have reported failed applications or a timeout occured!")
+                if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
+                    self.wait_before_release(on_demand=True)
+                    return True
+                return False
+            elif result == WaitResult.INTERRUPTED:
+                logger.critical("Waiting for applications to finish was interrupted!")
+                return False
+            logger.success("All Instances reported finished applications!")
             
         if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
             self.wait_before_release(on_demand=True)

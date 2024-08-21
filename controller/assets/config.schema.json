@@ -16,6 +16,12 @@
                 },
                 "diskimage_basepath": {
                     "type": "string"
+                },
+                "startup_init_timeout": {
+                    "type": "number"
+                },
+                "experiment_timeout": {
+                    "type": "number"
                 }
             },
             "additionalItems": false
