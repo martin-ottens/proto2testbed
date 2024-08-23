@@ -27,6 +27,14 @@ class IntegrationStatusContainer():
         self._flag = threading.Event()
         self._flag.clear()
     
+    def reset_error(self):
+        self._shared_state["error_flag"] = False
+        self._shared_state["error_string"] = None
+
+    def reset(self):
+        self.reset_error()
+        self._flag.clear()
+    
     def set_error(self, error_string: str) -> None:
         self._shared_state["error_flag"] = True
         self._shared_state["error_string"] = error_string
@@ -106,9 +114,15 @@ class BaseIntegration(ABC):
         pass
 
     @abstractmethod
+    def get_expected_timeout(self, at_shutdown: bool = False) -> int:
+        pass
+
+    # Needs to be implemeted blocking!
+    @abstractmethod
     def start(self) -> bool:
         pass
 
+    # Needs to be implemeted blocking!
     @abstractmethod
     def stop(self) -> bool:
         pass
