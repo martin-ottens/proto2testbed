@@ -29,15 +29,16 @@ class NoneIntegrationSettings(IntegrationSettings):
 class AwaitIntegrationSettings(IntegrationSettings):
     start_script: str
     wait_for_exit: int
+    start_delay: int
 
 @dataclass
 class StartStopIntegrationSettings(IntegrationSettings):
     start_script: str
     stop_script: str
     wait_for_exit: int = 5
+    start_delay: int = -1
 
 class IntegrationMode(Enum):
-    NONE = "none"
     AWAIT = "await"
     STARTSTOP = "startstop"
 
@@ -53,10 +54,11 @@ class InvokeIntegrationAfter(Enum):
         return str(self.value)
     
 class Integration():
-    def __init__(self, mode: str, environment: Optional[Dict[str, str]] = None,
-                 invoke_after: str = str(InvokeIntegrationAfter.STARTUP), wait_after_invoke: str = 0,
+    def __init__(self, name: str, mode: str, environment: Optional[Dict[str, str]] = None,
+                 invoke_after: str = str(InvokeIntegrationAfter.STARTUP), wait_after_invoke: int = 0,
                  settings: Optional[Any] = None) -> None:
 
+        self.name = name
         self.mode: IntegrationMode = IntegrationMode(mode)
         self.environment = environment
         self.invoke_after: InvokeIntegrationAfter = InvokeIntegrationAfter(invoke_after)
@@ -64,8 +66,6 @@ class Integration():
         self.settings: IntegrationSettings
 
         match self.mode:
-            case IntegrationMode.NONE:
-                self.settings = NoneIntegrationSettings(**settings)
             case IntegrationMode.AWAIT:
                 self.settings = AwaitIntegrationSettings(**settings)
             case IntegrationMode.STARTSTOP:
@@ -99,16 +99,16 @@ class TestbedInstance():
 class TestbedConfig():
     def __init__(self, json) -> None:
         self.settings: TestbedSettings = TestbedSettings(**json["settings"])
-        if "integration" in json.keys():
-            self.integration: Integration = Integration(**json["integration"])
-        else:
-            self.integration = None
         self.networks: List[TestbedNetwork] = []
         self.instances: List[TestbedInstance] = []
+        self.integrations: List[Integration] = []
 
         for network in json["networks"]:
             self.networks.append(TestbedNetwork(**network))
         
+        for integration in json["integrations"]:
+            self.integrations.append(Integration(**integration))
+
         for machine in json["instances"]:
             self.instances.append(TestbedInstance(**machine))
 

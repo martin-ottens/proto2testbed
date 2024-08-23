@@ -51,102 +51,115 @@
                 ]
             }
         },
-        "integration": {
-            "type": "object",
-            "properties": {
-                "mode": {
-                    "type": "string",
-                    "enum": [
-                        "none",
-                        "await",
-                        "startstop"
-                    ]
+        "integrations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": [
+                            "await",
+                            "startstop"
+                        ]
+                    },
+                    "environment": {
+                        "type": [
+                            "object",
+                            "null"
+                        ]
+                    },
+                    "invoke_after": {
+                        "type": "string",
+                        "enum": [
+                            "startup",
+                            "network",
+                            "init"
+                        ]
+                    },
+                    "wait_after_invoke": {
+                        "type": "number"
+                    }
                 },
-                "environment": {
-                    "type": [
-                        "object",
-                        "null"
-                    ]
-                },
-                "invoke_after": {
-                    "type": "string",
-                    "enum": [
-                        "startup",
-                        "network",
-                        "init"
-                    ]
-                },
-                "wait_after_invoke": {
-                    "type": "number"
-                }
-            },
-            "additionalItems": false,
-            "required": [
-                "mode"
-            ],
-            "allOf": [
-                {
-                    "if": {
-                        "properties": {
-                            "mode": {
-                                "const": "await"
+                "additionalItems": false,
+                "required": [
+                    "name",
+                    "mode",
+                    "settings"
+                ],
+                "allOf": [
+                    {
+                        "if": {
+                            "properties": {
+                                "mode": {
+                                    "const": "await"
+                                }
+                            }
+                        },
+                        "then": {
+                            "properties": {
+                                "settings": {
+                                    "type": "object",
+                                    "properties": {
+                                        "start_script": {
+                                            "type": "string"
+                                        },
+                                        "wait_for_exit": {
+                                            "type": "number"
+                                        },
+                                        "start_delay": {
+                                            "type": "number"
+                                        }
+                                    },
+                                    "required": [
+                                        "start_script",
+                                        "wait_for_exit"
+                                    ],
+                                    "additionalItems": false
+                                }
                             }
                         }
                     },
-                    "then": {
-                        "properties": {
-                            "settings": {
-                                "type": "object",
-                                "properties": {
-                                    "start_script": {
-                                        "type": "string"
+                    {
+                        "if": {
+                            "properties": {
+                                "mode": {
+                                    "const": "startstop"
+                                }
+                            }
+                        },
+                        "then": {
+                            "properties": {
+                                "settings": {
+                                    "type": "object",
+                                    "properties": {
+                                        "start_script": {
+                                            "type": "string"
+                                        },
+                                        "stop_script": {
+                                            "type": "string"
+                                        },
+                                        "wait_for_exit": {
+                                            "type": "number"
+                                        },
+                                        "start_delay": {
+                                            "type": "number"
+                                        }
                                     },
-                                    "wait_for_exit": {
-                                        "type": "number"
-                                    }
-                                },
-                                "required": [
-                                    "start_script",
-                                    "wait_for_exit"
-                                ],
-                                "additionalItems": false
+                                    "required": [
+                                        "start_script",
+                                        "stop_script"
+                                    ],
+                                    "additionalItems": false
+                                }
                             }
                         }
                     }
-                },
-                {
-                    "if": {
-                        "properties": {
-                            "mode": {
-                                "const": "startstop"
-                            }
-                        }
-                    },
-                    "then": {
-                        "properties": {
-                            "settings": {
-                                "type": "object",
-                                "properties": {
-                                    "start_script": {
-                                        "type": "string"
-                                    },
-                                    "stop_script": {
-                                        "type": "string"
-                                    },
-                                    "wait_for_exit": {
-                                        "type": "number"
-                                    }
-                                },
-                                "required": [
-                                    "start_script",
-                                    "stop_script"
-                                ],
-                                "additionalItems": false
-                            }
-                        }
-                    }
-                }
-            ]
+                ]
+            }
         },
         "instances": {
             "type": "array",
@@ -446,6 +459,7 @@
     "required": [
         "settings",
         "networks",
+        "integrations",
         "instances"
     ],
     "additionalItems": false
