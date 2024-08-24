@@ -1,4 +1,4 @@
 #!/bin/bash
 
-echo "Stopped!" >> /tmp/integration
-sleep 100
+echo "stop" >> /tmp/integration
+sleep 3

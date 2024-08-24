@@ -14,13 +14,12 @@ class StartStopIntegration(BaseIntegration):
             raise Exception("Received invalid settings type!")
         
         self.settings: StartStopIntegrationSettings = settings
-        self.start_script: Path = self.__get_and_check_script(settings.start_script)
-        self.stop_script: Path = self.__get_and_check_script(settings.stop_script)
+        self.start_script: Path = self.get_and_check_script(settings.start_script)
+        self.stop_script: Path = self.get_and_check_script(settings.stop_script)
         self.start_process = None
 
     def is_integration_ready(self) -> bool:
-        if self.start_script is None or self.stop_script is None:
-            return False
+        return self.start_script is not None and self.stop_script is not None
 
     def is_integration_blocking(self) -> bool:
         return self.settings.start_delay == -1
@@ -35,13 +34,13 @@ class StartStopIntegration(BaseIntegration):
         if self.settings.start_delay is not None and self.settings.start_delay > 0:
             time.sleep(self.settings.start_delay)
 
-        self.start_process = Process(target=self.__run_subprocess, args=(self.start_script, ))
+        self.start_process = Process(target=self.run_subprocess, args=(self.start_script, ))
         self.start_process.start()
         self.start_process.join(timeout=self.settings.wait_for_exit)
 
         if self.start_process.is_alive():
             self.status.set_error("Integration timed out.")
-            self.start_process.kill()
+            self.kill_process_with_child(self.start_process)
             self.start_process = None
             return False
         
@@ -53,18 +52,18 @@ class StartStopIntegration(BaseIntegration):
         status = True
         try:
             if self.start_process is not None and self.start_process.is_alive():
-                self.start_process.kill()
+                self.kill_process_with_child(self.start_process)
         except Exception:
             status = False
 
         # Execute stop script
-        stop_process = Process(target=self.__run_subprocess, args=(self.stop_script, ))
+        stop_process = Process(target=self.run_subprocess, args=(self.stop_script, ))
         stop_process.start()
         stop_process.join(timeout=self.settings.wait_for_exit)
 
         if stop_process.is_alive():
             self.status.set_error("Integration timed out.")
-            stop_process.kill()
+            self.kill_process_with_child(stop_process)
             return False
             
         return status

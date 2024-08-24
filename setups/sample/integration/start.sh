@@ -1,3 +1,3 @@
 #!/bin/bash
 
-echo "Test" > /tmp/integration
+echo "start" >> /tmp/integration

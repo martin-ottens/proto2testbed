@@ -10,14 +10,29 @@
             "physical_ports": []
         }
     ],
-    "integration": {
-        "mode": "await",
-        "invoke_after": "startup",
-        "settings": {
-            "start_script": "integration/oneshot.sh",
-            "wait_for_exit": 10
-        } 
-    },
+    "integrations": [
+        {
+            "name": "await-integration",
+            "mode": "await",
+            "invoke_after": "startup",
+            "settings": {
+                "start_script": "integration/oneshot.sh",
+                "wait_for_exit": 50
+            } 
+        },
+        {
+            "name": "start-stop-integration",
+            "mode": "startstop",
+            "invoke_after": "network",
+            "wait_after_invoke": 2,
+            "settings": {
+                "start_delay": 5,
+                "start_script": "integration/start.sh",
+                "stop_script": "integration/stop.sh",
+                "wait_for_exit": 5
+            }
+        }
+    ],
     "instances": [
         {
             "name": "vma",

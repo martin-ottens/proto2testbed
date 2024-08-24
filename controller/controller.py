@@ -36,7 +36,7 @@ class Controller(Dismantable):
         try:
             SettingsWrapper.testbed_config = load_config(self.config_path, 
                                                          SettingsWrapper.cli_paramaters.skip_substitution)
-            self.integration_helper = IntegrationHelper(SettingsWrapper.testbed_config.integration, self.base_path)
+            self.integration_helper = IntegrationHelper(SettingsWrapper.testbed_config.integrations)
         except Exception as ex:
             logger.opt(exception=ex).critical("Internal error loading config!")
             raise Exception("Internal config loading error!")
@@ -104,12 +104,9 @@ class Controller(Dismantable):
                 logger.opt(exception=ex).critical(f"Unable to setup additional network {network.name}")
                 return False
         
-        integration_start = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.NETWORK)
-        if integration_start == False :
+        if self.integration_helper.handle_stage_start(InvokeIntegrationAfter.NETWORK) == False :
             logger.critical("Critical error during integration start!")
             return False
-        elif integration_start == True:
-            self.dismantables.insert(0, self.integration_helper)
             
         # Setup Instances
         instances = {}
@@ -230,12 +227,11 @@ class Controller(Dismantable):
         return max_value
         
     def main(self) -> bool:
-        integration_start = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP)
-        if integration_start == False :
+        self.dismantables.insert(0, self.integration_helper)
+
+        if self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP) == False :
             logger.critical("Critical error during integration start!")
             return False
-        elif integration_start == True:
-            self.dismantables.insert(0, self.integration_helper)
 
         if not self.setup_local_network():
             logger.critical("Critical error during local network setup!")
@@ -265,7 +261,7 @@ class Controller(Dismantable):
             return False
 
         if not self.setup_infrastructure():
-            logger.critical("Critical error during setup, dismantling!")
+            logger.critical("Critical error during instance setup")
             return False
         
         if SettingsWrapper.cli_paramaters.pause == "SETUP":
@@ -286,12 +282,9 @@ class Controller(Dismantable):
             return False
         logger.success("All Instances reported up & ready!")
 
-        integration_start = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.INIT)
-        if integration_start == False :
+        if self.integration_helper.handle_stage_start(InvokeIntegrationAfter.INIT) == False :
             logger.critical("Critical error during integration start!")
             return False
-        elif integration_start == True:
-            self.dismantables.insert(0, self.integration_helper)
 
         if SettingsWrapper.cli_paramaters.pause == "INIT":
             self.wait_before_release(on_demand=True)

@@ -60,7 +60,7 @@ class BaseIntegration(ABC):
         self.status = status_container
         self.base_path = Path(SettingsWrapper.cli_paramaters.config)
 
-    def __kill_process_with_child(self, process: Process):
+    def kill_process_with_child(self, process: Process):
         try:
             parent = psutil.Process(process.ident)
             for child in parent.children(recursive=True):
@@ -73,7 +73,7 @@ class BaseIntegration(ABC):
 
         process.terminate()
 
-    def __get_and_check_script(self, rel_path_str: str) -> Optional[Path]:
+    def get_and_check_script(self, rel_path_str: str) -> Optional[Path]:
         script_file = self.base_path / Path(rel_path_str)
         if not script_file.exists() or not script_file.is_relative_to(self.base_path):
             logger.critical(f"Integration: Unable to find script file '{script_file}'!")
@@ -85,7 +85,7 @@ class BaseIntegration(ABC):
 
         return script_file
 
-    def __run_subprocess(self, script_path: str):
+    def run_subprocess(self, script_path: Path):
         """
         Important: This method will be forked away from the main process!
         """
@@ -95,7 +95,7 @@ class BaseIntegration(ABC):
                 os.environ[k] = v
         
         try:
-            proc = invoke_subprocess(["/bin/bash", script_path], capture_output=True, shell=False)
+            proc = invoke_subprocess(["/bin/bash", str(script_path)], capture_output=True, shell=False)
             stderr = proc.stderr.decode("utf-8")
             if proc is not None and (proc.returncode != 0 or stderr != ""):
                 if stderr != "":
@@ -103,7 +103,7 @@ class BaseIntegration(ABC):
                 else:
                     self.status.set_error(f"Failed with exit code {proc.returncode}\nSTDOUT: {proc.stdout.decode('utf-8')}")
         except Exception as ex:
-            self.status.set_error("Error during execution: {ex}")
+            self.status.set_error(f"Error during execution: {ex}")
 
     @abstractmethod
     def is_integration_ready(self) -> bool:

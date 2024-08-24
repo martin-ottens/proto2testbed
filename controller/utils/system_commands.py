@@ -1,5 +1,6 @@
 import subprocess
 import pexpect
+import re
 
 from typing import List
 from loguru import logger
@@ -13,9 +14,11 @@ def log_trace(func):
     def wrap(*args, **kwargs):
         if args:
             if isinstance(args[0], str):
-                logger.trace("Running command:" + args[0])
+                cmd = re.sub(' +', ' ', args[0])
+                logger.trace("Running command: " + cmd)
             elif isinstance(args[0], list):
-                logger.trace("Running command:" + " ".join(args[0]))
+                cmd = re.sub(' +', ' ', " ".join(args[0]))
+                logger.trace("Running command: " + cmd)
 
         return func(*args, **kwargs)
     

@@ -29,7 +29,7 @@ class NoneIntegrationSettings(IntegrationSettings):
 class AwaitIntegrationSettings(IntegrationSettings):
     start_script: str
     wait_for_exit: int
-    start_delay: int
+    start_delay: int = 0
 
 @dataclass
 class StartStopIntegrationSettings(IntegrationSettings):

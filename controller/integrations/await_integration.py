@@ -14,7 +14,7 @@ class AwaitIntegration(BaseIntegration):
             raise Exception("Received invalid settings type!")
         
         self.settings: AwaitIntegrationSettings = settings
-        self.start_script: Path = self.__get_and_check_script(settings.start_script)
+        self.start_script: Path = self.get_and_check_script(settings.start_script)
         self.process = None
 
     def is_integration_ready(self) -> bool:
@@ -33,13 +33,13 @@ class AwaitIntegration(BaseIntegration):
         if self.settings.start_delay is not None and self.settings.start_delay > 0:
             time.sleep(self.settings.start_delay)
 
-        self.process = Process(target=self.__run_subprocess, args=(self.start_script, ))
+        self.process = Process(target=self.run_subprocess, args=(self.start_script, ))
         self.process.start()
         self.process.join(timeout=self.settings.wait_for_exit)
 
         if self.process.is_alive():
             self.status.set_error("Integration timed out.")
-            self.process.kill()
+            self.kill_process_with_child(self.process)
             self.process = None
             return False
         
@@ -52,7 +52,7 @@ class AwaitIntegration(BaseIntegration):
         # conditions here, but any errors due to that can be ignored. 
         try:
             if self.process is not None and self.process.is_alive():
-                self.process.kill()
+                self.kill_process_with_child(self.process)
             return True
         except Exception:
             return False
