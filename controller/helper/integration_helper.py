@@ -87,6 +87,7 @@ class IntegrationHelper(Dismantable):
         
         exec.started = True
         exec.thread = threading.Thread(target=integration_thread, args=(exec, barrier, ), daemon=True)
+        logger.info(f"Integration: Invoking start of integration '{exec.obj.name}'")
         exec.thread.start()
 
     def _stop_integration(self, exec: IntegrationExecutionWrapper):
@@ -107,6 +108,7 @@ class IntegrationHelper(Dismantable):
             logger.trace(f"Integration stop thread '{exec.obj.name}' terminates now.")
         
         exec.thread = threading.Thread(target=integration_thread, args=(exec, ), daemon=True)
+        logger.info(f"Integration: Invoking stop of integration '{exec.obj.name}'")
         exec.thread.start()
     
     # Returns:
@@ -116,8 +118,10 @@ class IntegrationHelper(Dismantable):
     def handle_stage_start(self, stage: InvokeIntegrationAfter) -> Optional[bool]:
         # 0. Check always if there are previous failed integrations
         if self.has_error():
-            logger.critical(f"Integration: Integration failure occured before stage {stage.upper()}")
+            logger.critical(f"Integration: Integration failure occured before stage {str(stage).upper()}")
             return False
+        
+        logger.debug(f"Integration: Checking & invoking integrations at stage {str(stage).upper()}")
 
         # 1. Find integrations to be invoked at this stage
         fire_integrations: List[IntegrationExecutionWrapper] = self.mapped_integrations[stage]
@@ -127,7 +131,7 @@ class IntegrationHelper(Dismantable):
         
         if SettingsWrapper.cli_paramaters.skip_integration:
             for integration in fire_integrations:
-                logger.warning(f"Integration: Start of '{integration.obj.name}' integration at stage {stage.upper()} skipped.")
+                logger.warning(f"Integration: Start of '{integration.obj.name}' integration at stage {str(stage).upper()} skipped.")
             return None
 
         # 2. Find blocking/non blocking integrations, find largest wait_after_invoke value
@@ -154,7 +158,7 @@ class IntegrationHelper(Dismantable):
             
             sync_barrier.wait() # No interrupt handling -> Wait time is short!
             wait_until = time.time() + expected_max_timeout + 1
-            logger.debug(f"Integration: Waiting {expected_max_timeout:.2f} seconds for start stage of blocking integrations to finish!")
+            logger.debug(f"Integration: Waiting {expected_max_timeout:.2f} seconds for start phase of blocking integrations to finish!")
             status = True
             for sync_integration in sync_integrations:
                 logger.trace(f"Waiting for blocking start of integration '{sync_integration.obj.name}'")
@@ -175,7 +179,7 @@ class IntegrationHelper(Dismantable):
                     return False
                 
             if not status:
-                logger.critical("Integration: At least one integration start stage in blocking mode failed")
+                logger.critical("Integration: At least one integration start phase in blocking mode failed")
                 return False
 
         # 4. Fire all non-blocking integrations
@@ -220,6 +224,8 @@ class IntegrationHelper(Dismantable):
 
     # Graceful shutdown
     def graceful_shutdown(self) -> None:
+        logger.debug("Integration: Gracefully stopping all started integrations")
+
         # 1. Wait for async integrations to finish. They have to deal with timeouts themself.
         for integration in self._get_all_integration_wrappers():
             logger.trace(f"Checking start status of async integration '{integration.obj.name}'")
@@ -236,20 +242,20 @@ class IntegrationHelper(Dismantable):
                 wait_for = 0
 
             if not integration.status.get_finished_flag().is_set() and wait_for != 0:
-                logger.info(f"Integration: Waiting for still running start stage of '{integration.obj.name}' to finish before shutdown (max. {wait_for:.2f} seconds)")
+                logger.info(f"Integration: Waiting for still running start phase of '{integration.obj.name}' to finish before shutdown (max. {wait_for:.2f} seconds)")
 
             try:
                 if wait_for != 0:
                     integration.thread.join(wait_for)
 
                 if integration.thread.is_alive():
-                    logger.critical(f"Integration: Start stage of '{integration.obj.name}' timed out!")
+                    logger.critical(f"Integration: Start phase of '{integration.obj.name}' timed out!")
 
                 if integration.status.get_error() is not None:
                     logger.critical(f"Integration: Integration '{integration.obj.name}' reported failure.")
                     integration.status.reset_error()
             except InterruptedError:
-                logger.critical("Integration: Waiting for integrations to finish start stage was interrupted!")
+                logger.critical("Integration: Waiting for integrations to finish start phase was interrupted!")
         
         # 2. Reset Status, get maximum Timeout & Invoke integration stop
         expected_max_timeout = 0
@@ -257,11 +263,11 @@ class IntegrationHelper(Dismantable):
             integration.thread = None
 
             if not integration.started:
-                logger.debug(f"Integration: '{integration.obj.name}' was not yet started, skipping stop stage.")
+                logger.debug(f"Integration: '{integration.obj.name}' was not yet started, skipping stop phase.")
                 continue
 
             if integration.is_shutdown:
-                logger.debug(f"Integration: '{integration.obj.name}' was already stopped, skipping stop stage.")
+                logger.debug(f"Integration: '{integration.obj.name}' was already stopped, skipping stop phase.")
                 continue
 
             if integration.impl.get_expected_timeout(at_shutdown=True) > expected_max_timeout:
@@ -289,7 +295,7 @@ class IntegrationHelper(Dismantable):
                     logger.critical(f"Integration: Integration '{integration.obj.name}' reported failure.")
                     integration.status.reset_error()
             except InterruptedError:
-                logger.critical("Integration: Waiting for integrations to finish stop stage was interrupted!")
+                logger.critical("Integration: Waiting for integrations to finish stop phase was interrupted!")
                 return
     
     # Force shutdown. Just fire stop action of integrations without waiting
