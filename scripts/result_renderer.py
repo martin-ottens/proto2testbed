@@ -150,14 +150,14 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
         
         fig, ax = plt.subplots()
         ax.plot(np.array(x), np.array(y))
-        plt.xlabel("Seconds")
-        plt.ylabel(f"{plotinfo[1]} {f'({plotinfo[0]})' if plotinfo[0] is not None else ''}")
+        plt.xlabel("Seconds", fontsize=7)
+        plt.ylabel(f"{plotinfo[1]} {f'({plotinfo[0]})' if plotinfo[0] is not None else ''}", fontsize=7)
 
         if plotinfo[0] == DATA_SIZE:
             ax.yaxis.set_major_formatter(ticker.FuncFormatter(bytes_to_human_readable))
         elif plotinfo[0] == DATA_RATE:
             ax.yaxis.set_major_formatter(ticker.FuncFormatter(bits_to_human_readable))
-        plt.title(title, fontsize=5)
+        plt.title(title, fontsize=7)
         plt.tight_layout()
         plt.savefig(filename)
         plt.close()

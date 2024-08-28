@@ -8,6 +8,7 @@ from loguru import logger
 
 from controller import Controller
 from utils.settings import CLIParameters, SettingsWrapper
+from utils.pidfile import PidFile
 
 
 if __name__ == "__main__":
@@ -71,14 +72,27 @@ if __name__ == "__main__":
         logger.critical("Unable to start: You need to be root!")
         sys.exit(1)
 
-    controller = Controller()
+
+    script_name = sys.argv[0]
     try:
-        status = controller.main()
+        with PidFile("/tmp/proto-testbed.pid", name=script_name):
+
+            try:
+                controller = Controller()
+            except Exception as ex:
+                logger.opt(exception=ex).critical("Error during config initialization")
+                sys.exit(1)
+
+            try:
+                status = controller.main()
+            except Exception as ex:
+                logger.opt(exception=ex).critical("Uncaught Controller Exception")
+                status = False
+            finally:
+                controller.dismantle()
     except Exception as ex:
-        logger.opt(exception=ex).critical("Uncaught Controller Exception")
-        status = False
-    finally:
-        controller.dismantle()
+        logger.opt(exception=ex).critical(f"Another instance of '{script_name}' is still running.")
+        sys.exit(1)
 
     if status:
         logger.success("Testbed was dismantled!")
