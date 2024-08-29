@@ -1,0 +1,121 @@
+{
+    "settings": {
+        "machines_internet_access": true,
+        "management_network": "172.16.99.0/24",
+        "diskimage_basepath": "/tmp"
+    },
+    "networks": [
+        {
+            "name": "exp0",
+            "physical_ports": []
+        },
+        {
+            "name": "exp1",
+            "physical_ports": []
+        }
+    ],
+    "integrations": [],
+    "instances": [
+        {
+            "name": "endpoint-a",
+            "diskimage": "{{IMAGE_ENDPOINT}}",
+            "setup_script": "endpoint/setup.sh",
+            "environment": {
+                "IP_ADDRESS": "10.0.1.1/24",
+                "ROUTE": "10.0.2.0/24 via 10.0.1.2",
+                "WIREGUARD": "{{WIREGUARD_A}}"
+            },
+            "cores": 2,
+            "memory": 1024,
+            "networks": [
+                "exp0"
+            ],
+            "applications": [
+                {
+                    "application": "iperf3-server",
+                    "name": "a-iperf-server",
+                    "delay": 0,
+                    "runtime": 100,
+                    "settings": {}
+                },
+                {
+                    "application": "procmon",
+                    "name": "a-procmon",
+                    "delay": 5,
+                    "runtime": 60,
+                    "settings": {
+                        "interfaces": ["enp0s3"],
+                        "system": false
+                    }
+                }
+            ]
+        },
+        {
+            "name": "router",
+            "diskimage": "{{IMAGE_ROUTER}}",
+            "setup_script": "router/setup.sh",
+            "environment": {
+                "IP_ADDRESS_0": "10.0.1.2/24",
+                "IP_ADDRESS_1": "10.0.2.2/24"
+            },
+            "cores": 2,
+            "memory": 1024,
+            "networks": [
+                "exp0",
+                "exp1"
+            ],
+            "applications": [
+                {
+                    "application": "run-program",
+                    "name": "add_delay",
+                    "delay": 30,
+                    "runtime": 60,
+                    "settings": {
+                        "command": "/tmp/application.sh",
+                        "ignore_timeout": true,
+                        "environment": {
+                            "INTERFACE": "enp0s3",
+                            "DELAY_MS": 100
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "endpoint-b",
+            "diskimage": "{{IMAGE_ENDPOINT}}",
+            "setup_script": "endpoint/setup.sh",
+            "environment": {
+                "IP_ADDRESS": "10.0.2.1/24",
+                "ROUTE": "10.0.1.0/24 via 10.0.2.2",
+                "WIREGUARD": "{{WIREGUARD_B}}"
+            },
+            "cores": 2,
+            "memory": 1024,
+            "networks": [
+                "exp1"
+            ],
+            "applications": [
+                {
+                    "application": "iperf3-client",
+                    "name": "b-iperf-client",
+                    "delay": 1,
+                    "runtime": 60,
+                    "settings": {
+                        "host": "{{IPERF_HOST}}"
+                    }
+                },
+                {
+                    "application": "ping",
+                    "name": "b-ping",
+                    "delay": 10,
+                    "runtime": 60,
+                    "settings": {
+                        "target": "{{PING_TARGET}}",
+                        "source": "{{PING_SOURCE}}"
+                    }
+                }
+            ]
+        }
+    ]
+}
