@@ -12,7 +12,7 @@ class RunProgramApplication(BaseApplication):
         
         if settings.environment is not None:
             for k, v in settings.environment.items():
-                os.environ[k] = v
+                os.environ[k] = str(v)
 
         try:
             os.chmod(settings.command.split(" ")[0], 0o777)

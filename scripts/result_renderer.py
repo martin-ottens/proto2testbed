@@ -134,6 +134,9 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
         
             return result
         
+        if application_type == "run-program":
+            return None
+        
         return [(application_type, )]
     
     def plot_one(filename: str, field: str, generator, plotinfo: Tuple[Optional[str], str], application_delay: int, title: str):
@@ -164,6 +167,9 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
         logger.success(f"Plot rendered to file: {filename}")
 
     def handle_one_series(basepath: str, instance_name: str, application_name: str, application_data: List[Tuple[str, Optional[str]]], application_delay: int):
+        if application_data == None:
+            return
+        
         def query_normal(field, measurement):
             bind_params = {
                 "experiment": experiment,
