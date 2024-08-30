@@ -42,18 +42,19 @@ This setup allows to see, how the throughput in both version is impacted when th
     - Image for the router:
       ```bash
       cp path/to/your/baseimage.qcow2 /tmp/router.qcow2
-      cd proto-testbed/scripts/
+      cd <proto-testbed>/scripts/
       ./image_creator.py /tmp/router.qcow2 ../instance-manager/instance-manager.deb
       ```
     - Image for the endpoints:
       ```bash
       cp path/to/your/baseimage.qcow2 /tmp/endpoint.qcow2
-      cd proto-testbed/scripts/
+      cd <proto-testbed>/scripts/
       ./image_creator.py --extra ../setups/example1/wireguard.extra /tmp/endpoint.qcow2 ../instance-manager/instance-manager.deb
       ```
 
 3. Load required environment variables:
     ```bash
+    cd <proto-testbed>/setup/example1
     # For experiment without WireGuard enabled
     export $(grep -v '^#' .env-normal | xargs)
     # For experiment with WireGuard enabled
@@ -65,14 +66,14 @@ This setup allows to see, how the throughput in both version is impacted when th
 
 4. Start the testbed:
    ```bash
-   cd proto-testbed
+   cd <proto-testbed>
    ./proto-testbed -e $EXPERIMENT_TAG setups/example1
    ```
 
 5. Export the results (and clean up):
    ```bash
-   cd proto-testbed/scripts/
-   ./result_renderer.py --config ../setups/example1/testbed.json --influx_database $INFLUXDB_DATABASE --experiment $EXPERIMENT_TAG --renderout ./${$EXPERIMENT_TAG}-images
+   cd <proto-testbed>/scripts/
+   ./result_renderer.py --config ../setups/example1/testbed.json --influx_database $INFLUXDB_DATABASE --experiment $EXPERIMENT_TAG --renderout ./${EXPERIMENT_TAG}-images
 
    ./result_export.py --config ../setups/example1/testbed.json --influx_database $INFLUXDB_DATABASE --experiment $EXPERIMENT_TAG --output ./${EXPERIMENT_TAG}-csvs
 

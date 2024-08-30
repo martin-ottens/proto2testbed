@@ -1,0 +1,14 @@
+diff --git a/ns3 b/ns3
+index 755c63c5b..89691a54d 100755
+--- a/ns3
++++ b/ns3
+@@ -1681,9 +1681,6 @@ def refuse_run_as_root():
+ def main():
+     global out_dir, run_verbose
+ 
+-    # Refuse to run with sudo
+-    refuse_run_as_root()
+-
+     # Enable colorized output for CMake and GCC/Clang
+     if os.getenv("CLICOLOR") is None:
+         os.environ["CLICOLOR"] = "1"

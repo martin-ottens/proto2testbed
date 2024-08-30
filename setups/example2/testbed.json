@@ -1,0 +1,95 @@
+{
+    "settings": {
+        "machines_internet_access": true,
+        "management_network": "172.16.99.0/24",
+        "diskimage_basepath": "/tmp"
+    },
+    "networks": [
+        {
+            "name": "exp0",
+            "physical_ports": [
+                "ns3_em0"
+            ]
+        },
+        {
+            "name": "exp1",
+            "physical_ports": [
+                "ns3_em1"
+            ]
+        }
+    ],
+    "integrations": [
+        {
+            "mode": "await",
+            "name": "run-ns3",
+            "invoke_after": "startup",
+            "wait_after_invoke": 3,
+            "settings": {
+                "start_script": "integration.sh",
+                "wait_for_exit": 110
+            },
+            "environment": {
+                "ROUTERS": "{{ROUTERS}}"
+            }
+        }
+    ],
+    "instances": [
+        {
+            "name": "endpoint-a",
+            "diskimage": "endpoint.qcow2",
+            "setup_script": "endpoint/setup.sh",
+            "environment": {
+                "IP_ADDRESS": "172.20.0.2/24",
+                "ROUTE": "172.20.{{ROUTERS}}.0/24 via 172.20.0.1"
+            },
+            "cores": 2,
+            "memory": 1024,
+            "networks": [
+                "exp0"
+            ],
+            "applications": [
+                {
+                    "application": "iperf3-server",
+                    "name": "a-iperf-server",
+                    "delay": 0,
+                    "runtime": 100,
+                    "settings": {}
+                }
+            ]
+        },
+        {
+            "name": "endpoint-b",
+            "diskimage": "endpoint.qcow2",
+            "setup_script": "endpoint/setup.sh",
+            "environment": {
+                "IP_ADDRESS": "172.20.{{ROUTERS}}.2/24",
+                "ROUTE": "172.20.0.0/24 via 172.20.{{ROUTERS}}.1"
+            },
+            "cores": 2,
+            "memory": 1024,
+            "networks": [
+                "exp1"
+            ],
+            "applications": [
+                {
+                    "application": "iperf3-client",
+                    "name": "b-iperf-client",
+                    "delay": 5,
+                    "runtime": 60,
+                    "settings": {
+                        "host": "172.20.0.2"
+                    }
+                },
+                {
+                    "application": "ping",
+                    "name": "b-ping",
+                    "delay": 0,
+                    "runtime": 65,
+                    "settings": {
+                        "target": "172.20.0.2"
+                    }
+                }
+            ]
+        }
+    ]
+}
