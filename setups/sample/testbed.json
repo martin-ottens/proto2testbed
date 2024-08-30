@@ -7,7 +7,7 @@
     "networks": [
         {
             "name": "exp0",
-            "physical_ports": []
+            "host_ports": []
         }
     ],
     "integrations": [

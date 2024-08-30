@@ -16,7 +16,7 @@ class TestbedSettings():
 @dataclass
 class TestbedNetwork():
     name: str
-    physical_ports: List[str] = None
+    host_ports: List[str] = None
 
 class IntegrationSettings(ABC):
     pass

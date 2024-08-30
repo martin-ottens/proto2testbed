@@ -7,13 +7,13 @@
     "networks": [
         {
             "name": "exp0",
-            "physical_ports": [
+            "host_ports": [
                 "ns3_em0"
             ]
         },
         {
             "name": "exp1",
-            "physical_ports": [
+            "host_ports": [
                 "ns3_em1"
             ]
         }

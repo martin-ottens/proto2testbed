@@ -34,7 +34,7 @@
                     "name": {
                         "type": "string"
                     },
-                    "physical_ports": {
+                    "host_ports": {
                         "type": "array",
                         "items": {
                             "type": [
@@ -47,7 +47,7 @@
                 "additionalItems": false,
                 "required": [
                     "name",
-                    "physical_ports"
+                    "host_ports"
                 ]
             }
         },

@@ -51,7 +51,7 @@ N = Number of router \in {1,10}
    git clone https://gitlab.com/nsnam/ns-3-dev.git
    cd ns-3-dev
    git checkout ns-3.41
-   cp <proto-testbed>/setups/example2/emulator.cc /tmp/scratch/.
+   cp <proto-testbed>/setups/example2/ns-3/emulator.cc /tmp/scratch/.
    ./ns3 configure --disable-sudp
    ./ns build
    git apply <proto-testbed>/setups/example/ns-3/run-as-root.patch

@@ -96,7 +96,7 @@ class Controller(Dismantable):
             try:
                 bridge = NetworkBridge(network.name, SettingsWrapper.cli_paramaters.clean)
                 self.dismantables.insert(0, bridge)
-                for pyhsical_port in network.physical_ports:
+                for pyhsical_port in network.host_ports:
                     bridge.add_device(pyhsical_port)
                 bridge.start_bridge()
                 self.networks[network.name] = bridge
