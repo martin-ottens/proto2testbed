@@ -41,7 +41,7 @@ int main(int argc, char* argv[]) {
     nodes.Create(2 + noOfRouters);
 
     CsmaHelper csma;
-    csma.SetChannelAttribute("DataRate", StringValue("100Mbps"));
+    csma.SetChannelAttribute("DataRate", StringValue("1000Mbps"));
     csma.SetChannelAttribute("Delay", TimeValue(NanoSeconds(delayNanoSeconds)));
 
     NodeContainer tapNodes;

@@ -76,13 +76,19 @@ class ProcmonApplication(BaseApplication):
         if settings.processes is not None:
             for psutil_proc in psutil.process_iter(["cmdline", "pid"]):
                 cmdline = " ".join(psutil_proc.info["cmdline"])
-                if cmdline not in settings.processes:
+                found = None
+                for config_process in settings.processes:
+                    if cmdline.startswith(config_process):
+                        found = config_process
+                        break
+
+                if found is None:
                     continue
                 
-                if cmdline in processes.keys():
+                if found in processes.keys():
                     raise Exception(f"Process cmdline identifier '{cmdline}' is ambiguous!")
 
-                processes[cmdline] = {
+                processes[config_process] = {
                     "pid": psutil_proc.info["pid"],
                     "offset": proc_to_dict(psutil_proc),
                     "proc": psutil_proc
