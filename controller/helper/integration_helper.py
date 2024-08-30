@@ -10,6 +10,8 @@ from utils.settings import *
 from integrations.base_integration import BaseIntegration, IntegrationStatusContainer
 from integrations.await_integration import AwaitIntegration
 from integrations.start_stop_integration import StartStopIntegration
+from integrations.ns3_integration import NS3Integration
+
 
 @dataclass
 class IntegrationExecutionWrapper:
@@ -46,6 +48,11 @@ class IntegrationHelper(Dismantable):
                                                             integration.settings, 
                                                             integration_status, 
                                                             integration.environment)
+                case IntegrationMode.NS3_EMULATION:
+                    integration_impl = NS3Integration(integration.name,
+                                                      integration.settings,
+                                                      integration_status,
+                                                      integration.environment)
                 case _:
                     raise Exception(f"Unknown integration mode supplied: {integration.mode}")
             
@@ -209,7 +216,7 @@ class IntegrationHelper(Dismantable):
         for async_integration in async_integrations:
             logger.trace(f"Checking start status of async integration '{async_integration.obj.name}'")
             if async_integration.status.get_error() is not None:
-                logger.critical(f"Integration: Integration '{async_integration.obj.name}' reported failure.")
+                logger.critical(f"Integration: Integration '{async_integration.obj.name}' reported failure: {async_integration.status.get_error()}")
                 async_integration.status.reset_error()
                 status = False
         

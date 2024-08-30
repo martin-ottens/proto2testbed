@@ -85,17 +85,22 @@ class BaseIntegration(ABC):
 
         return script_file
 
-    def run_subprocess(self, script_path: Path):
+    def run_subprocess(self, script_path: Path, shell: bool = False, precommand: Optional[str] = "/bin/bash"):
         """
         Important: This method will be forked away from the main process!
         """
 
         if self.environment is not None:
             for k, v in self.environment.items():
-                os.environ[k] = v
+                os.environ[k] = str(v)
         
         try:
-            proc = invoke_subprocess(["/bin/bash", str(script_path)], capture_output=True, shell=False)
+            if precommand is None:
+                cmd = str(script_path)
+            else:
+                cmd = [precommand, str(script_path)]
+
+            proc = invoke_subprocess(cmd, capture_output=True, shell=shell)
             stderr = proc.stderr.decode("utf-8")
             if proc is not None and (proc.returncode != 0 or stderr != ""):
                 if stderr != "":

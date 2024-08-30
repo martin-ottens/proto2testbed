@@ -20,16 +20,22 @@
     ],
     "integrations": [
         {
-            "mode": "await",
+            "mode": "ns3-emulation",
             "name": "run-ns3",
             "invoke_after": "startup",
             "wait_after_invoke": 3,
             "settings": {
-                "start_script": "integration.sh",
-                "wait_for_exit": 110
-            },
-            "environment": {
-                "ROUTERS": "{{ROUTERS}}"
+                "basepath": "/tmp/ns-3-dev",
+                "program": "emulator",
+                "wait": true,
+                "fail_on_exist": true,
+                "interfaces": [
+                    "ns3_em0",
+                    "ns3_em1"
+                ],
+                "args": {
+                    "routers": "{{ROUTERS}}"
+                }
             }
         }
     ],

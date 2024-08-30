@@ -63,7 +63,8 @@
                         "type": "string",
                         "enum": [
                             "await",
-                            "startstop"
+                            "startstop",
+                            "ns3-emulation"
                         ]
                     },
                     "environment": {
@@ -152,6 +153,54 @@
                                     "required": [
                                         "start_script",
                                         "stop_script"
+                                    ],
+                                    "additionalItems": false
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "if": {
+                            "properties": {
+                                "mode": {
+                                    "const": "ns3-emulation"
+                                }
+                            }
+                        },
+                        "then": {
+                            "properties": {
+                                "settings": {
+                                    "type": "object",
+                                    "properties": {
+                                        "basepath": {
+                                            "type": "string"
+                                        },
+                                        "program": {
+                                            "type": "string"
+                                        },
+                                        "interfaces": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "wait": {
+                                            "type": "boolean"
+                                        },
+                                        "fail_on_exist": {
+                                            "type": "boolean"
+                                        },
+                                        "args": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "basepath",
+                                        "program",
+                                        "interfaces"
                                     ],
                                     "additionalItems": false
                                 }

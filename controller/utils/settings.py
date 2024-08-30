@@ -22,10 +22,6 @@ class IntegrationSettings(ABC):
     pass
 
 @dataclass
-class NoneIntegrationSettings(IntegrationSettings):
-    pass
-
-@dataclass
 class AwaitIntegrationSettings(IntegrationSettings):
     start_script: str
     wait_for_exit: int
@@ -38,9 +34,19 @@ class StartStopIntegrationSettings(IntegrationSettings):
     wait_for_exit: int = 5
     start_delay: int = -1
 
+@dataclass
+class NS3IntegrationSettings(IntegrationSettings):
+    basepath: str
+    program: str
+    interfaces: List[str]
+    wait: bool = False
+    fail_on_exist: bool = False
+    args: Optional[Dict[str, str]] = None
+
 class IntegrationMode(Enum):
     AWAIT = "await"
     STARTSTOP = "startstop"
+    NS3_EMULATION = "ns3-emulation"
 
     def __str__(self):
         return str(self.value)
@@ -70,6 +76,8 @@ class Integration():
                 self.settings = AwaitIntegrationSettings(**settings)
             case IntegrationMode.STARTSTOP:
                 self.settings = StartStopIntegrationSettings(**settings)
+            case IntegrationMode.NS3_EMULATION:
+                self.settings = NS3IntegrationSettings(**settings)
             case _:
                 raise Exception(f"Unkown integration mode {mode}")
 
