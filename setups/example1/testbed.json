@@ -17,7 +17,7 @@
     "integrations": [],
     "instances": [
         {
-            "name": "endpoint-a",
+            "name": "a-endpoint",
             "diskimage": "{{IMAGE_ENDPOINT}}",
             "setup_script": "endpoint/setup.sh",
             "environment": {
@@ -82,7 +82,7 @@
             ]
         },
         {
-            "name": "endpoint-b",
+            "name": "b-endpoint",
             "diskimage": "{{IMAGE_ENDPOINT}}",
             "setup_script": "endpoint/setup.sh",
             "environment": {

@@ -41,7 +41,7 @@
     ],
     "instances": [
         {
-            "name": "endpoint-a",
+            "name": "a-endpoint",
             "diskimage": "endpoint.qcow2",
             "setup_script": "endpoint/setup.sh",
             "environment": {
@@ -64,7 +64,7 @@
             ]
         },
         {
-            "name": "endpoint-b",
+            "name": "b-endpoint",
             "diskimage": "endpoint.qcow2",
             "setup_script": "endpoint/setup.sh",
             "environment": {

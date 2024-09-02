@@ -14,7 +14,7 @@ This setup allows to see, how the throughput in both version is impacted when th
 ### Schematic testbed overview
 ```
 +--------------+    +-------------------------+    +--------------+
-|  endpoint-a  |    |         router          |    |  endpoint-b  |
+|  a-endpoint  |    |         router          |    |  b-endpoint  |
 |              |    |                         |    |              |
 | Apps:        |    | Apps:                   |    | Apps:        |
 | iperf-server |    | 100ms delay after 30s   |    | iperf-client |

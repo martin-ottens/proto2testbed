@@ -16,7 +16,7 @@ This experimets allow to get an overview what performance implications (simple) 
 N = Number of router \in {1,10}
 
 +---------------+    +----------------------------------------------------------+    +---------------+
-|  endpoint-a   |    | ns-3 Simulation Process running on the Testbed Host      |    |  endpoint-b   |
+|  a-endpoint   |    | ns-3 Simulation Process running on the Testbed Host      |    |  b-endpoint   |
 |               |    |                  172.20.0.1    172.20.N.1                |    |               |
 | Apps:         |    |  +----------+         +----------+         +----------+  |    | Apps:         |
 | iperf-server  |    |  | Tap      | CSMA/CD | Router 1 | CSMA/CD | Tap      |  |    | iperf-client  |
@@ -40,9 +40,9 @@ N = Number of router \in {1,10}
 
 2. Prepare the VM image:
     ```bash
-    cp path/to/your/baseimage.qcow2 /tmp/router.qcow2
+    cp path/to/your/baseimage.qcow2 /tmp/endpoint.qcow2
     cd <proto-testbed>/scripts/
-    ./image_creator.py /tmp/router.qcow2 ../instance-manager/instance-manager.deb
+    ./image_creator.py /tmp/endpoint.qcow2 ../instance-manager/instance-manager.deb
     ```
 
 3. Prepare ns3 simulator

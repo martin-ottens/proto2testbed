@@ -1,0 +1,181 @@
+{
+    "settings": {
+        "machines_internet_access": true,
+        "management_network": "172.16.99.0/24",
+        "diskimage_basepath": "/tmp"
+    },
+    "networks": [
+        {
+            "name": "exp0",
+            "host_ports": [
+                "eno2"
+            ]
+        },
+        {
+            "name": "exp1",
+            "host_ports": [
+                "eno3"
+            ]
+        }
+    ],
+    "integrations": [
+        {
+            "name": "prepare interfaces",
+            "mode": "startstop",
+            "invoke_after": "network",
+            "environment": {
+                "INTERFACE_A": "eno2",
+                "INTERFACE_B": "eno3"
+            },
+            "settings": {
+                "start_script": "integrations/ifup.sh",
+                "stop_script": "integrations/ifdown.sh"
+
+            }
+        },
+        {
+            "name": "exp0 link to 100mbits",
+            "mode": "startstop",
+            "invoke_after": "init",
+            "wait_after_invoke": 0,
+            "environment": {
+                "INTERFACE": "eno2"
+            },
+            "settings": {
+                "start_script": "integrations/setspeed.sh",
+                "stop_script": "integrations/resetspeed.sh",
+                "start_delay": 20
+            }
+        },
+        {
+            "name": "exp1 link to 100mbits",
+            "mode": "startstop",
+            "invoke_after": "init",
+            "wait_after_invoke": 0,
+            "environment": {
+                "INTERFACE": "eno3"
+            },
+            "settings": {
+                "start_script": "integrations/setspeed.sh",
+                "stop_script": "integrations/resetspeed.sh",
+                "start_delay": 40
+            }
+        }
+    ],
+    "instances": [
+        {
+            "name": "a1-endpoint",
+            "diskimage": "endpoint.qcow2",
+            "setup_script": "endpoint/setup.sh",
+            "environment": {
+                "IP_ADDRESS": "10.0.1.2/24",
+                "ROUTE": "10.0.2.0/24 via 10.0.1.1"
+            },
+            "cores": 2,
+            "memory": 1024,
+            "networks": [
+                "exp0"
+            ],
+            "applications": [
+                {
+                    "application": "iperf3-server",
+                    "name": "a1-iperf-server",
+                    "delay": 0,
+                    "runtime": 100,
+                    "settings": {}
+                }
+            ]
+        },
+        {
+            "name": "a2-endpoint",
+            "diskimage": "endpoint.qcow2",
+            "setup_script": "endpoint/setup.sh",
+            "environment": {
+                "IP_ADDRESS": "10.0.1.3/24",
+                "ROUTE": "10.0.2.0/24 via 10.0.1.1"
+            },
+            "cores": 2,
+            "memory": 1024,
+            "networks": [
+                "exp0"
+            ],
+            "applications": [
+                {
+                    "application": "iperf3-server",
+                    "name": "a2-iperf-server",
+                    "delay": 0,
+                    "runtime": 100,
+                    "settings": {}
+                },
+                {
+                    "application": "ping",
+                    "name": "b2-a1-ping",
+                    "delay": 2,
+                    "runtime": 75,
+                    "settings": {
+                        "target": "10.0.2.3"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "b1-endpoint",
+            "diskimage": "endpoint.qcow2",
+            "setup_script": "endpoint/setup.sh",
+            "environment": {
+                "IP_ADDRESS": "10.0.2.2/24",
+                "ROUTE": "10.0.1.0/24 via 10.0.2.1"
+            },
+            "cores": 2,
+            "memory": 1024,
+            "networks": [
+                "exp1"
+            ],
+            "applications": [
+                {
+                    "application": "iperf3-client",
+                    "name": "b1-iperf-client",
+                    "delay": 5,
+                    "runtime": 60,
+                    "settings": {
+                        "host": "10.0.1.3"
+                    }
+                },
+                {
+                    "application": "ping",
+                    "name": "b1-a2-ping",
+                    "delay": 2,
+                    "runtime": 75,
+                    "settings": {
+                        "target": "10.0.1.2"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "b2-endpoint",
+            "diskimage": "endpoint.qcow2",
+            "setup_script": "endpoint/setup.sh",
+            "environment": {
+                "IP_ADDRESS": "10.0.2.3/24",
+                "ROUTE": "10.0.1.0/24 via 10.0.2.1"
+            },
+            "cores": 2,
+            "memory": 1024,
+            "networks": [
+                "exp1"
+            ],
+            "applications": [
+                {
+                    "application": "iperf3-client",
+                    "name": "b2-iperf-client",
+                    "delay": 10,
+                    "runtime": 60,
+                    "settings": {
+                        "host": "10.0.1.2"
+                    }
+                }
+            ]
+        }
+    ]
+}
