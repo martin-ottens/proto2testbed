@@ -1,7 +1,7 @@
 import time
 
 from enum import Enum
-from typing import Tuple
+from typing import Tuple, Optional
 from threading import Lock, Semaphore
 
 class AgentManagementState(Enum):
@@ -20,10 +20,15 @@ class WaitResult(Enum):
     INTERRUPTED = 3
 
 class MachineState():
-    def __init__(self, name: str, script_file: str, setup_env: dict[str, str], manager):
+    def __init__(self, name: str, script_file: str, setup_env: Optional[dict[str, str]], manager):
         self.name: str = name
         self.script_file: str = script_file
-        self.setup_env = setup_env
+        
+        if setup_env == None:
+            self.setup_env = {}
+        else:
+            self.setup_env = setup_env
+        
         self.manager = manager
 
         self._state: AgentManagementState = AgentManagementState.UNKNOWN
