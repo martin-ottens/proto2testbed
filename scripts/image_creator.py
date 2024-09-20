@@ -26,6 +26,7 @@ QEMU_COMMAND_TEMPLATE = """qemu-system-x86_64 -m 1G -hda {image} \
 COMMANDS = {
     "prepare": "export DEBIAN_FRONTEND=noninteractive",
     "mount": "mount -t 9p -o trans=virtio host0 /mnt",
+    "update": "apt-get update",
     "install": "apt-get reinstall -y /mnt/{package}",
     "shutdown": "shutdown now"
 }
@@ -96,6 +97,11 @@ def main(command: str, deb_file: str, extra: Optional[List[str]],
 
             if not run_one_command_on_vm(COMMANDS["mount"], proc, timeout=timeout):
                 logger.critical("Unable to mount instance-manager.deb package")
+                proc.kill(signal.SIGTERM)
+                return
+            
+            if not run_one_command_on_vm(COMMANDS["update"], proc, timeout=timeout):
+                logger.critical("Unable to update apt packet sources")
                 proc.kill(signal.SIGTERM)
                 return
 
