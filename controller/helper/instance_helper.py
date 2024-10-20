@@ -21,6 +21,7 @@ class InstanceHelper(Dismantable):
                                 -smp {cores} \
                                 -machine q35 \
                                 -hda {image} \
+                                -serial unix:/tmp/{serial}.sock,server,nowait \
                                 {nics} \
                                 -snapshot \
                                 -cdrom {cloud_init_iso} \
@@ -106,6 +107,7 @@ class InstanceHelper(Dismantable):
                 image=image,
                 nics=interfaces,
                 cloud_init_iso=cloud_init_iso,
+                serial=f"serial-{self.name}",
                 kvm=(InstanceHelper.__QEMU_KVM_OPTIONS if not disable_kvm else '')
             )
         except Exception as ex:
