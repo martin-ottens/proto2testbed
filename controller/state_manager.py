@@ -40,7 +40,6 @@ class MachineState():
 
         self._state: AgentManagementState = AgentManagementState.UNKNOWN
         self.connection = None
-        self.addr: Tuple[str, int] | None = None
         self.interchange_ready = False
 
     def __str__(self) -> str:
@@ -68,7 +67,8 @@ class MachineState():
         if os.path.exists(self.interchange_dir):
             raise Exception(f"Error during setup of interchange directory: {self.interchange_dir} already exists!")
         
-        os.mkdir(self.interchange_dir)
+        # Set 777 permission to allow socket access with --sudo option
+        os.mkdir(self.interchange_dir, mode=0o777)
         os.mkdir(self.interchange_dir + "mount/")
         self.interchange_ready = True
 
@@ -100,15 +100,13 @@ class MachineState():
 
         self.connection.send_message(message)
     
-    def connect(self, addr: Tuple[str, int], connection):
-        self.addr = addr
+    def connect(self, connection):
         self.connection = connection
 
         if self.get_state() != AgentManagementState.DISCONNECTED:
             self.set_state(AgentManagementState.STARTED)
 
     def disconnect(self):
-        self.addr = None
         self.connection = None
         self.set_state(AgentManagementState.DISCONNECTED)
 
@@ -138,6 +136,7 @@ class MachineStateManager():
 
     def remove_all(self):
         for machine in self.map.values():
+            machine.remove_interchange_dir()
             machine.disconnect()
         
         self.map.clear()

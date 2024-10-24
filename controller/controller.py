@@ -174,7 +174,10 @@ class Controller(Dismantable):
 
         return True
     
-    def start_management_infrastructure(self, fileserver_addr: Tuple[str, int], mgmt_server_addr: Tuple[str, int]) -> bool:
+    def start_management_infrastructure(self, fileserver_addr: Tuple[str, int]) -> bool:
+        for instance in self.state_manager.get_all_machines():
+            instance.prepare_interchange_dir()
+
         try:
             file_server = FileServer(self.base_path, fileserver_addr)
             file_server.start()
@@ -184,7 +187,7 @@ class Controller(Dismantable):
             return False
         
         try:
-            magamenet_server = ManagementServer(mgmt_server_addr, self.state_manager)
+            magamenet_server = ManagementServer(self.state_manager, SettingsWrapper.testbed_config.settings.startup_init_timeout)
             magamenet_server.start()
             self.dismantables.insert(0, magamenet_server)
         except Exception as ex:
@@ -238,7 +241,6 @@ class Controller(Dismantable):
             return False
         
         file_server_addr = (str(self.mgmt_gateway), FILESERVER_PORT, )
-        mgmt_server_addr = (str(self.mgmt_gateway), MANAGEMENT_SERVER_PORT, )
         
         try:
             influx_db = load_influxdb(str(self.mgmt_gateway), SettingsWrapper.cli_paramaters.experiment, 
@@ -256,7 +258,7 @@ class Controller(Dismantable):
             logger.critical("Critical error while loading Instance initialization!")
             return False
 
-        if not self.start_management_infrastructure(file_server_addr, mgmt_server_addr):
+        if not self.start_management_infrastructure(file_server_addr):
             logger.critical("Critical error during start of management infrastructure!")
             return False
 

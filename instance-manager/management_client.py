@@ -1,6 +1,7 @@
 import socket
 import time
 import sys
+import serial
 
 from typing import Any
 from threading import Lock
@@ -10,6 +11,8 @@ from common.instance_manager_message import *
 MGMT_SERVER_RETRY = 5
 MGMT_SERVER_WAITRETRY = 5
 MGMT_SERVER_MAXLEN = 4096
+MGMT_SERVER_SERIAL = "/dev/ttyS1"
+MGMT_SERVER_SERIAL_BAUDRATE = 256000 # Speeeed. All we got with pci-serial.
 
 def get_hostname() -> str:
     return socket.getfqdn()
@@ -25,10 +28,8 @@ class DownstreamMassage():
         return self.message.to_json().encode("utf-8") + b'\n'
 
 class ManagementClient():
-    __MAX_FRAME_LEN = 8192
 
-    def __init__(self, mgmt_server):
-        self.mgmt_server = mgmt_server
+    def __init__(self):
         self.socket = None
         self.sendlock = Lock()
         self.partial_data = ""
@@ -40,12 +41,10 @@ class ManagementClient():
         retries_left = MGMT_SERVER_RETRY
         while True:
             try:
-                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                self.socket.connect(self.mgmt_server)
+                self.socket = serial.Serial(MGMT_SERVER_SERIAL, MGMT_SERVER_SERIAL_BAUDRATE, timeout=1)
                 return
             except Exception as ex:
-                print(f"Unable to connect to {self.mgmt_server}: {ex}", file=sys.stderr, flush=True)
+                print(f"Unable to connect to {MGMT_SERVER_SERIAL}: {ex}", file=sys.stderr, flush=True)
 
                 if retries_left == 0:
                     raise Exception("Unable to connect to managemt server in timeout") from ex
@@ -64,7 +63,7 @@ class ManagementClient():
     def send_to_server(self, downstream_message: DownstreamMassage):
         try:
             with self.sendlock:
-                self.socket.sendall(downstream_message.get_json_bytes())
+                self.socket.write(downstream_message.get_json_bytes())
         except Exception as ex:
             raise Exception("Unable to send message to management server") from ex
     
@@ -83,8 +82,8 @@ class ManagementClient():
                 return json.loads(tmp)
 
         try:
-            self.socket.settimeout(None)
-            result = self.socket.recv(ManagementClient.__MAX_FRAME_LEN)
+            self.socket.timeout = None
+            result = self.socket.readline()
             if len(result) == 0:
                 raise Exception("Management server has disconnected")
             

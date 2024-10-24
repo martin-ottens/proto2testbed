@@ -16,7 +16,6 @@ from application_controller import ApplicationController
 from common.instance_manager_message import *
 
 FILE_SERVER_PORT = 4242
-MGMT_SERVER_PORT = 4243
 STATE_FILE = "/tmp/im-setup-succeeded"
 
 def get_default_gateway() -> str:
@@ -40,7 +39,7 @@ def main():
     manager = None
     exec_dir = None
     try:
-        manager = ManagementClient((management_server_addr, MGMT_SERVER_PORT, ))
+        manager = ManagementClient()
         manager.start()
 
         # 1. Instance is started

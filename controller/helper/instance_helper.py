@@ -55,7 +55,6 @@ class InstanceHelper(Dismantable):
         if len(extra_interfaces) > 4:
             raise Exception(f"Error during creation, 4 interfaces are allowed, but {len(extra_interfaces)} were added!")
         
-        instance.prepare_interchange_dir()
         if not instance.interchange_ready:
             raise Exception("Unable to set up interchange directory for p9 an mgmt socket!")
 
@@ -129,7 +128,6 @@ class InstanceHelper(Dismantable):
     def _destory_instance(self):
         self.stop_instance()
         self.tempdir.cleanup()
-        self.instance.remove_interchange_dir()
 
     def __del__(self):
         self._destory_instance()
@@ -164,7 +162,7 @@ class InstanceHelper(Dismantable):
         if self.qemu_handle is None:
             return False
 
-        logger.debug(f"VM {self.name}: Stopping instance ...")
+        logger.debug(f"VM {self.instance.name}: Stopping instance ...")
         try:
             self.qemu_handle.sendline("system_powerdown")
             self.qemu_handle.expect(pexpect.EOF, timeout=30)

@@ -1,10 +1,12 @@
 import socket
 import threading
 import json
+import time
 
 from loguru import logger
 from jsonschema import validate
 from pathlib import Path
+import os
 
 from utils.interfaces import Dismantable
 from utils.system_commands import get_asset_relative_to
@@ -17,11 +19,15 @@ class ManagementClientConnection(threading.Thread):
 
     message_schema = None
 
-    def __init__(self, addr, client_socket: socket, manager: state_manager.MachineStateManager):
+    def __init__(self, socket_path,  
+                 manager: state_manager.MachineStateManager, 
+                 instance: state_manager.MachineState,
+                 timeout: int):
         threading.Thread.__init__(self)
-        self.addr = addr
-        self.client_socket = client_socket
+        self.socket_path = socket_path
+        self.expected_instance = instance
         self.manager = manager
+        self.timeout = timeout
         self.daemon = True
         self.stop_event = threading.Event()
         self.client = None
@@ -35,7 +41,7 @@ class ManagementClientConnection(threading.Thread):
             json_data = json.loads(data)
             validate(schema=ManagementClientConnection.message_schema, instance=json_data)
         except Exception as ex:
-            logger.opt(exception=ex).error(f"Management: Client {self.addr} message parsing error")
+            logger.opt(exception=ex).error(f"Management: Client '{self.expected_instance.name}': message parsing error")
             return False
             
 
@@ -44,23 +50,26 @@ class ManagementClientConnection(threading.Thread):
         if self.client is None:
             self.client = self.manager.get_machine(message_obj.name)
             if self.client is None:
-                logger.error(f"Management: Client {self.addr} reported invalid instance name: {message_obj.name}")
+                logger.error(f"Management: Client '{self.expected_instance.name}': reported invalid instance name: {message_obj.name}")
                 return False
-            self.client.connect(self.addr, self)
+            self.client.connect(self)
         else:
             if self.client.name != message_obj.name:
-                logger.error(f"Management: Client {self.addr} reported name {self.client.name} before, now {message_obj.name}")
+                logger.error(f"Management: Client '{self.expected_instance.name}': reported name {self.client.name} before, now {message_obj.name}")
                 return False
 
         match message_obj.get_status():
             case InstanceStatus.STARTED:
                 previous = self.client.get_state()
                 if previous == state_manager.AgentManagementState.DISCONNECTED:
-                    logger.error(f"Management: Client {self.client.name} restarted after it was in state {previous}. Instance Manager failed?")
+                    logger.error(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Instance Manager failed?")
                     self.client.set_state(state_manager.AgentManagementState.FAILED)
+                elif previous == state_manager.AgentManagementState.INITIALIZED:
+                    logger.warning(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Skipping Instance setup!")
+                    self.client.set_state(state_manager.AgentManagementState.INITIALIZED)
                 else:
                     self.client.set_state(state_manager.AgentManagementState.STARTED)
-                    logger.info(f"Management: Client {self.client.name} started. Sending setup instructions.")
+                    logger.info(f"Management: Client '{self.expected_instance.name}': Started. Sending setup instructions.")
                     self.send_message(InitializeMessageUpstream(
                         "initialize", 
                         self.client.get_setup_env()[0], 
@@ -109,8 +118,25 @@ class ManagementClientConnection(threading.Thread):
             return False
 
     def run(self):
-        logger.info(f"Management: Client {self.addr} connected")
-        self.client_socket.settimeout(0.5)
+        started_waiting = time.time()
+
+        while True:
+            if os.path.exists(self.socket_path):
+                logger.debug(f"Management: Socket '{self.socket_path}' ready")
+                break
+
+            if (started_waiting + self.timeout) < time.time():
+                logger.error(f"Management: Client connection error: Socket '{self.socket_path}' does not exist after timeout!")
+                return
+
+        try:
+            self.client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.client_socket.settimeout(0.5)
+            self.client_socket.connect(self.socket_path)
+            logger.debug(f"Management: Client '{self.expected_instance.name}': Socket connection created.")
+        except Exception as ex:
+            logger.opt(exception=ex).error(f"Management: Unable to bind socket for '{self.expected_instance.name}'")
+            return
 
         partial_data = ""
 
@@ -118,7 +144,7 @@ class ManagementClientConnection(threading.Thread):
             try:
                 data = self.client_socket.recv(ManagementClientConnection.__MAX_FRAME_LEN)
                 if len(data) == 0:
-                    logger.debug(f"Management: Client {self.addr} disconnected (0 bytes read)")
+                    logger.debug(f"Management: Client '{self.expected_instance.name}': Disconnected (0 bytes read)")
                     break
 
                 partial_data = partial_data + data.decode("utf-8")
@@ -159,14 +185,14 @@ class ManagementClientConnection(threading.Thread):
             except socket.timeout:
                 continue
             except Exception as ex:
-                logger.opt(exception=ex).error(f"Management: Client error: {self.addr}")
+                logger.opt(exception=ex).error(f"Management: Client error: '{self.expected_instance.name}'")
                 break
         
         if self.client is not None:
-            logger.info(f"Management: Client {self.client.name}@{self.addr}: Connection closed.")
+            logger.info(f"Management: Client '{self.client.name}'s: Connection closed.")
             self.client.disconnect()
         else:
-            logger.info(f"Management: Client {self.addr}: Connection closed.")
+            logger.info(f"Management: Client '{self.expected_instance.name}': Connection closed.")
 
         self.client_socket.close()
 
@@ -177,62 +203,42 @@ class ManagementClientConnection(threading.Thread):
         self.client_socket.sendall(message + b'\n')
 
 class ManagementServer(Dismantable):
-    def __init__(self, bind_address, state_manager: state_manager.MachineStateManager):
-        self.bind_address = bind_address
+    def __init__(self, state_manager: state_manager.MachineStateManager, startup_init_timeout: int):
         self.client_threads = []
         self.keep_running = threading.Event()
+        self.startup_init_timeout = startup_init_timeout
         self.manager = state_manager
         self.is_started = False
 
-    def _accept_connections(self):
-        while True:
-            try:
-                client_socket, address = self.socket.accept()
-                client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                if self.keep_running.is_set():
-                    break
-
-                try:
-                    client_connection = ManagementClientConnection(address, client_socket, self.manager)
-                    client_connection.start()
-                    self.client_threads.append(client_connection)
-                except Exception as ex:
-                    logger.opt(exception=ex).error(f"Management: Unable to accept client {address}")
-            except socket.timeout:
-                pass
-        
-        logger.debug(f"Management: Server shutting down")
-
     def start(self):
         self.keep_running.clear()
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self.socket.bind(self.bind_address)
-        self.socket.listen(4)
 
-        self.accept_thread = threading.Thread(target=self._accept_connections, daemon=True)
-        self.accept_thread.start()
-        logger.info(f"Management: Server listing at {self.bind_address}")
+        for instance in self.manager.get_all_machines():
+            if not instance.interchange_ready:
+                raise Exception(f"Interchange files of instance {instance.name} not ready!")
+
+            try:
+                client_connection = ManagementClientConnection(instance.get_mgmt_socket_path(), 
+                                                               self.manager, 
+                                                               instance, 
+                                                               self.startup_init_timeout)
+                client_connection.start()
+                self.client_threads.append(client_connection)
+            except Exception as ex:
+                logger.opt(exception=ex).error(f"Management: Unable to start client socket connection for {instance.name}")
+
+        logger.info(f"Management: Client connection threads started.")
         self.is_started = True
+        
 
     def stop(self):
         self.keep_running.set()
-        try:
-            poison_pill = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            poison_pill.settimeout(1)
-            poison_pill.connect(self.bind_address)
-            poison_pill.close()
-        except Exception:
-            pass
 
         for client in self.client_threads:
             client.stop()
         for client in self.client_threads:
             client.join()
 
-        self.accept_thread.join()
-        self.socket.close()
         self.is_started = False
 
     def dismantle(self) -> None:
