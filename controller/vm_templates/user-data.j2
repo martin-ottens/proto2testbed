@@ -3,3 +3,9 @@ hostname: {{ hostname }}
 fqdn: {{ fqdn }}
 manage_etc_hosts: true
 ssh_deletekeys: false
+write_files:
+    - path: /etc/resolv.conf
+      content: |
+        nameserver {{ dns_primary }}
+      owner: root:root
+      permissions: '0644'

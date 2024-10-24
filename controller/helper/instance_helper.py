@@ -10,7 +10,7 @@ from loguru import logger
 from typing import List, Dict
 
 from utils.interfaces import Dismantable
-from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_relative_to
+from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_relative_to, get_DNS_resolver
 
 class InstanceHelper(Dismantable):
     __QEMU_NIC_TEMPLATE     = "-nic tap,model={model},ifname={tapname},mac={mac} "
@@ -72,7 +72,8 @@ class InstanceHelper(Dismantable):
             
             user_data = j2_env.get_template("user-data.j2").render(
                 hostname=name,
-                fqdn=fqdn
+                fqdn=fqdn,
+                dns_primary=get_DNS_resolver()
             )
             with open(init_files / "user-data", mode="w", encoding="utf-8") as handle:
                 handle.write(user_data)

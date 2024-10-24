@@ -42,3 +42,16 @@ def invoke_pexpect(command: List[str] | str, timeout: int = None, encoding: str 
         command = ["sudo"] + command
 
     return pexpect.spawn(command, timeout=timeout, encoding=encoding)
+
+def get_DNS_resolver() -> str:
+    pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
+    process = invoke_subprocess("grep -oP '^\s*nameserver\s+\K\d{1,3}(\.\d{1,3}){3}' /etc/resolv.conf | head -n 1", shell=True, needs_root=False)
+
+    if process.returncode != 0:
+        raise Exception("Unable to get DNS resolver from /etc/resolv.conf")
+    
+    address = process.stdout.decode("utf-8")
+    if address == "" or not pattern.match(address):
+        raise Exception("Invalid results when getting DNS Resolver from /etc/resolv.conf - is an IPv4 resolver configured?")
+    
+    return address.replace("\n", "")
