@@ -129,7 +129,7 @@ class Controller(Dismantable):
                 if not diskimage_path.exists():
                     raise Exception(f"Unable to find diskimage '{diskimage_path}'")
 
-                wrapper = InstanceHelper(name=instance.name,
+                wrapper = InstanceHelper(instance=self.state_manager.get_machine(instance.name),
                                     management={
                                         "interface": f"v_{index}_m",
                                         "ip": ipaddress.IPv4Interface(f"{self.mgmt_ips.pop(0)}/{self.mgmt_netmask}"),
@@ -167,7 +167,7 @@ class Controller(Dismantable):
                 wrapper, extra_interfaces = instance
                 for interface, bridge in extra_interfaces.items():
                     self.networks[bridge].add_device(interface)
-                logger.info(f"{name} ({wrapper.ip_address}) attached to bridges: {', '.join(extra_interfaces.values())}")
+                logger.info(f"{name} ({wrapper.ip_address}, {self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(extra_interfaces.values())}")
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to attach VM interfaces to bridges.")
             return False

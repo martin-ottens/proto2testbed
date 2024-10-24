@@ -11,6 +11,7 @@ from typing import List, Dict
 
 from utils.interfaces import Dismantable
 from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_relative_to, get_DNS_resolver
+from state_manager import MachineState
 
 class InstanceHelper(Dismantable):
     __QEMU_NIC_TEMPLATE     = "-nic tap,model={model},ifname={tapname},mac={mac} "
@@ -21,7 +22,10 @@ class InstanceHelper(Dismantable):
                                 -smp {cores} \
                                 -machine q35 \
                                 -hda {image} \
-                                -serial unix:/tmp/{serial}.sock,server,nowait \
+                                -serial unix:{tty},server,nowait \
+                                -chardev socket,id=mgmtchardev,path={serial},server,nowait \
+                                -device pci-serial,chardev=mgmtchardev \
+                                -virtfs local,path={mount},mount_tag=host0,security_model=passthrough,id=host0 \
                                 {nics} \
                                 -snapshot \
                                 -cdrom {cloud_init_iso} \
@@ -35,11 +39,11 @@ class InstanceHelper(Dismantable):
                                    -joliet \
                                    -rock {input}"""
 
-    def __init__(self, name: str, management: Dict[str, str], 
+    def __init__(self, instance: MachineState, management: Dict[str, str],
                  extra_interfaces: List[str], image: str,
                  cores: int = 2, memory: int = 1024, debug: bool = False, 
                  disable_kvm: bool = False, netmodel: str = "virtio") -> None:
-        self.name = name
+        self.instance = instance
         self.debug = debug
         self.qemu_handle = None
 
@@ -50,7 +54,10 @@ class InstanceHelper(Dismantable):
 
         if len(extra_interfaces) > 4:
             raise Exception(f"Error during creation, 4 interfaces are allowed, but {len(extra_interfaces)} were added!")
-
+        
+        instance.prepare_interchange_dir()
+        if not instance.interchange_ready:
+            raise Exception("Unable to set up interchange directory for p9 an mgmt socket!")
 
         self.tempdir = tempfile.TemporaryDirectory()
  
@@ -65,13 +72,13 @@ class InstanceHelper(Dismantable):
             with open(init_files / "meta-data", mode="w", encoding="utf-8") as handle:
                 handle.write(meta_data)
 
-            domain_parts = name.split('.')
+            domain_parts = instance.name.split('.')
             fqdn = "\"\""
             if len(domain_parts) > 2:
                 fqdn = "\"" + '.'.join(domain_parts[1:]) + "\""
             
             user_data = j2_env.get_template("user-data.j2").render(
-                hostname=name,
+                hostname=instance.name,
                 fqdn=fqdn,
                 dns_primary=get_DNS_resolver()
             )
@@ -94,7 +101,7 @@ class InstanceHelper(Dismantable):
                 raise Exception(f"Unbale to run genisoimage: {process.stderr.decode('utf-8')}")
             
             # Generate pseudo unique interface macs
-            hash_hex = hashlib.sha256(name.encode()).hexdigest()
+            hash_hex = hashlib.sha256(instance.name.encode()).hexdigest()
             base_mac = hash_hex[1:2] + 'e:' + hash_hex[2:4] + ':' + hash_hex[4:6] + ':' + hash_hex[6:8] + ':' + hash_hex[8:10] + ':' + hash_hex[10:11]
             
             interfaces = InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management["interface"], mac=(base_mac + "0"))
@@ -108,7 +115,9 @@ class InstanceHelper(Dismantable):
                 image=image,
                 nics=interfaces,
                 cloud_init_iso=cloud_init_iso,
-                serial=f"serial-{self.name}",
+                serial=self.instance.get_mgmt_socket_path(),
+                tty=self.instance.get_mgmt_tty_path(),
+                mount=self.instance.get_p9_data_path(),
                 kvm=(InstanceHelper.__QEMU_KVM_OPTIONS if not disable_kvm else '')
             )
         except Exception as ex:
@@ -120,6 +129,7 @@ class InstanceHelper(Dismantable):
     def _destory_instance(self):
         self.stop_instance()
         self.tempdir.cleanup()
+        self.instance.remove_interchange_dir()
 
     def __del__(self):
         self._destory_instance()
@@ -128,7 +138,7 @@ class InstanceHelper(Dismantable):
         self._destory_instance()
 
     def get_name(self) -> str:
-        return f"VirtualMachine {self.name}"
+        return f"VirtualMachine {self.instance.name}"
 
     def ready_to_start(self) -> bool:
         return self.qemu_command is not None and self.qemu_handle is None
@@ -137,17 +147,17 @@ class InstanceHelper(Dismantable):
         if self.qemu_handle is not None:
             return False
 
-        logger.debug(f"VM {self.name}: Starting instance ...")
+        logger.debug(f"VM {self.instance.name}: Starting instance ...")
         try:
             self.qemu_handle = invoke_pexpect(self.qemu_command, needs_root=True)
             if self.debug:
                 self.qemu_handle.logfile = sys.stdout
             self.qemu_handle.expect_exact("(qemu)", timeout=10)
         except pexpect.EOF as ex:
-            raise Exception(f"Unable to start VM {self.name}, process exited unexpected") from ex
+            raise Exception(f"Unable to start VM {self.instance.name}, process exited unexpected") from ex
         except pexpect.TIMEOUT as ex:
-            raise Exception(f"Unable to start VM {self.name}, timeout during QEMU start") from ex
-        logger.info(f"VM {self.name}: Instance was started!")
+            raise Exception(f"Unable to start VM {self.instance.name}, timeout during QEMU start") from ex
+        logger.info(f"VM {self.instance.name}: Instance was started!")
         return True
 
     def stop_instance(self) -> bool:
@@ -159,11 +169,11 @@ class InstanceHelper(Dismantable):
             self.qemu_handle.sendline("system_powerdown")
             self.qemu_handle.expect(pexpect.EOF, timeout=30)
         except pexpect.TIMEOUT as ex:
-            raise Exception(f"Unable to stop VM {self.name}, timeout occured:") from ex
+            raise Exception(f"Unable to stop VM {self.instance.name}, timeout occured:") from ex
         finally:
             self.qemu_handle = None
 
-        logger.info(f"VM {self.name}: Instance was stopped!")
+        logger.info(f"VM {self.instance.name}: Instance was stopped!")
         return True
 
     def instance_status(self) -> str:
@@ -176,5 +186,5 @@ class InstanceHelper(Dismantable):
             self.qemu_handle.expect_exact("(qemu)", timeout=1)
             return status
         except Exception as ex:
-            logger.opt(exception=ex).warning(f"VM {self.name}: Unable to get status")
+            logger.opt(exception=ex).warning(f"VM {self.instance.name}: Unable to get status")
             return "VM status: unkown"

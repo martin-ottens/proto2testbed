@@ -1,7 +1,11 @@
 import time
+import random
+import string
+import os
+import shutil
 
 from enum import Enum
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 from threading import Lock, Semaphore
 
 class AgentManagementState(Enum):
@@ -20,9 +24,12 @@ class WaitResult(Enum):
     INTERRUPTED = 3
 
 class MachineState():
+    __INTERCHANGE_BASE_PATH = "/tmp/testbed-"
+
     def __init__(self, name: str, script_file: str, setup_env: Optional[dict[str, str]], manager):
         self.name: str = name
         self.script_file: str = script_file
+        self.uuid = ''.join(random.choices(string.ascii_letters, k=8))
         
         if setup_env == None:
             self.setup_env = {}
@@ -34,6 +41,10 @@ class MachineState():
         self._state: AgentManagementState = AgentManagementState.UNKNOWN
         self.connection = None
         self.addr: Tuple[str, int] | None = None
+        self.interchange_ready = False
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.uuid})"
     
     def get_setup_env(self) -> Tuple[str, dict[str, str]]:
         return self.script_file, self.setup_env
@@ -50,6 +61,38 @@ class MachineState():
         
         self._state = new_state
         self.manager.notify_state_change(new_state)
+
+    def prepare_interchange_dir(self) -> None:
+        self.interchange_dir = MachineState.__INTERCHANGE_BASE_PATH + self.uuid + "/"
+
+        if os.path.exists(self.interchange_dir):
+            raise Exception(f"Error during setup of interchange directory: {self.interchange_dir} already exists!")
+        
+        os.mkdir(self.interchange_dir)
+        os.mkdir(self.interchange_dir + "mount/")
+        self.interchange_ready = True
+
+    def remove_interchange_dir(self) -> None:
+        if not self.interchange_ready:
+            return
+        
+        shutil.rmtree(self.interchange_dir)
+        self.interchange_ready = False
+
+    def get_mgmt_socket_path(self) -> None | str:
+        if not self.interchange_ready:
+            return None
+        return self.interchange_dir + "mgmt.sock"
+    
+    def get_mgmt_tty_path(self) -> None | str:
+        if not self.interchange_ready:
+            return None
+        return self.interchange_dir + "tty.sock"
+    
+    def get_p9_data_path(self) -> None | str:
+        if not self.interchange_ready:
+            return None
+        return self.interchange_dir + "mount/"
 
     def send_message(self, message: bytes):
         if self.connection is None:
@@ -76,6 +119,9 @@ class MachineStateManager():
 
         self.waiting_for_state: MachineState | None = None
         self.state_change_semaphore: Semaphore | None = None
+
+    def get_all_machines(self) -> List[MachineState]:
+        return list(self.map.values())
     
     def add_machine(self, name: str, script_file: str, setup_env: dict[str, str], fileserver: str):
         if name in self.map:
