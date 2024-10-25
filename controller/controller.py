@@ -181,6 +181,10 @@ class Controller(Dismantable):
             logger.opt(exception=ex).critical("Unable to attach VM interfaces to bridges.")
             return False
 
+        for instance in self.state_manager.get_all_machines():
+            if not instance.update_mgmt_socket_permission():
+                logger.warning(f"Unable to set socket permissions for {instance.name}")
+
         return True
     
     def start_management_infrastructure(self) -> bool:

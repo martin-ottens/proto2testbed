@@ -8,6 +8,8 @@ from enum import Enum
 from typing import Tuple, Optional, List
 from threading import Lock, Semaphore
 
+from utils.system_commands import invoke_subprocess
+
 class AgentManagementState(Enum):
     UNKNOWN = 0
     STARTED = 1
@@ -93,6 +95,29 @@ class MachineState():
         if not self.interchange_ready:
             return None
         return self.interchange_dir + "mount/"
+    
+    def update_mgmt_socket_permission(self) -> bool:
+        if not self.interchange_ready:
+            return False
+        
+        wait_until = time.time() + 20
+        while time.time() <= wait_until:
+            if os.path.exists(self.get_mgmt_socket_path()) and os.path.exists(self.get_mgmt_tty_path()):
+                process = invoke_subprocess(["chmod", "777", self.get_mgmt_socket_path()], needs_root=True)
+
+                if process.returncode != 0:
+                    raise Exception("Unable to change permissions of management server socket")
+                
+                process = invoke_subprocess(["chmod", "777", self.get_mgmt_tty_path()], needs_root=True)
+
+                if process.returncode != 0:
+                    raise Exception("Unable to change permissions of management tty socket")
+
+                return True
+
+            time.sleep(1)
+        
+        return False
 
     def send_message(self, message: bytes):
         if self.connection is None:

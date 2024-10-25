@@ -6,14 +6,19 @@ systemctl daemon-reload
 # Omit --now: Service will be started on next boot
 systemctl enable instance-manager.service
 
+# Allow password-less sudo
 mkdir -p /etc/sudoers.d
 echo "ALL	ALL = (ALL) NOPASSWD: ALL" > /etc/sudoers.d/allow_all
 
-echo "nameserver 1.1.1.1" > /etc/resolv.conf
+# Remove invalid network interfaces
+sed -i '/ens3/d' /etc/network/interfaces
+echo "timeout 1" > /etc/dhcp/dhclient.conf
 
+# Dont wait for the user to make a selection in GRUB
 sed -i 's/GRUB_TIMEOUT=5/GRUB_TIMEOUT=0/' /etc/default/grub
 update-grub2
 
+# Allow root login via SSH/Management Network
 if [ -f /etc/ssh/sshd_config ]; then
     echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 fi
