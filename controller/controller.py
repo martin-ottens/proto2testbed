@@ -11,9 +11,10 @@ from helper.fileserver_helper import FileServer
 from helper.instance_helper import InstanceHelper
 from helper.integration_helper import IntegrationHelper
 from utils.interfaces import Dismantable
-from utils.config_tools import load_config, load_vm_initialization, load_influxdb
+from utils.config_tools import load_config, load_vm_initialization
 from utils.settings import SettingsWrapper
 from utils.settings import InvokeIntegrationAfter
+from utils.influxdb import InfluxDBAdapter
 from management_server import ManagementServer
 from state_manager import MachineStateManager, AgentManagementState, WaitResult
 from common.instance_manager_message import ApplicationsMessageUpstream
@@ -187,7 +188,7 @@ class Controller(Dismantable):
             return False
         
         try:
-            magamenet_server = ManagementServer(self.state_manager, SettingsWrapper.testbed_config.settings.startup_init_timeout)
+            magamenet_server = ManagementServer(self.state_manager, SettingsWrapper.testbed_config.settings.startup_init_timeout, self.influx_db)
             magamenet_server.start()
             self.dismantables.insert(0, magamenet_server)
         except Exception as ex:
@@ -243,16 +244,19 @@ class Controller(Dismantable):
         file_server_addr = (str(self.mgmt_gateway), FILESERVER_PORT, )
         
         try:
-            influx_db = load_influxdb(str(self.mgmt_gateway), SettingsWrapper.cli_paramaters.experiment, 
-                                    SettingsWrapper.cli_paramaters.dont_use_influx, SettingsWrapper.cli_paramaters.influx_path)
+            self.influx_db = InfluxDBAdapter(SettingsWrapper.cli_paramaters.experiment, 
+                                             SettingsWrapper.cli_paramaters.dont_use_influx, 
+                                             SettingsWrapper.cli_paramaters.influx_path)
+            self.influx_db.start()
+            self.dismantables.insert(0, self.influx_db)
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to load InfluxDB data!")
             return False
         
-        if influx_db.disabled:
+        if self.influx_db.store_disabled:
             logger.warning("InfluxDB experiment data storage is disabled!")
         else:
-            logger.success(f"Experiment data will be saved to InfluxDB {influx_db.database} with tag experiment={influx_db.series_name}")
+            logger.success(f"Experiment data will be saved to InfluxDB {self.influx_db.database} with tag experiment={self.influx_db.series_name}")
 
         if not load_vm_initialization(SettingsWrapper.testbed_config, self.base_path, self.state_manager, f"http://{file_server_addr[0]}:{file_server_addr[1]}"):
             logger.critical("Critical error while loading Instance initialization!")
@@ -295,7 +299,7 @@ class Controller(Dismantable):
         logger.info("Startig applications on Instances.")
         for machine in SettingsWrapper.testbed_config.instances:
             state = self.state_manager.get_machine(machine.name)
-            message = ApplicationsMessageUpstream("experiement", influx_db, machine.applications)
+            message = ApplicationsMessageUpstream("experiement", machine.applications)
             state.send_message(message.to_json().encode("utf-8"))
             state.set_state(AgentManagementState.IN_EXPERIMENT)
             

@@ -5,12 +5,12 @@ import time
 
 from loguru import logger
 from jsonschema import validate
-from pathlib import Path
 import os
 
 from utils.interfaces import Dismantable
 from utils.system_commands import get_asset_relative_to
 from common.instance_manager_message import *
+from utils.influxdb import InfluxDBAdapter
 
 import state_manager
 
@@ -22,10 +22,12 @@ class ManagementClientConnection(threading.Thread):
     def __init__(self, socket_path,  
                  manager: state_manager.MachineStateManager, 
                  instance: state_manager.MachineState,
+                 influx_adapter: InfluxDBAdapter,
                  timeout: int):
         threading.Thread.__init__(self)
         self.socket_path = socket_path
         self.expected_instance = instance
+        self.influx_adapter = influx_adapter
         self.manager = manager
         self.timeout = timeout
         self.daemon = True
@@ -77,7 +79,7 @@ class ManagementClientConnection(threading.Thread):
             case InstanceStatus.INITIALIZED:
                 self.client.set_state(state_manager.AgentManagementState.INITIALIZED)
                 logger.info(f"Management: Client {self.client.name} initialized.")
-            case InstanceStatus.MSG_ERROR | InstanceStatus.MSG_INFO | InstanceStatus.MSG_SUCCESS:
+            case InstanceStatus.MSG_ERROR | InstanceStatus.MSG_INFO | InstanceStatus.MSG_SUCCESS | InstanceStatus.DATA_POINT:
                 pass
             case InstanceStatus.FAILED | InstanceStatus.EXPERIMENT_FAILED:
                 self.client.set_state(state_manager.AgentManagementState.FAILED)
@@ -96,6 +98,11 @@ class ManagementClientConnection(threading.Thread):
                 logger.warning(f"Management: Client {self.client.name}: Unkown message type '{message_obj.status}'")
 
         if message_obj.message is not None:
+            if message_obj.get_status() == InstanceStatus.DATA_POINT:
+                if not self.influx_adapter.insert(message_obj.message):
+                    logger.warning(f"Management: Client {self.client.name}: Unable to add reported point to InfluxDB")
+                return True
+
             match message_obj.get_status():
                 case InstanceStatus.MSG_INFO:
                     fn = logger.info
@@ -203,8 +210,9 @@ class ManagementClientConnection(threading.Thread):
         self.client_socket.sendall(message + b'\n')
 
 class ManagementServer(Dismantable):
-    def __init__(self, state_manager: state_manager.MachineStateManager, startup_init_timeout: int):
+    def __init__(self, state_manager: state_manager.MachineStateManager, startup_init_timeout: int, influx_adapter: InfluxDBAdapter):
         self.client_threads = []
+        self.influx_adapter = influx_adapter
         self.keep_running = threading.Event()
         self.startup_init_timeout = startup_init_timeout
         self.manager = state_manager
@@ -221,6 +229,7 @@ class ManagementServer(Dismantable):
                 client_connection = ManagementClientConnection(instance.get_mgmt_socket_path(), 
                                                                self.manager, 
                                                                instance, 
+                                                               self.influx_adapter, 
                                                                self.startup_init_timeout)
                 client_connection.start()
                 self.client_threads.append(client_connection)

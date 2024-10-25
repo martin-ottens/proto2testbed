@@ -108,7 +108,7 @@ def main():
             barrier = Barrier(len(applications.applications) + 1)
             threads: List[ApplicationController] = []
             for application in applications.applications:
-                t = ApplicationController(application, manager, barrier, applications.influxdb, instance_name)
+                t = ApplicationController(application, manager, barrier, instance_name)
                 t.start()
                 threads.append(t)
             

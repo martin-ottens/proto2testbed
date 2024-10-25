@@ -1,15 +1,15 @@
 import json
 
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Any
 
 from common.application_configs import ApplicationConfig
 from common.interfaces import JSONSerializer
-from common.configs import InfluxDBConfig
 
 class InstanceStatus(Enum):
     STARTED = "started"
     INITIALIZED = "initialized"
+    DATA_POINT = "data_point"
     MSG_SUCCESS = "msg_success"
     MSG_INFO = "msg_info"
     MSG_ERROR = "msg_error"
@@ -36,8 +36,11 @@ class JSONSerializable():
     def as_json_bytes(self) -> bytes:
         return json.dumps(vars(self)).encode("utf-8")
 
+# Downstream: Instance -> Controller
+# Upstream:   Controller -> Instance
+
 class InstanceManagerDownstream(JSONSerializer):
-    def __init__(self, name: str, status: str, message: str = None):
+    def __init__(self, name: str, status: str, message: Any = None):
         self.name = name
         self.status = status
         self.message = message
@@ -52,17 +55,13 @@ class InitializeMessageUpstream(JSONSerializer):
         self.environment = environment
 
 class ApplicationsMessageUpstream(JSONSerializer):
-    def __init__(self, status: str, influxdb: InfluxDBConfig,
-                 applications: List[ApplicationConfig] = None) -> None:
+    def __init__(self, status: str, applications: List[ApplicationConfig] = None) -> None:
         self.status = status
-        self.influxdb = influxdb
         self.applications = applications
 
     @staticmethod
     def from_json(json):
         obj = ApplicationsMessageUpstream(**json)
-
-        obj.influxdb = InfluxDBConfig(**json["influxdb"])
 
         if obj.applications is None:
             return obj

@@ -4,16 +4,12 @@ import os
 import re
 
 from pathlib import Path
-from typing import Optional
 from loguru import logger
 from jsonschema import validate
-from influxdb import InfluxDBClient
 
 import state_manager
 from utils.settings import *
 from utils.system_commands import get_asset_relative_to
-
-from common.configs import InfluxDBConfig
 
 def load_config(config_path: Path, skip_substitution: bool = False) -> TestbedConfig:
     if not config_path.exists():
@@ -83,89 +79,3 @@ def load_vm_initialization(config: TestbedConfig, base_path: Path, state_manager
         state_manager.add_machine(machine.name, script_file, env_variables, fileserver_base)
 
     return True
-
-
-def check_influx_connection(config: InfluxDBConfig) -> bool:
-    if config.disabled:
-        return True
-    
-    if config.user is not None:
-        client = InfluxDBClient(host=config.host, port=config.port, 
-                                user=config.user, password=config.password, 
-                                retries=config.retries, timeout=config.timeout)
-    else:
-        client = InfluxDBClient(host=config.host, port=config.port,
-                                retries=config.retries, timeout=config.timeout)
-
-    try:
-        databases = client.get_list_database()
-    except Exception as ex:
-        logger.opt(exception=ex).critical("Unable to connect to InfluxDB")
-        client.close()
-        return False
-
-    if not len(list(filter(lambda x: x["name"] == config.database, databases))):
-        logger.critical(f"InfluxDB database '{config.database}' not found!")
-        client.close()
-        return False
-    
-    logger.info(f"InfluxDB is up & running, database '{config.database}' was found.")
-    client.close()
-    return True
-
-
-def load_influxdb(gateway_host: str, series_name: Optional[str] = None, 
-                  store_disabled: bool = False, config_path: Optional[Path] = None) -> InfluxDBConfig:
-    if series_name is None:
-        series_name = "".join(random.choices('0123456789abcdef', k=7))
-        if not store_disabled:
-            logger.warning(f"InfluxDB experiment tag randomly generated -> {series_name}")
-
-    if config_path is None:
-        if not store_disabled and "INFLUXDB_DATABASE" not in os.environ.keys():
-            logger.critical("INFLUXDB_DATABASE not set in environment. Set varaible or specify config.")
-            raise Exception("INFLUXDB_DATABASE not set in environment")
-
-        host = os.environ.get("INFLUXDB_HOST", gateway_host)
-        port = os.environ.get("INFLUXDB_PORT", 8086)
-        user  = os.environ.get("INFLUXDB_USER", None)
-        password = os.environ.get("INFLUXDB_PASSWORD", None)
-        database = os.environ.get("INFLUXDB_DATABASE")
-
-        influx_config =  InfluxDBConfig(database=database, series_name=series_name, host=host,
-                                        port=port, user=user, password=password, disabled=store_disabled)
-        
-    else:
-        if not config_path.exists():
-            raise Exception(f"Unable to load specified InfluxDB config '{config_path}'")
-        
-        try:
-            with open(config_path, "r") as handle:
-                config = json.load(handle)
-        except Exception as ex:
-            logger.opt(exception=ex).critical("Unable to parse InfluxDB config json")
-            raise Exception(f"Unable to parse config {config_path}")
-
-        with open(get_asset_relative_to(__file__, "../assets/influxdb.schema.json"), "r") as handle:
-            schema = json.load(handle)
-
-        try:
-            validate(instance=config, schema=schema)
-        except Exception as ex:
-            logger.opt(exception=ex).critical("Unable to validate InfluxDB config scheme")
-            raise Exception(f"Unable to parse config {config_path}")
-        
-        if "series_name" not in config.keys():
-            config["series_name"] = series_name
-        
-        if "host" not in config.keys():
-            config["host"] = gateway_host
-
-        config["disabled"] = store_disabled
-
-        influx_config = InfluxDBConfig(**config)
-
-    if not check_influx_connection(influx_config):
-        raise Exception("Unable to verify InfluxDB connection!")
-
-    return influx_config

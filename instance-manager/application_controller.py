@@ -8,7 +8,6 @@ from threading import Event, Thread, Barrier
 
 from common.application_configs import Applications, ApplicationConfig
 from common.instance_manager_message import InstanceStatus
-from common.configs import InfluxDBConfig
 
 from management_client import ManagementClient, DownstreamMassage
 
@@ -38,8 +37,7 @@ class ApplicationController(Thread):
                 raise Exception(f"Unmapped application {application}")
             
     def __init__(self, config: ApplicationConfig, client: ManagementClient,
-                 start_barrier: Barrier, influx_config: InfluxDBConfig, 
-                 instance_name: str) -> None:
+                 start_barrier: Barrier, instance_name: str) -> None:
         super(ApplicationController, self).__init__()
         self.config = config
         self.application: BaseApplication = ApplicationController.map_application(config.application)
@@ -53,8 +51,6 @@ class ApplicationController(Thread):
         self.shared_state["error_flag"] = False
         self.shared_state["error_string"] = None
 
-        self.influx_config: InfluxDBConfig = influx_config
-
     def __fork_run(self):
         """
         Important: This method will be forked away from main instance_manager
@@ -64,7 +60,7 @@ class ApplicationController(Thread):
         """
 
         try:
-            local_influx_adapter = InfluxDBAdapter(self.influx_config, self.get_application_name(), self.instance_name, self.config.dont_store)
+            local_influx_adapter = InfluxDBAdapter(self.get_application_name(), self.instance_name, self.mgmt_client)
             rc = self.application.start_collection(self.settings, self.config.runtime, local_influx_adapter)
             if not rc:
                 self.shared_state["error_flag"] = True
@@ -73,8 +69,6 @@ class ApplicationController(Thread):
             traceback.print_exception(ex)
             self.shared_state["error_flag"] = True
             self.shared_state["error_string"] = str(ex)
-        finally:
-            local_influx_adapter.close()
 
     def run(self):
         process = Process(target=self.__fork_run, args=())
