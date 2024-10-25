@@ -7,8 +7,7 @@ from common.application_configs import ApplicationConfig
 
 @dataclass
 class TestbedSettings():
-    machines_internet_access: bool = True
-    management_network: str = "172.16.99.0/24"
+    management_network: Optional[str] = None
     diskimage_basepath: str = "./"
     startup_init_timeout: int = 30
     experiment_timeout: int = -1

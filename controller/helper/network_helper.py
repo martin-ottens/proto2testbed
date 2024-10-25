@@ -129,9 +129,6 @@ class NetworkBridge(Dismantable):
         if not self._run_command(["/usr/sbin/ip", "addr", "add", str(ip), "dev", self.name]):
             raise Exception(f"Unable to add IP {str(ip)} to bridge {self.name}!")
 
-        if nat is None:
-            return True
-
         logger.info(f"Network {self.name}: NAT: Enabling NAT for {str(nat)}!")
 
         # Get default prefsrc

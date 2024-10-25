@@ -1,6 +1,5 @@
 {
     "settings": {
-        "machines_internet_access": true,
         "management_network": "172.16.99.0/24",
         "diskimage_basepath": "/tmp"
     },

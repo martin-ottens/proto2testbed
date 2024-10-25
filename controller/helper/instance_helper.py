@@ -49,10 +49,11 @@ class InstanceHelper(Dismantable):
         self.qemu_handle = None
         self.testbed_package_path = testbed_package_path
 
-        if not all(key in management for key in ["interface", "ip", "gateway"]):
-            raise Exception(f"Error during creation, management config is not correct!")
+        if management is not None:
+            if not all(key in management for key in ["interface", "ip", "gateway"]):
+                raise Exception(f"Error during creation, management config is not correct!")
 
-        self.ip_address = management["ip"].ip
+            self.ip_address = management["ip"].ip
 
         if len(extra_interfaces) > 4:
             raise Exception(f"Error during creation, 4 interfaces are allowed, but {len(extra_interfaces)} were added!")
@@ -86,13 +87,14 @@ class InstanceHelper(Dismantable):
             with open(init_files / "user-data", mode="w", encoding="utf-8") as handle:
                 handle.write(user_data)
 
-            network_config = j2_env.get_template("network-config.j2").render(
-                mgmt_address=str(management["ip"].ip),
-                mgmt_server=str(management["gateway"]),
-                mgmt_netmask=management["ip"].with_prefixlen.split("/")[1]
-            )
-            with open(init_files / "network-config", mode="w", encoding="utf-8") as handle:
-                handle.write(network_config)
+            if management is not None:
+                network_config = j2_env.get_template("network-config.j2").render(
+                    mgmt_address=str(management["ip"].ip),
+                    mgmt_server=str(management["gateway"]),
+                    mgmt_netmask=management["ip"].with_prefixlen.split("/")[1]
+                )
+                with open(init_files / "network-config", mode="w", encoding="utf-8") as handle:
+                    handle.write(network_config)
 
             cloud_init_iso = str(Path(self.tempdir.name) / "cloud-init.iso")
             process = invoke_subprocess([InstanceHelper.__CLOUD_INIT_ISO_TEMPLATE.format(input=init_files, output=cloud_init_iso)],
@@ -105,7 +107,10 @@ class InstanceHelper(Dismantable):
             hash_hex = hashlib.sha256(instance.name.encode()).hexdigest()
             base_mac = hash_hex[1:2] + 'e:' + hash_hex[2:4] + ':' + hash_hex[4:6] + ':' + hash_hex[6:8] + ':' + hash_hex[8:10] + ':' + hash_hex[10:11]
             
-            interfaces = InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management["interface"], mac=(base_mac + "0"))
+            interfaces = ""
+            if management is not None:
+                InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management["interface"], mac=(base_mac + "0"))
+
             for index, name in enumerate(extra_interfaces):
                 interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=name, mac=(base_mac + str(index + 1)))
 

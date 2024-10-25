@@ -26,6 +26,7 @@ class Controller(Dismantable):
         self.networks = None
         self.dismantables: List[Dismantable] = []
         self.state_manager: MachineStateManager = MachineStateManager()
+        self.has_mgmt_network = False
 
         self.base_path = Path(SettingsWrapper.cli_paramaters.config)
         self.config_path = self.base_path / "testbed.json"
@@ -81,7 +82,8 @@ class Controller(Dismantable):
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to setup management network!")
             return False
-        
+
+        self.has_mgmt_network = True
         return True
 
     def setup_infrastructure(self) -> bool:
@@ -107,7 +109,10 @@ class Controller(Dismantable):
             
         # Setup Instances
         instances = {}
-        wait_for_interfaces = ["br-mgmt"]
+        wait_for_interfaces = []
+        if self.has_mgmt_network:
+            wait_for_interfaces.append("br-mgmt")
+
         diskimage_basepath = Path(SettingsWrapper.testbed_config.settings.diskimage_basepath)
         for index, instance in enumerate(SettingsWrapper.testbed_config.instances):
             extra_interfaces = {}
@@ -125,13 +130,17 @@ class Controller(Dismantable):
                 
                 if not diskimage_path.exists():
                     raise Exception(f"Unable to find diskimage '{diskimage_path}'")
+                
+                management_settings = None
+                if self.has_mgmt_network:
+                    management_settings = {
+                            "interface": f"v_{index}_m",
+                            "ip": ipaddress.IPv4Interface(f"{self.mgmt_ips.pop(0)}/{self.mgmt_netmask}"),
+                            "gateway": str(self.mgmt_gateway)
+                    }
 
                 wrapper = InstanceHelper(instance=self.state_manager.get_machine(instance.name),
-                                    management={
-                                        "interface": f"v_{index}_m",
-                                        "ip": ipaddress.IPv4Interface(f"{self.mgmt_ips.pop(0)}/{self.mgmt_netmask}"),
-                                        "gateway": str(self.mgmt_gateway)
-                                    },
+                                    management=management_settings,
                                     testbed_package_path=self.base_path,
                                     extra_interfaces=extra_interfaces.keys(),
                                     image=str(diskimage_path),
@@ -141,7 +150,10 @@ class Controller(Dismantable):
                                     netmodel=instance.netmodel)
                 self.dismantables.insert(0, wrapper)
                 wrapper.start_instance()
-                extra_interfaces[f"v_{index}_m"] = "br-mgmt"
+
+                if self.has_mgmt_network:
+                    extra_interfaces[f"v_{index}_m"] = "br-mgmt"
+
                 instances[instance.name] = (wrapper, extra_interfaces, )
             except Exception as ex:
                 logger.opt(exception=ex).critical(f"Unable to setup and start instance {instance.name}")
@@ -165,7 +177,10 @@ class Controller(Dismantable):
                 wrapper, extra_interfaces = instance
                 for interface, bridge in extra_interfaces.items():
                     self.networks[bridge].add_device(interface)
-                logger.info(f"{name} ({wrapper.ip_address}, {self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(extra_interfaces.values())}")
+                if self.has_mgmt_network:
+                    logger.info(f"{name} ({wrapper.ip_address}, {self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(extra_interfaces.values())}")
+                else:
+                    logger.info(f"{name} ({self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(extra_interfaces.values())}")
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to attach VM interfaces to bridges.")
             return False
@@ -226,9 +241,12 @@ class Controller(Dismantable):
             logger.critical("Critical error during integration start!")
             return False
 
-        if not self.setup_local_network():
-            logger.critical("Critical error during local network setup!")
-            return False
+        if SettingsWrapper.testbed_config.settings.management_network is not None:
+            if not self.setup_local_network():
+                logger.critical("Critical error during local network setup!")
+                return False
+            else:
+                logger.warning("Management Network is disabled, skipping setup.")
         
         try:
             self.influx_db = InfluxDBAdapter(SettingsWrapper.cli_paramaters.experiment, 

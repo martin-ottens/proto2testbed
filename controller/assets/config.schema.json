@@ -8,9 +8,6 @@
         "settings": {
             "type": "object",
             "properties": {
-                "machines_internet_access": {
-                    "type": "boolean"
-                },
                 "management_network": {
                     "type": "string"
                 },
