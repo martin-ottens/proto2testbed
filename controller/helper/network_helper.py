@@ -124,7 +124,7 @@ class NetworkBridge(Dismantable):
             self.dismantle_action.insert(0, ["/usr/sbin/brctl", "delif", self.name, interface])
         return True
 
-    def setup_local(self, ip: ipaddress.IPv4Interface, nat: ipaddress.IPv4Network | None = None) -> bool:
+    def setup_local(self, ip: ipaddress.IPv4Interface, nat: ipaddress.IPv4Network) -> bool:
         logger.debug(f"Network {self.name}: Adding IP {str(ip)} to bridge.")
         if not self._run_command(["/usr/sbin/ip", "addr", "add", str(ip), "dev", self.name]):
             raise Exception(f"Unable to add IP {str(ip)} to bridge {self.name}!")

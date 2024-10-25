@@ -76,7 +76,7 @@ class Controller(Dismantable):
             self.dismantables.insert(0, mgmt_bridge)
             self.mgmt_gateway = self.mgmt_ips.pop(0)
             mgmt_bridge.setup_local(ip=ipaddress.IPv4Interface(f"{self.mgmt_gateway}/{self.mgmt_netmask}"), 
-                                    nat=self.mgmt_network if SettingsWrapper.testbed_config.settings.machines_internet_access == True else None)
+                                    nat=self.mgmt_network)
             mgmt_bridge.start_bridge()
             self.networks["br-mgmt"] = mgmt_bridge
         except Exception as ex:
