@@ -23,7 +23,7 @@ class Controller(Dismantable):
         if SettingsWrapper.cli_paramaters is None:
             raise Exception("No CLIParamaters class object was set before calling the controller")
 
-        self.networks = None
+        self.networks = {}
         self.dismantables: List[Dismantable] = []
         self.state_manager: MachineStateManager = MachineStateManager()
         self.has_mgmt_network = False
@@ -69,8 +69,6 @@ class Controller(Dismantable):
         self.mgmt_netmask = ipaddress.IPv4Network(f"0.0.0.0/{self.mgmt_network.netmask}").prefixlen
 
         # Setup Networks
-        self.networks = {}
-
         try:
             mgmt_bridge = NetworkBridge("br-mgmt", SettingsWrapper.cli_paramaters.clean)
             self.dismantables.insert(0, mgmt_bridge)
@@ -87,7 +85,7 @@ class Controller(Dismantable):
         return True
 
     def setup_infrastructure(self) -> bool:
-        if self.networks is None:
+        if self.has_mgmt_network and len(self.networks) == 0:
             logger.critical("Infrastructure setup was called before local network setup!")
             return False
 
@@ -110,9 +108,6 @@ class Controller(Dismantable):
         # Setup Instances
         instances = {}
         wait_for_interfaces = []
-        if self.has_mgmt_network:
-            wait_for_interfaces.append("br-mgmt")
-
         diskimage_basepath = Path(SettingsWrapper.testbed_config.settings.diskimage_basepath)
         for index, instance in enumerate(SettingsWrapper.testbed_config.instances):
             extra_interfaces = {}
@@ -153,6 +148,7 @@ class Controller(Dismantable):
 
                 if self.has_mgmt_network:
                     extra_interfaces[f"v_{index}_m"] = "br-mgmt"
+                    wait_for_interfaces.append(f"v_{index}_m")
 
                 instances[instance.name] = (wrapper, extra_interfaces, )
             except Exception as ex:
@@ -160,9 +156,9 @@ class Controller(Dismantable):
                 return False
 
         # Wait for tap devices to become ready
-        wait_until = time.time() * 20
+        wait_until = time.time() + 60
         while True:
-            if NetworkBridge.check_interfaces_available(extra_interfaces):
+            if NetworkBridge.check_interfaces_available(wait_for_interfaces):
                 break
 
             if time.time() > wait_until:
@@ -245,8 +241,8 @@ class Controller(Dismantable):
             if not self.setup_local_network():
                 logger.critical("Critical error during local network setup!")
                 return False
-            else:
-                logger.warning("Management Network is disabled, skipping setup.")
+        else:
+            logger.warning("Management Network is disabled, skipping setup.")
         
         try:
             self.influx_db = InfluxDBAdapter(SettingsWrapper.cli_paramaters.experiment, 

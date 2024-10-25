@@ -109,7 +109,7 @@ class InstanceHelper(Dismantable):
             
             interfaces = ""
             if management is not None:
-                InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management["interface"], mac=(base_mac + "0"))
+                interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management["interface"], mac=(base_mac + "0"))
 
             for index, name in enumerate(extra_interfaces):
                 interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=name, mac=(base_mac + str(index + 1)))

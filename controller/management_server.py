@@ -196,7 +196,7 @@ class ManagementClientConnection(threading.Thread):
                 break
         
         if self.client is not None:
-            logger.info(f"Management: Client '{self.client.name}'s: Connection closed.")
+            logger.info(f"Management: Client '{self.client.name}': Connection closed.")
             self.client.disconnect()
         else:
             logger.info(f"Management: Client '{self.expected_instance.name}': Connection closed.")
