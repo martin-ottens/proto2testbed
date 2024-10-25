@@ -5,6 +5,8 @@ import os
 import shutil
 
 from enum import Enum
+from pathlib import Path
+from loguru import logger
 from typing import Tuple, Optional, List
 from threading import Lock, Semaphore
 
@@ -64,37 +66,50 @@ class MachineState():
         self.manager.notify_state_change(new_state)
 
     def prepare_interchange_dir(self) -> None:
-        self.interchange_dir = MachineState.__INTERCHANGE_BASE_PATH + self.uuid + "/"
+        self.interchange_dir = Path(MachineState.__INTERCHANGE_BASE_PATH + self.uuid + "/")
 
-        if os.path.exists(self.interchange_dir):
+        if self.interchange_dir.exists():
             raise Exception(f"Error during setup of interchange directory: {self.interchange_dir} already exists!")
         
         # Set 777 permission to allow socket access with --sudo option
         os.mkdir(self.interchange_dir, mode=0o777)
-        os.mkdir(self.interchange_dir + "mount/")
+        os.mkdir(self.interchange_dir / "mount/")
         self.interchange_ready = True
 
-    def remove_interchange_dir(self) -> None:
+    def remove_interchange_dir(self, file_preservation: Optional[Path]) -> None:
         if not self.interchange_ready:
             return
+        
+        if file_preservation is not None:
+            flist = []
+            for _, _, files in os.walk(self.get_p9_data_path()):
+                for file in files:
+                    flist.append(file)
+
+            if len(flist) != 0:
+                target = file_preservation / self.name
+                target.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(self.get_p9_data_path(), target, dirs_exist_ok=True)
+                logger.info(f"File Preservation: Preserved {len(flist)} files for Instance {self.name} to '{target}'")
+            
         
         shutil.rmtree(self.interchange_dir)
         self.interchange_ready = False
 
-    def get_mgmt_socket_path(self) -> None | str:
+    def get_mgmt_socket_path(self) -> None | Path:
         if not self.interchange_ready:
             return None
-        return self.interchange_dir + "mgmt.sock"
+        return self.interchange_dir / "mgmt.sock"
     
-    def get_mgmt_tty_path(self) -> None | str:
+    def get_mgmt_tty_path(self) -> None | Path:
         if not self.interchange_ready:
             return None
-        return self.interchange_dir + "tty.sock"
+        return self.interchange_dir / "tty.sock"
     
-    def get_p9_data_path(self) -> None | str:
+    def get_p9_data_path(self) -> None | Path:
         if not self.interchange_ready:
             return None
-        return self.interchange_dir + "mount/"
+        return self.interchange_dir / "mount/"
     
     def update_mgmt_socket_permission(self) -> bool:
         if not self.interchange_ready:
@@ -103,12 +118,12 @@ class MachineState():
         wait_until = time.time() + 20
         while time.time() <= wait_until:
             if os.path.exists(self.get_mgmt_socket_path()) and os.path.exists(self.get_mgmt_tty_path()):
-                process = invoke_subprocess(["chmod", "777", self.get_mgmt_socket_path()], needs_root=True)
+                process = invoke_subprocess(["chmod", "777", str(self.get_mgmt_socket_path())], needs_root=True)
 
                 if process.returncode != 0:
                     raise Exception("Unable to change permissions of management server socket")
                 
-                process = invoke_subprocess(["chmod", "777", self.get_mgmt_tty_path()], needs_root=True)
+                process = invoke_subprocess(["chmod", "777", str(self.get_mgmt_tty_path())], needs_root=True)
 
                 if process.returncode != 0:
                     raise Exception("Unable to change permissions of management tty socket")
@@ -139,9 +154,13 @@ class MachineStateManager():
     def __init__(self):
         self.map: dict[str, MachineState] = {}
         self.state_change_lock: Lock = Lock()
+        self.file_preservation: Optional[Path] = None
 
         self.waiting_for_state: MachineState | None = None
         self.state_change_semaphore: Semaphore | None = None
+
+    def enable_file_preservation(self, preservation_path: Optional[Path]):
+        self.file_preservation = preservation_path
 
     def get_all_machines(self) -> List[MachineState]:
         return list(self.map.values())
@@ -160,7 +179,7 @@ class MachineStateManager():
 
     def remove_all(self):
         for machine in self.map.values():
-            machine.remove_interchange_dir()
+            machine.remove_interchange_dir(self.file_preservation)
             machine.disconnect()
         
         self.map.clear()

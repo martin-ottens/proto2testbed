@@ -7,3 +7,4 @@
 - Rework Communication Protocol Instance Manager <-> Controller, decouple application config from testbed config schema
 - Dynamic loading of applications from testbed host?
 - Fully automated Debian Base Image Builder
+- Parallel Instance Stop

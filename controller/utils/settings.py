@@ -122,17 +122,18 @@ class TestbedConfig():
 
 @dataclass
 class CLIParameters():
-    config: str = None
-    pause: str = None
-    wait: int = None
+    config: Optional[str] = None
+    pause: Optional[str] = None
+    wait: Optional[int] = None
     sudo_mode: bool = False
     disable_kvm: bool = False
     clean: bool = False
-    experiment: str = None
-    dont_use_influx: bool = False
-    influx_path: str = None
+    experiment: Optional[str] = None
+    dont_use_influx: Optional[bool] = False
+    influx_path: Optional[str] = None
     skip_integration: bool = False
     skip_substitution: bool = False
+    preserve: Optional[str] = None
 
 
 class SettingsWrapper():

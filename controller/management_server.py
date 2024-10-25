@@ -129,7 +129,7 @@ class ManagementClientConnection(threading.Thread):
 
         while True:
             if os.path.exists(self.socket_path):
-                logger.debug(f"Management: Socket '{self.socket_path}' ready")
+                logger.debug(f"Management: Socket '{self.socket_path}' for Instance {self.expected_instance.name} ready")
                 break
 
             if (started_waiting + self.timeout) < time.time():
@@ -139,7 +139,7 @@ class ManagementClientConnection(threading.Thread):
         try:
             self.client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self.client_socket.settimeout(0.5)
-            self.client_socket.connect(self.socket_path)
+            self.client_socket.connect(str(self.socket_path))
             logger.debug(f"Management: Client '{self.expected_instance.name}': Socket connection created.")
         except Exception as ex:
             logger.opt(exception=ex).error(f"Management: Unable to bind socket for '{self.expected_instance.name}'")

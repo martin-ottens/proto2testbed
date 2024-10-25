@@ -10,7 +10,7 @@ from helper.network_helper import NetworkBridge
 from helper.instance_helper import InstanceHelper
 from helper.integration_helper import IntegrationHelper
 from utils.interfaces import Dismantable
-from utils.config_tools import load_config, load_vm_initialization
+from utils.config_tools import load_config, load_vm_initialization, check_preserve_dir
 from utils.settings import SettingsWrapper
 from utils.settings import InvokeIntegrationAfter
 from utils.influxdb import InfluxDBAdapter
@@ -237,6 +237,21 @@ class Controller(Dismantable):
     def main(self) -> bool:
         self.dismantables.insert(0, self.integration_helper)
 
+        try:
+            self.influx_db = InfluxDBAdapter(SettingsWrapper.cli_paramaters.experiment, 
+                                             SettingsWrapper.cli_paramaters.dont_use_influx, 
+                                             SettingsWrapper.cli_paramaters.influx_path)
+            self.influx_db.start()
+            self.dismantables.insert(0, self.influx_db)
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Unable to load InfluxDB data!")
+            return False
+        
+        if not check_preserve_dir(SettingsWrapper.cli_paramaters.preserve):
+            logger.critical("Unable to set up File Preservation")
+            return False
+        self.state_manager.enable_file_preservation(SettingsWrapper.cli_paramaters.preserve)
+
         if self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP) == False :
             logger.critical("Critical error during integration start!")
             return False
@@ -247,16 +262,6 @@ class Controller(Dismantable):
                 return False
         else:
             logger.warning("Management Network is disabled, skipping setup.")
-        
-        try:
-            self.influx_db = InfluxDBAdapter(SettingsWrapper.cli_paramaters.experiment, 
-                                             SettingsWrapper.cli_paramaters.dont_use_influx, 
-                                             SettingsWrapper.cli_paramaters.influx_path)
-            self.influx_db.start()
-            self.dismantables.insert(0, self.influx_db)
-        except Exception as ex:
-            logger.opt(exception=ex).critical("Unable to load InfluxDB data!")
-            return False
         
         if self.influx_db.store_disabled:
             logger.warning("InfluxDB experiment data storage is disabled!")

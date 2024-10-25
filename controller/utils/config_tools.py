@@ -84,3 +84,23 @@ def load_vm_initialization(config: TestbedConfig, base_path: Path, state_manager
         state_manager.add_machine(machine.name, script_file, env_variables)
 
     return True
+
+
+def check_preserve_dir(preserve_dir: Optional[str]) -> bool:
+    if preserve_dir is None:
+        logger.warning("File Preservation is disabled, no files from Instances will be preserved!")
+        return True
+    
+    if os.path.exists(preserve_dir):
+        if not os.path.isdir(preserve_dir):
+            logger.critical(f"File Preservation: {preserve_dir} is not a directory!")
+            return False
+        
+        if len(os.listdir(preserve_dir)) != 0:
+            logger.warning(f"File Preservation direcotry {preserve_dir} is not empty, possible overwrite")
+    else:
+        logger.debug(f"File Preservation directory {preserve_dir} does not exist, creating it.")
+        os.mkdir(preserve_dir)
+
+    logger.info(f"File Preservation: Saving instance files to {preserve_dir}")
+    return True
