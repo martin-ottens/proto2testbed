@@ -25,7 +25,8 @@ class InstanceHelper(Dismantable):
                                 -serial unix:{tty},server,nowait \
                                 -chardev socket,id=mgmtchardev,path={serial},server,nowait \
                                 -device pci-serial,chardev=mgmtchardev \
-                                -virtfs local,path={mount},mount_tag=host0,security_model=passthrough,id=host0 \
+                                -virtfs local,path={mount},mount_tag=exchange,security_model=passthrough,id=exchange \
+                                -virtfs local,path={testbed_package},mount_tag=tbp,security_model=passthrough,id=tbp,readonly \
                                 {nics} \
                                 -snapshot \
                                 -cdrom {cloud_init_iso} \
@@ -40,12 +41,13 @@ class InstanceHelper(Dismantable):
                                    -rock {input}"""
 
     def __init__(self, instance: MachineState, management: Dict[str, str],
-                 extra_interfaces: List[str], image: str,
+                 extra_interfaces: List[str], image: str, testbed_package_path: str,
                  cores: int = 2, memory: int = 1024, debug: bool = False, 
                  disable_kvm: bool = False, netmodel: str = "virtio") -> None:
         self.instance = instance
         self.debug = debug
         self.qemu_handle = None
+        self.testbed_package_path = testbed_package_path
 
         if not all(key in management for key in ["interface", "ip", "gateway"]):
             raise Exception(f"Error during creation, management config is not correct!")
@@ -60,7 +62,7 @@ class InstanceHelper(Dismantable):
 
         self.tempdir = tempfile.TemporaryDirectory()
  
-            # Generate cloud-init files
+        # Generate cloud-init files
         try:
             init_files = Path(self.tempdir.name) / "cloud-init"
             os.mkdir(init_files)
@@ -117,6 +119,7 @@ class InstanceHelper(Dismantable):
                 serial=self.instance.get_mgmt_socket_path(),
                 tty=self.instance.get_mgmt_tty_path(),
                 mount=self.instance.get_p9_data_path(),
+                testbed_package=self.testbed_package_path,
                 kvm=(InstanceHelper.__QEMU_KVM_OPTIONS if not disable_kvm else '')
             )
         except Exception as ex:

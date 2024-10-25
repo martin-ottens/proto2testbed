@@ -7,7 +7,6 @@ from typing import List, Tuple
 from threading import Event
 
 from helper.network_helper import NetworkBridge
-from helper.fileserver_helper import FileServer
 from helper.instance_helper import InstanceHelper
 from helper.integration_helper import IntegrationHelper
 from utils.interfaces import Dismantable
@@ -18,9 +17,6 @@ from utils.influxdb import InfluxDBAdapter
 from management_server import ManagementServer
 from state_manager import MachineStateManager, AgentManagementState, WaitResult
 from common.instance_manager_message import ApplicationsMessageUpstream
-
-FILESERVER_PORT = 4242
-MANAGEMENT_SERVER_PORT = 4243
 
 class Controller(Dismantable):
     def __init__(self):
@@ -136,6 +132,7 @@ class Controller(Dismantable):
                                         "ip": ipaddress.IPv4Interface(f"{self.mgmt_ips.pop(0)}/{self.mgmt_netmask}"),
                                         "gateway": str(self.mgmt_gateway)
                                     },
+                                    testbed_package_path=self.base_path,
                                     extra_interfaces=extra_interfaces.keys(),
                                     image=str(diskimage_path),
                                     cores=instance.cores,
@@ -175,17 +172,9 @@ class Controller(Dismantable):
 
         return True
     
-    def start_management_infrastructure(self, fileserver_addr: Tuple[str, int]) -> bool:
+    def start_management_infrastructure(self) -> bool:
         for instance in self.state_manager.get_all_machines():
             instance.prepare_interchange_dir()
-
-        try:
-            file_server = FileServer(self.base_path, fileserver_addr)
-            file_server.start()
-            self.dismantables.insert(0, file_server)
-        except Exception as ex:
-            logger.opt(exception=ex).critical("Unable to start file server")
-            return False
         
         try:
             magamenet_server = ManagementServer(self.state_manager, SettingsWrapper.testbed_config.settings.startup_init_timeout, self.influx_db)
@@ -241,8 +230,6 @@ class Controller(Dismantable):
             logger.critical("Critical error during local network setup!")
             return False
         
-        file_server_addr = (str(self.mgmt_gateway), FILESERVER_PORT, )
-        
         try:
             self.influx_db = InfluxDBAdapter(SettingsWrapper.cli_paramaters.experiment, 
                                              SettingsWrapper.cli_paramaters.dont_use_influx, 
@@ -258,11 +245,11 @@ class Controller(Dismantable):
         else:
             logger.success(f"Experiment data will be saved to InfluxDB {self.influx_db.database} with tag experiment={self.influx_db.series_name}")
 
-        if not load_vm_initialization(SettingsWrapper.testbed_config, self.base_path, self.state_manager, f"http://{file_server_addr[0]}:{file_server_addr[1]}"):
+        if not load_vm_initialization(SettingsWrapper.testbed_config, self.base_path, self.state_manager):
             logger.critical("Critical error while loading Instance initialization!")
             return False
 
-        if not self.start_management_infrastructure(file_server_addr):
+        if not self.start_management_infrastructure():
             logger.critical("Critical error during start of management infrastructure!")
             return False
 

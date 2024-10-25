@@ -121,13 +121,12 @@ class MachineStateManager():
     def get_all_machines(self) -> List[MachineState]:
         return list(self.map.values())
     
-    def add_machine(self, name: str, script_file: str, setup_env: dict[str, str], fileserver: str):
+    def add_machine(self, name: str, script_file: str, setup_env: dict[str, str]):
         if name in self.map:
             raise Exception(f"Machine {name} was already configured")
         
         self.map[name] = MachineState(name, script_file, setup_env, self)
         self.map[name].set_setup_env_entry("INSTANCE_NAME", name)
-        self.map[name].set_setup_env_entry("FILESERVER_ADDRESS", fileserver)
     
     def remove_machine(self, name: str):
         if not name in self.map:
