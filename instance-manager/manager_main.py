@@ -4,6 +4,7 @@ import subprocess
 import json
 import os
 import shutil
+import time
 
 from threading import Barrier
 from pathlib import Path
@@ -16,6 +17,7 @@ from common.instance_manager_message import *
 FILE_SERVER_PORT = 4242
 STATE_FILE = "/tmp/im-setup-succeeded"
 TESTBED_PACKAGE_MOUNT = "/opt/testbed"
+EXCHANGE_MOUNT = "/mnt"
 
 def get_default_gateway() -> str:
     proc = subprocess.run(["/usr/sbin/ip", "-json", "route"], capture_output=True, shell=False)
@@ -31,6 +33,71 @@ def get_default_gateway() -> str:
             return route["gateway"]
     
     raise Exception(f"Unable to obtain default route!")
+
+def handle_experiment(payload, manager, instance_name):
+    applications = ApplicationsMessageUpstream.from_json(payload)
+            
+    barrier = Barrier(len(applications.applications) + 1)
+    threads: List[ApplicationController] = []
+    for application in applications.applications:
+        t = ApplicationController(application, manager, barrier, instance_name)
+        t.start()
+        threads.append(t)
+            
+    barrier.wait()
+            
+    failed = 0
+    for t in threads:
+        t.join()
+        if t.error_occured():
+            failed += 1
+    
+    if failed != 0:
+        message = DownstreamMassage(InstanceStatus.EXPERIMENT_FAILED, 
+                                    f"{failed} Applications(s) failed.")
+        manager.send_to_server(message)
+    else:
+        message = DownstreamMassage(InstanceStatus.EXPERIMENT_DONE)
+        manager.send_to_server(message)
+
+def handle_finish(payload, manager):
+    message = FinishInstanceMessageUpstream(**payload)
+    if message.preserve_files is None:
+        return
+
+    proc = None
+    try:
+        proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", "exchange", EXCHANGE_MOUNT])
+    except Exception as ex:
+        message = DownstreamMassage(InstanceStatus.FAILED, f"Unable to mount exchange direcory!")
+        manager.send_to_server(message)
+        raise Exception("Unable to mount exchange directory!") from ex
+            
+    if proc is not None and proc.returncode != 0:
+        message = DownstreamMassage(InstanceStatus.FAILED, 
+                                    f"Mounting of exchange directory failed with code ({proc.returncode})\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {proc.stderr.decode('utf-8')}")
+        manager.send_to_server(message)
+        raise Exception(f"Unable to mount exchange directory: {proc.stderr}")
+    
+    for preserve_file in message.preserve_files:
+        path = Path(preserve_file)
+        if not path.is_absolute():
+            message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
+                                        f"Unable to preserve '{preserve_file}': Not an absolute path")
+            manager.send_to_server(message)
+            continue
+
+        if preserve_file.startswith(EXCHANGE_MOUNT):
+            continue
+            
+        if not path.exists():
+            message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
+                                        f"Unable to preserve '{preserve_file}': Path does not exists")
+            manager.send_to_server(message)
+            continue
+
+        destination_path = os.path.join(EXCHANGE_MOUNT, preserve_file.lstrip('/'))
+        shutil.copytree(path, destination_path)
 
 def main():
     instance_name = get_hostname()
@@ -104,33 +171,20 @@ def main():
         message = DownstreamMassage(InstanceStatus.INITIALIZED)
         manager.send_to_server(message)
 
-        # 3. Get applications
+        # 3. Get applications / finish instructions
         while True:
             application_data = manager.wait_for_command()
-            applications = ApplicationsMessageUpstream.from_json(application_data)
-            
-            barrier = Barrier(len(applications.applications) + 1)
-            threads: List[ApplicationController] = []
-            for application in applications.applications:
-                t = ApplicationController(application, manager, barrier, instance_name)
-                t.start()
-                threads.append(t)
-            
-            barrier.wait()
-            
-            failed = 0
-            for t in threads:
-                t.join()
-                if t.error_occured():
-                    failed += 1
-            
-            if failed != 0:
-                message = DownstreamMassage(InstanceStatus.EXPERIMENT_FAILED, 
-                                            f"{failed} Applications(s) failed.")
+
+            if application_data["status"] == ApplicationsMessageUpstream.status_name:
+                handle_experiment(application_data, manager, instance_name)
+            elif application_data["status"] == FinishInstanceMessageUpstream.status_name:
+                handle_finish(application_data, manager)
+                message = DownstreamMassage(InstanceStatus.FINISHED)
                 manager.send_to_server(message)
+                while True: time.sleep(1)
             else:
-                message = DownstreamMassage(InstanceStatus.EXPERIMENT_DONE)
-                manager.send_to_server(message)
+                raise Exception(f"Invalid Upstream Message Package received: {application_data['status']}")
+            
             
     except Exception as ex:
         raise ex

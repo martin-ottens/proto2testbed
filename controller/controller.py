@@ -16,7 +16,7 @@ from utils.settings import InvokeIntegrationAfter
 from utils.influxdb import InfluxDBAdapter
 from management_server import ManagementServer
 from state_manager import MachineStateManager, AgentManagementState, WaitResult
-from common.instance_manager_message import ApplicationsMessageUpstream
+from common.instance_manager_message import ApplicationsMessageUpstream, FinishInstanceMessageUpstream
 
 class Controller(Dismantable):
     def __init__(self):
@@ -233,6 +233,18 @@ class Controller(Dismantable):
                     max_value = this_value
 
         return max_value
+    
+    def send_finish_message(self):
+        logger.info("Sending finish instructions to Instances")
+        for machine in SettingsWrapper.testbed_config.instances:
+            state = self.state_manager.get_machine(machine.name)
+            message = FinishInstanceMessageUpstream(machine.preserve_files)
+            state.send_message(message.to_json().encode("utf-8"))
+
+        result: WaitResult = self.state_manager.wait_for_machines_to_become_state(AgentManagementState.FILES_PRESERVED,
+                                                                                  timeout=30)
+        if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
+            logger.critical("Instances have reported failed during file preservation or a timeout occured!")
         
     def main(self) -> bool:
         self.dismantables.insert(0, self.integration_helper)
@@ -309,7 +321,7 @@ class Controller(Dismantable):
         logger.info("Startig applications on Instances.")
         for machine in SettingsWrapper.testbed_config.instances:
             state = self.state_manager.get_machine(machine.name)
-            message = ApplicationsMessageUpstream("experiement", machine.applications)
+            message = ApplicationsMessageUpstream(machine.applications)
             state.send_message(message.to_json().encode("utf-8"))
             state.set_state(AgentManagementState.IN_EXPERIMENT)
             
@@ -337,6 +349,7 @@ class Controller(Dismantable):
                 logger.critical("Instances have reported failed applications or a timeout occured!")
                 if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
                     self.wait_before_release(on_demand=True)
+                    self.send_finish_message()
                     return True
                 return False
             elif result == WaitResult.INTERRUPTED:
@@ -346,6 +359,8 @@ class Controller(Dismantable):
             
         if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
             self.wait_before_release(on_demand=True)
-            return True
+            self.send_finish_message()
+        
+        self.send_finish_message()
 
         return True # Dismantling handeled by main

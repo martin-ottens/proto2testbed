@@ -84,7 +84,8 @@ class TestbedInstance():
     def __init__(self, name: str, diskimage: str, setup_script: str = None, 
                  environment: Dict[str, str]=  None, cores: int = 2, 
                  memory: int = 1024, networks: List[str] = None,
-                 netmodel: str = "virtio", applications = None) -> None:
+                 netmodel: str = "virtio", applications = None, 
+                 preserve_files: List[str] = None) -> None:
         self.name: str = name
         self.diskimage: str = diskimage
         self.setup_script: str = setup_script
@@ -93,6 +94,7 @@ class TestbedInstance():
         self.memory: int = memory
         self.networks: List[str] = networks
         self.netmodel: str = netmodel
+        self.preserve_files: List[str] = preserve_files
 
         self.applications: List[ApplicationConfig] = []
 

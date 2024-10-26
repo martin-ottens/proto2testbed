@@ -73,7 +73,6 @@ class ManagementClientConnection(threading.Thread):
                     self.client.set_state(state_manager.AgentManagementState.STARTED)
                     logger.info(f"Management: Client '{self.expected_instance.name}': Started. Sending setup instructions.")
                     self.send_message(InitializeMessageUpstream(
-                        "initialize", 
                         self.client.get_setup_env()[0], 
                         self.client.get_setup_env()[1]).to_json().encode("utf-8"))
             case InstanceStatus.INITIALIZED:
@@ -94,6 +93,9 @@ class ManagementClientConnection(threading.Thread):
             case InstanceStatus.EXPERIMENT_DONE:
                 self.client.set_state(state_manager.AgentManagementState.FINISHED)
                 logger.info(f"Management: Client {self.client.name} reported finished applications.")
+            case InstanceStatus.FINISHED:
+                self.client.set_state(state_manager.AgentManagementState.FILES_PRESERVED)
+                logger.info(f"Management: Client {self.client.name} is ready for shut down.")
             case _:
                 logger.warning(f"Management: Client {self.client.name}: Unkown message type '{message_obj.status}'")
 

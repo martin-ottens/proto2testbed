@@ -38,6 +38,9 @@
             "memory": 1024,
             "networks": [
                 "exp0"
+            ],
+            "preserve_files": [
+                "/var/log/latest.log"
             ]
         },
         {

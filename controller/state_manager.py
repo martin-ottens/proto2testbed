@@ -18,7 +18,8 @@ class AgentManagementState(Enum):
     INITIALIZED = 2
     IN_EXPERIMENT = 3
     FINISHED = 4
-    DISCONNECTED = 5
+    FILES_PRESERVED = 5
+    DISCONNECTED = 6
     FAILED = 99
 
 class WaitResult(Enum):

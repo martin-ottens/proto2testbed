@@ -19,7 +19,8 @@
                 "msg_error",
                 "exp_done",
                 "exp_failed",
-                "failed"
+                "failed",
+                "finished"
             ]
         },
         "message": {

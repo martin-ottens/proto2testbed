@@ -257,6 +257,12 @@
                             }
                         ]
                     },
+                    "preserve_files": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
                     "applications": {
                         "type": [
                             "array",

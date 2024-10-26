@@ -1,7 +1,7 @@
 import json
 
 from enum import Enum
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from common.application_configs import ApplicationConfig
 from common.interfaces import JSONSerializer
@@ -16,6 +16,7 @@ class InstanceStatus(Enum):
     FAILED = "failed"
     EXPERIMENT_FAILED = "exp_failed"
     EXPERIMENT_DONE = "exp_done"
+    FINISHED = "finished"
     UNKNOWN = "unknown"
 
     def __str__(self):
@@ -49,14 +50,19 @@ class InstanceManagerDownstream(JSONSerializer):
         return InstanceStatus.from_str(self.status)
 
 class InitializeMessageUpstream(JSONSerializer):
-    def __init__(self, status: str, script: str, environment: Dict[str, str]):
-        self.status = status
+    status_name =  "initialize"
+
+    def __init__(self, script: str, environment: Dict[str, str], status = None):
+        self.status = InitializeMessageUpstream.status_name
         self.script = script
         self.environment = environment
 
 class ApplicationsMessageUpstream(JSONSerializer):
-    def __init__(self, status: str, applications: List[ApplicationConfig] = None) -> None:
-        self.status = status
+    status_name = "experiment"
+
+    def __init__(self, applications: Optional[List[ApplicationConfig]] = None, 
+                 status = None) -> None:
+        self.status = ApplicationsMessageUpstream.status_name
         self.applications = applications
 
     @staticmethod
@@ -71,4 +77,11 @@ class ApplicationsMessageUpstream(JSONSerializer):
             obj.applications.append(ApplicationConfig(**application))
 
         return obj
+
+class FinishInstanceMessageUpstream(JSONSerializer):
+    status_name = "finish"
+
+    def __init__(self, preserve_files: Optional[List[str]] = None, status = None):
+        self.status = FinishInstanceMessageUpstream.status_name
+        self.preserve_files = preserve_files
 
