@@ -12,6 +12,8 @@ class InstanceStatus(Enum):
     DATA_POINT = "data_point"
     MSG_SUCCESS = "msg_success"
     MSG_INFO = "msg_info"
+    MSG_WARNING = "msg_warning"
+    MSG_DEBUG = "msg_debug"
     MSG_ERROR = "msg_error"
     FAILED = "failed"
     EXPERIMENT_FAILED = "exp_failed"

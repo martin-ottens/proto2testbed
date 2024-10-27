@@ -1,5 +1,14 @@
+#!/usr/bin/python3
+
 import argparse
 import re
+import sys
+import socket
+import json
+
+from pathlib import Path
+
+IM_SOCKET_PATH = "/tmp/im.sock"
 
 def main():
     parser = argparse.ArgumentParser(prog="im", description="Instance Manager CLI Tool")
@@ -22,28 +31,63 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "preserve":
-        print(f"Preserve file: {args.path}")
+    payload = {"type": args.command}
+    match args.command:
+        case "preserve":
+            try:
+                if not Path(args.path).exists():
+                    raise Exception("Path does not exist")
+            except Exception as ex:
+                print(f"Invalid Path '{args.path}': {ex}", file=sys.stderr)
+                sys.exit(1)
+            payload["path"] = args.path
+        case "status":
+            pass
+        case "log":
+            payload["level"] = args.level
+            payload["message"] = ' '.join(args.message)
+        case "data":
+            if args.tag:
+                payload["tags"] = args.tag
+            
+            points = {}
+            for point in args.points:
+                if not re.match(r"^[A-Za-z]+:(-?\d+(\.\d+)?|-?\.\d+)$", point):
+                    print(f"Invalid  data point: {point}", file=sys.stderr)
+                    sys.exit(1)
+                name, value = point.split(":")
+                points[name] = value
+        case _:
+            print(f"Invalid subcommand '{args.command}'", file=sys.stderr)
+            sys.exit(1)
 
-    elif args.command == "status":
-        print("Show status")
+    try:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        sock.connect(IM_SOCKET_PATH)
+    except Exception as ex:
+        print(f"Unable to connect to Instance Manager Daemon: {ex}", file=sys.stderr)
+        sys.exit(1)
 
-    elif args.command == "log":
-        print(f"Log-Level: {args.level}")
-        print(f"Message: {' '.join(args.message)}")
+    try:
+        sock.sendall(json.dumps(payload).encode("utf-8") + b'\n')
+        json_result = sock.recv(4096)
+        result = json.loads(json_result)
+        status = result["status"]
 
-    elif args.command == "data":
-        print(f"Infux Data: {args.measurement}")
-        for point in args.points:
-            if not re.match(r"^[A-Za-z]+:(-?\d+(\.\d+)?|-?\.\d+)$", point):
-                print(f"Invalid point: {point}")
-                continue
-            name, value = point.split(":")
-            print(f"Data Point: {name}, {value}")
+        if "message" in result:
+            print(f"Instance Manager Error: {result['message']}", file=sys.stderr)
+        
+        if args.command == "status":
+            if status:
+                print("Instance Manager Daemon is ready.")
+            else:
+                print("Instance Manager Daemon is not ready.")
 
-        if args.tag:
-            for tag in args.tag:
-                print(f"Additional tag: {tag}")
+        sys.exit(status)
+    except Exception as ex:
+        print(f"Unable to communicate with Instance Manager Daemon: {ex}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

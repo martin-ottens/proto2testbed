@@ -9,6 +9,8 @@ import time
 from threading import Barrier
 from pathlib import Path
 
+from preserve_handler import PreserveHandler
+from management_daemon import IMDaemonServer
 from management_client import ManagementClient, DownstreamMassage, get_hostname
 from application_controller import ApplicationController
 
@@ -18,6 +20,9 @@ FILE_SERVER_PORT = 4242
 STATE_FILE = "/tmp/im-setup-succeeded"
 TESTBED_PACKAGE_MOUNT = "/opt/testbed"
 EXCHANGE_MOUNT = "/mnt"
+EXCHANGE_P9_DEV = "exchange"
+IM_SOCKET_PATH = "/tmp/im.sock"
+
 
 def get_default_gateway() -> str:
     proc = subprocess.run(["/usr/sbin/ip", "-json", "route"], capture_output=True, shell=False)
@@ -33,6 +38,7 @@ def get_default_gateway() -> str:
             return route["gateway"]
     
     raise Exception(f"Unable to obtain default route!")
+
 
 def handle_experiment(payload, manager, instance_name):
     applications = ApplicationsMessageUpstream.from_json(payload)
@@ -60,52 +66,20 @@ def handle_experiment(payload, manager, instance_name):
         message = DownstreamMassage(InstanceStatus.EXPERIMENT_DONE)
         manager.send_to_server(message)
 
-def handle_finish(payload, manager):
-    message = FinishInstanceMessageUpstream(**payload)
-    if message.preserve_files is None:
-        return
-
-    proc = None
-    try:
-        proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", "exchange", EXCHANGE_MOUNT])
-    except Exception as ex:
-        message = DownstreamMassage(InstanceStatus.FAILED, f"Unable to mount exchange direcory!")
-        manager.send_to_server(message)
-        raise Exception("Unable to mount exchange directory!") from ex
-            
-    if proc is not None and proc.returncode != 0:
-        message = DownstreamMassage(InstanceStatus.FAILED, 
-                                    f"Mounting of exchange directory failed with code ({proc.returncode})\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {proc.stderr.decode('utf-8')}")
-        manager.send_to_server(message)
-        raise Exception(f"Unable to mount exchange directory: {proc.stderr}")
-    
-    for preserve_file in message.preserve_files:
-        path = Path(preserve_file)
-        if not path.is_absolute():
-            message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
-                                        f"Unable to preserve '{preserve_file}': Not an absolute path")
-            manager.send_to_server(message)
-            continue
-
-        if preserve_file.startswith(EXCHANGE_MOUNT):
-            continue
-            
-        if not path.exists():
-            message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
-                                        f"Unable to preserve '{preserve_file}': Path does not exists")
-            manager.send_to_server(message)
-            continue
-
-        destination_path = os.path.join(EXCHANGE_MOUNT, preserve_file.lstrip('/'))
-        shutil.copytree(path, destination_path)
 
 def main():
     instance_name = get_hostname()
     manager = None
+    preserver = None
     exec_dir = None
+    daemon = None
     try:
-        manager = ManagementClient()
+        # 0. Setup Instance Manager
+        manager = ManagementClient(instance_name)
         manager.start()
+        preserver = PreserveHandler(manager, EXCHANGE_MOUNT, EXCHANGE_P9_DEV)
+        daemon = IMDaemonServer(manager, IM_SOCKET_PATH, preserver)
+        daemon.start()
 
         # 1. Instance is started
         message = DownstreamMassage(InstanceStatus.STARTED)
@@ -178,8 +152,12 @@ def main():
             if application_data["status"] == ApplicationsMessageUpstream.status_name:
                 handle_experiment(application_data, manager, instance_name)
             elif application_data["status"] == FinishInstanceMessageUpstream.status_name:
-                handle_finish(application_data, manager)
-                message = DownstreamMassage(InstanceStatus.FINISHED)
+                finish_message = FinishInstanceMessageUpstream(**application_data)
+                preserver.batch_add(finish_message.preserve_files)
+                preserve_status = InstanceStatus.FAILED
+                if preserver.preserve():
+                    preserve_status = InstanceStatus.FINISHED
+                message = DownstreamMassage(preserve_status)
                 manager.send_to_server(message)
                 while True: time.sleep(1)
             else:
@@ -189,10 +167,13 @@ def main():
     except Exception as ex:
         raise ex
     finally:
-        if exec_dir is not None:
-            shutil.rmtree(exec_dir)
+        if daemon is not None:
+            daemon.stop()
         if manager is not None:
             manager.stop()
+        if exec_dir is not None:
+            shutil.rmtree(exec_dir)
+
 
 if __name__ == "__main__":
     main()

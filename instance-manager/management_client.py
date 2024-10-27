@@ -3,7 +3,7 @@ import time
 import sys
 import serial
 
-from typing import Any
+from typing import Any, Dict, List, Optional
 from threading import Lock
 
 from common.instance_manager_message import *
@@ -29,8 +29,9 @@ class DownstreamMassage():
 
 class ManagementClient():
 
-    def __init__(self):
+    def __init__(self, instance_name: str):
         self.socket = None
+        self.instance_name = instance_name
         self.sendlock = Lock()
         self.partial_data = ""
 
@@ -59,6 +60,28 @@ class ManagementClient():
         if self.socket != None:
             self.socket.close()
             self.socket = None
+
+    def send_data_point(self, measurement: str, points: Dict[str, int | float], tags: Optional[List[str]] = None):
+        if points is None:
+            return
+
+        data = [
+            {
+                "measurement": measurement,
+                "tags": {
+                    "instance": self.instance_name,
+                },
+                "fields": points
+            }
+        ]
+
+        if tags is not None:
+            for k, v in tags.items():
+                data[0]["tags"][k] = v
+
+        message: DownstreamMassage = DownstreamMassage(InstanceStatus.DATA_POINT, data)
+        self.manager.send_to_server(message)
+
 
     def send_to_server(self, downstream_message: DownstreamMassage):
         try:

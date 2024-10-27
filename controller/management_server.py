@@ -78,7 +78,7 @@ class ManagementClientConnection(threading.Thread):
             case InstanceStatus.INITIALIZED:
                 self.client.set_state(state_manager.AgentManagementState.INITIALIZED)
                 logger.info(f"Management: Client {self.client.name} initialized.")
-            case InstanceStatus.MSG_ERROR | InstanceStatus.MSG_INFO | InstanceStatus.MSG_SUCCESS | InstanceStatus.DATA_POINT:
+            case InstanceStatus.MSG_ERROR | InstanceStatus.MSG_INFO | InstanceStatus.MSG_SUCCESS | InstanceStatus.MSG_WARNING | InstanceStatus.MSG_DEBUG | InstanceStatus.DATA_POINT:
                 pass
             case InstanceStatus.FAILED | InstanceStatus.EXPERIMENT_FAILED:
                 self.client.set_state(state_manager.AgentManagementState.FAILED)
@@ -112,6 +112,8 @@ class ManagementClientConnection(threading.Thread):
                     fn = logger.error
                 case InstanceStatus.MSG_SUCCESS:
                     fn = logger.success
+                case InstanceStatus.MSG_DEBUG:
+                    fn = logger.debug
                 case _:
                     fn = logger.warning
             
