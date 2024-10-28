@@ -11,12 +11,14 @@ from common.instance_manager_message import InstanceStatus
 
 class IMClientThread(Thread):
     def __init__(self, client_socket: socket, address, manager: ManagementClient, preserver: PreserveHandler):
+        Thread.__init__(self)
+        self.daemon = True
+
         self.client_socket = client_socket
         self.address = address
         self.manager = manager
         self.preserver = preserver
         self.shut_down = Event()
-        pass
 
     def _respond_to_client(self, ok: bool, message: Optional[str] = None):
         result = {
@@ -26,7 +28,7 @@ class IMClientThread(Thread):
             result["message"] = message
             print(f"Daemon Thread: Client {self.address}: {message}", flush=True)
 
-        self.client_socket.sendall(json.dumps(result).encode('utf-8') + b'\n')
+        self.client_socket.sendall(json.dumps(result).encode("utf-8") + b'\n')
         return ok
 
     def _handle_preserve(self, data) -> bool:
@@ -38,7 +40,7 @@ class IMClientThread(Thread):
         path = data["path"]
 
         self.preserver.add(path)
-        return True
+        return self._respond_to_client(True)
         
     def _handle_log(self, data) -> bool:
         if "level" not in data or "message" not in data:
@@ -62,9 +64,9 @@ class IMClientThread(Thread):
         if not isinstance(data["message"], str):
             return self._respond_to_client(False, f"Field 'message' is not a string")
         
-        message: DownstreamMassage = DownstreamMassage(type, message)
+        message: DownstreamMassage = DownstreamMassage(type, data["message"])
         self.manager.send_to_server(message)
-        return True
+        return self._respond_to_client(True)
     
     def _handle_data(self, data) -> bool:
         if "measurement" not in data or "tags" not in data or "points" not in data:
@@ -74,19 +76,22 @@ class IMClientThread(Thread):
             return self._respond_to_client(False, f"Field 'measurement' is not a string")
         measurement = data["measurement"]
         
-        if not isinstance(data["tags"], list) or not all(isinstance(item, str) for item in data)["tags"]:
-            return self._respond_to_client(False, "'tags' is not a list of strings")
+        if not isinstance(data["tags"], dict):
+            return self._respond_to_client(False, "'tags' is not a dict of strings")
+        
+        if not all((isinstance(key, str) and isinstance(value, str)) for key, value in data["tags"].items()):
+            return self._respond_to_client(False, "'tags' contains invalid keys or values")
         tags = data["tags"]
         
         if not isinstance(data["points"], dict) or not len(data["points"]):
             return self._respond_to_client(False, "'points' has no values or is invalid")
-            
-        if not all(isinstance(key, str) and isinstance(value, (int, float)) for key, value in data["points"].items()):
+
+        if not all((isinstance(key, str) and isinstance(value, (int, float))) for key, value in data["points"].items()):
             return self._respond_to_client(False, "'points' contains non float or int values")
         points = data["points"]
         
         self.manager.send_data_point(measurement, points, tags)
-        return True
+        return self._respond_to_client(True)
 
     def _process_one_message(self, data) -> bool:
         json_data = json.loads(data)
@@ -121,7 +126,7 @@ class IMClientThread(Thread):
 
         partial_data = ""
 
-        while not self.stop_event.is_set():
+        while not self.shut_down.is_set():
             try:
                 data = self.client_socket.recv(4096)
                 if len(data) == 0:
@@ -129,7 +134,6 @@ class IMClientThread(Thread):
                     break
 
                 partial_data = partial_data + data.decode("utf-8")
-                print(partial_data, flush=True)
 
                 if "}\n{" in partial_data:
                     parts = partial_data.split("}\n{")
@@ -167,6 +171,7 @@ class IMClientThread(Thread):
                 continue
             except Exception as ex:
                 print(f"Daemon Thread: Client {self.address} error: {ex}", flush=True)
+                raise ex
                 break
         
         print(f"Daemon Thread: Client {self.address}: Connection closed.", flush=True)
@@ -195,7 +200,7 @@ class IMDaemonServer():
                     client_thread = IMClientThread(client_socket, address, 
                                                    self.manager, self.preserver)
                     client_thread.start()
-                    self.client_threads.append()
+                    self.client_threads.append(client_thread)
                 except:
                     pass
             except socket.timeout:
@@ -211,6 +216,7 @@ class IMDaemonServer():
         
         self.server_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.server_sock.bind(self.socket_path)
+        os.chmod(self.socket_path, mode=0o777)
         self.server_sock.listen(4)
 
         self.server_thread = Thread(target=self._accept_thread, daemon=True)

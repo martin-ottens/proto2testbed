@@ -61,7 +61,7 @@ class ManagementClient():
             self.socket.close()
             self.socket = None
 
-    def send_data_point(self, measurement: str, points: Dict[str, int | float], tags: Optional[List[str]] = None):
+    def send_data_point(self, measurement: str, points: Dict[str, int | float], tags: Optional[Dict[str, str]] = None):
         if points is None:
             return
 
@@ -80,7 +80,7 @@ class ManagementClient():
                 data[0]["tags"][k] = v
 
         message: DownstreamMassage = DownstreamMassage(InstanceStatus.DATA_POINT, data)
-        self.manager.send_to_server(message)
+        self.send_to_server(message)
 
 
     def send_to_server(self, downstream_message: DownstreamMassage):

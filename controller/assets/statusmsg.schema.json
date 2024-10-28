@@ -13,10 +13,12 @@
             "enum": [
                 "started",
                 "initialized",
-                "msg_success",
                 "data_point",
                 "msg_info",
                 "msg_error",
+                "msg_success",
+                "msg_warning",
+                "msg_debug",
                 "exp_done",
                 "exp_failed",
                 "failed",

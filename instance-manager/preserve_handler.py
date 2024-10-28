@@ -1,6 +1,7 @@
 import subprocess
 import shutil
 import os
+import sys
 
 from typing import List
 from pathlib import Path
@@ -18,10 +19,12 @@ class PreserveHandler():
         pass
 
     def batch_add(self, preserve_files: List[str]):
-        self.files.extend(preserve_files)
+        if preserve_files is not None:
+            self.files.extend(preserve_files)
 
     def add(self, preserve_file: str):
-        self.files.append(preserve_file)
+        if preserve_file is not None:
+            self.files.append(preserve_file)
 
     def preserve(self) -> bool:
         if len(self.files) == 0:
@@ -44,24 +47,33 @@ class PreserveHandler():
             
             self.is_mounted = True
 
-        for preserve_file in message.preserve_files:
-            path = Path(preserve_file)
-            if not path.is_absolute():
+        for preserve_file in self.files:
+            try:
+                path = Path(preserve_file)
+                if not path.is_absolute():
+                    message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
+                                                f"Unable to preserve '{preserve_file}': Not an absolute path")
+                    self.manager.send_to_server(message)
+                    continue
+
+                if preserve_file.startswith(self.exchange_mount):
+                    continue
+
+                if not path.exists():
+                    message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
+                                                f"Unable to preserve '{preserve_file}': Path does not exists")
+                    self.manager.send_to_server(message)
+                    continue
+
+                destination_path = os.path.join(self.exchange_mount, preserve_file.lstrip('/'))
+                if path.is_dir():
+                    shutil.copytree(path, destination_path)
+                else:
+                    os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+                    shutil.copy2(path, destination_path)
+            except Exception as ex:
                 message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
-                                            f"Unable to preserve '{preserve_file}': Not an absolute path")
-                self.manager.send_to_server(message)
-                continue
-
-            if preserve_file.startswith(self.exchange_mount):
-                continue
-
-            if not path.exists():
-                message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
-                                            f"Unable to preserve '{preserve_file}': Path does not exists")
-                self.manager.send_to_server(message)
-                continue
-
-            destination_path = os.path.join(self.exchange_mount, preserve_file.lstrip('/'))
-            shutil.copytree(path, destination_path)
+                                                f"Unable to preserve '{preserve_file}': Unhandeled error: {ex}")
+                print(f"Error during preservation of '{preserve_file}': {ex}", flush=True, file=sys.stderr)
         
         return True
