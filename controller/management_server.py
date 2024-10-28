@@ -119,7 +119,7 @@ class ManagementClientConnection(threading.Thread):
                 case _:
                     fn = logger.warning
             
-            fn(f"Management: Client {self.client.name} sends message: {message_obj.message}")
+            fn(f"LOG - Instance {self.client.name}: {message_obj.message}")
         
         return True
     

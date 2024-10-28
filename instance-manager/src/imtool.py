@@ -40,7 +40,7 @@ def main():
             except Exception as ex:
                 print(f"Invalid Path '{args.path}': {ex}", file=sys.stderr)
                 sys.exit(1)
-            payload["path"] = args.path
+            payload["path"] = str(Path(args.path).resolve())
         case "status":
             pass
         case "log":

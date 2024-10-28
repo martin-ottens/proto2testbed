@@ -38,7 +38,7 @@ class NetworkBridge(Dismantable):
         is_running =  NetworkBridge.check_interfaces_available([name])
 
         if is_running and clean:
-            logger.info(f"Bridge {self.name} exists, --clean is set, so deleting bridge.")
+            logger.warning(f"Bridge {self.name} exists, --clean is set, so deleting bridge.")
             
             if not self._run_command(["/usr/sbin/ip", "link", "set", "down", "dev", self.name]):
                 raise Exception(f"Unable to bring bridge {self.name} down")
@@ -49,7 +49,7 @@ class NetworkBridge(Dismantable):
             is_running = False
 
         if is_running:
-            logger.info(f"Bridge {self.name} exists, skipping creation (Concurrent testbeds?)")
+            logger.warning(f"Bridge {self.name} exists, skipping creation (Concurrent testbeds?)")
         else:
             if not self._run_command(["/usr/sbin/brctl", "addbr", self.name]):
                 raise Exception(f"Setup of bridge {self.name} failed")

@@ -316,6 +316,7 @@ class Controller(Dismantable):
 
         if SettingsWrapper.cli_paramaters.pause == "INIT":
             self.wait_before_release(on_demand=True)
+            self.send_finish_message()
             return True
         
         logger.info("Startig applications on Instances.")
@@ -339,6 +340,7 @@ class Controller(Dismantable):
             logger.error("Maximum experiment duration could not be calculated -> No applications installed!")
             if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
                 self.wait_before_release(on_demand=True)
+                self.send_finish_message()
                 return True
             return False
         else:

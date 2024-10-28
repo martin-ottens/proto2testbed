@@ -29,7 +29,7 @@ class PreserveHandler():
         if len(self.files) == 0:
             return True
 
-        if not os.pat.ismount(self.exchange_mount):
+        if not os.path.ismount(self.exchange_mount):
             proc = None
             try:
                 proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", self.exchange_p9_dev, self.exchange_mount])
