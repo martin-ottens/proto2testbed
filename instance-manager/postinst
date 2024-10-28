@@ -18,7 +18,13 @@ echo "timeout 1" > /etc/dhcp/dhclient.conf
 sed -i 's/GRUB_TIMEOUT=5/GRUB_TIMEOUT=0/' /etc/default/grub
 update-grub2
 
+# Auto login for tty via serial console
+sed -i 's|^ExecStart=.*|ExecStart=-/sbin/agetty -o '\''-p -- \\\\u'\'' --autologin testbed --keep-baud 115200,57600,38400,9600 - $TERM|' /lib/systemd/system/serial-getty@.service 
+passwd -d testbed
+passwd -d root
+
 # Allow root login via SSH/Management Network
 if [ -f /etc/ssh/sshd_config ]; then
     echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
+    echo 'PermitEmptyPasswords yes' >> /etc/ssh/sshd_config
 fi
