@@ -43,6 +43,7 @@ class ManagementClient():
         while True:
             try:
                 self.socket = serial.Serial(MGMT_SERVER_SERIAL, MGMT_SERVER_SERIAL_BAUDRATE, timeout=1)
+                print(f"Opened serial connection to Management Server {MGMT_SERVER_SERIAL}", file=sys.stderr, flush=True)
                 return
             except Exception as ex:
                 print(f"Unable to connect to {MGMT_SERVER_SERIAL}: {ex}", file=sys.stderr, flush=True)

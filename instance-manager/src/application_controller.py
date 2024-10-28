@@ -10,14 +10,16 @@ from common.application_configs import Applications, ApplicationConfig
 from common.instance_manager_message import InstanceStatus
 
 from management_client import ManagementClient, DownstreamMassage
+from application_interface import ApplicationInterface
 
-from applications.influxdb_adapter import InfluxDBAdapter
 from applications.base_application import BaseApplication
 from applications.iperf_client_application import IperfClientApplication
 from applications.iperf_server_application import IperfServerApplication
 from applications.ping_application import PingApplication
 from applications.procmon_application import ProcmonApplication
 from applications.run_program_application import RunProgramApplication
+
+IM_SOCKET_PATH = "/tmp/im.sock"
 
 class ApplicationController(Thread):
     @staticmethod
@@ -60,8 +62,14 @@ class ApplicationController(Thread):
         """
 
         try:
-            local_influx_adapter = InfluxDBAdapter(self.get_application_name(), self.instance_name, self.mgmt_client)
-            rc = self.application.start_collection(self.settings, self.config.runtime, local_influx_adapter)
+            try:
+                interface = ApplicationInterface(self.config.name, IM_SOCKET_PATH)
+                interface.connect()
+            except Exception as ex:
+                raise "Unable to connect to Instance Manager Daemon" from ex
+            rc = self.application.start_collection(self.settings, self.config.runtime, interface)
+
+            interface.disconnect()
             if not rc:
                 self.shared_state["error_flag"] = True
                 self.shared_state["error_string"] = f"Application finished with return code: {rc}"

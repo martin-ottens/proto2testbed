@@ -1,8 +1,9 @@
 import socket
 import os
 import json
+import sys
 
-from threading import Thread, Event
+from threading import Thread, Event, Lock
 from typing import List, Optional
 
 from preserve_handler import PreserveHandler
@@ -10,12 +11,19 @@ from management_client import ManagementClient, DownstreamMassage
 from common.instance_manager_message import InstanceStatus
 
 class IMClientThread(Thread):
-    def __init__(self, client_socket: socket, address, manager: ManagementClient, preserver: PreserveHandler):
+    client_id: int = 0
+    id_lock = Lock()
+    def next_client() -> int:
+        with IMClientThread.id_lock:
+            IMClientThread.client_id += 1
+            return IMClientThread.client_id
+
+    def __init__(self, client_socket: socket, manager: ManagementClient, preserver: PreserveHandler):
         Thread.__init__(self)
         self.daemon = True
 
         self.client_socket = client_socket
-        self.address = address
+        self.id = IMClientThread.next_client()
         self.manager = manager
         self.preserver = preserver
         self.shut_down = Event()
@@ -26,7 +34,7 @@ class IMClientThread(Thread):
             }
         if message is not None:
             result["message"] = message
-            print(f"Daemon Thread: Client {self.address}: {message}", flush=True)
+            print(f"Daemon Thread: Client {self.id}: {message}", file=sys.stderr, flush=True)
 
         self.client_socket.sendall(json.dumps(result).encode("utf-8") + b'\n')
         return ok
@@ -98,7 +106,7 @@ class IMClientThread(Thread):
         if "type" not in json_data:
             return self._respond_to_client(False, "Field 'type' not in message")
         
-        print(f"Daemon Thread: Client {self.address} issued command: {json_data['type']}", flush=True)
+        print(f"Daemon Thread: Client {self.id} issued command: {json_data['type']}", file=sys.stderr, flush=True)
 
         match json_data["type"]:
             case "status":
@@ -122,7 +130,7 @@ class IMClientThread(Thread):
     def run(self):
         self.shut_down.clear()
         self.client_socket.settimeout(0.5)
-        print(f"Daemon Thread: Client {self.address} connected", flush=True)
+        print(f"Daemon Thread: Client {self.id} connected", file=sys.stderr, flush=True)
 
         partial_data = ""
 
@@ -130,7 +138,7 @@ class IMClientThread(Thread):
             try:
                 data = self.client_socket.recv(4096)
                 if len(data) == 0:
-                    print(f"Daemon Thread: Client {self.address} disconnected (0 bytes read)", flush=True)
+                    print(f"Daemon Thread: Client {self.id} disconnected (0 bytes read)", file=sys.stderr, flush=True)
                     break
 
                 partial_data = partial_data + data.decode("utf-8")
@@ -170,11 +178,11 @@ class IMClientThread(Thread):
             except socket.timeout:
                 continue
             except Exception as ex:
-                print(f"Daemon Thread: Client {self.address} error: {ex}", flush=True)
+                print(f"Daemon Thread: Client {self.id} error: {ex}", file=sys.stderr, flush=True)
                 raise ex
                 break
         
-        print(f"Daemon Thread: Client {self.address}: Connection closed.", flush=True)
+        print(f"Daemon Thread: Client {self.id}: Connection closed.", file=sys.stderr, flush=True)
         self.client_socket.close()
 
     def stop(self):
@@ -192,13 +200,12 @@ class IMDaemonServer():
     def _accept_thread(self):
         while True:
             try:
-                client_socket, address = self.server_sock.accept()
+                client_socket, _ = self.server_sock.accept()
                 if self.shut_down.is_set():
                     break
                 
                 try:
-                    client_thread = IMClientThread(client_socket, address, 
-                                                   self.manager, self.preserver)
+                    client_thread = IMClientThread(client_socket, self.manager, self.preserver)
                     client_thread.start()
                     self.client_threads.append(client_thread)
                 except:

@@ -1,5 +1,3 @@
-- Copy files from Instance to host
-  - Command in instance manager to mark files for exchange (via UDS, 'preserve <PATH>' command)
 - Specify a single command that will be executed on the host during experiment in testbed config
 - Add CLI mode to controller frontend that allows to attach to Instance TTY (+ Auto login)
 - Rework Communication Protocol Instance Manager <-> Controller, decouple application config from testbed config schema

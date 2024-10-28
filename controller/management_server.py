@@ -66,9 +66,11 @@ class ManagementClientConnection(threading.Thread):
                 if previous == state_manager.AgentManagementState.DISCONNECTED:
                     logger.error(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Instance Manager failed?")
                     self.client.set_state(state_manager.AgentManagementState.FAILED)
+                    self.send_message(InitializeMessageUpstream(None, None).to_json().encode("utf-8"))
                 elif previous == state_manager.AgentManagementState.INITIALIZED:
                     logger.warning(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Skipping Instance setup!")
                     self.client.set_state(state_manager.AgentManagementState.INITIALIZED)
+                    self.send_message(InitializeMessageUpstream(None, None).to_json().encode("utf-8"))
                 else:
                     self.client.set_state(state_manager.AgentManagementState.STARTED)
                     logger.info(f"Management: Client '{self.expected_instance.name}': Started. Sending setup instructions.")

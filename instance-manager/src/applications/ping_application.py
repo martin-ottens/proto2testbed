@@ -1,11 +1,12 @@
 import subprocess
 
 from applications.base_application import BaseApplication
-from applications.influxdb_adapter import InfluxDBAdapter
 from common.application_configs import ApplicationConfig, PingApplicationConfig
+from application_interface import ApplicationInterface
+
 
 class PingApplication(BaseApplication):
-    def start_collection(self, settings: ApplicationConfig, runtime: int, adapter: InfluxDBAdapter) -> bool:
+    def start_collection(self, settings: ApplicationConfig, runtime: int, interface: ApplicationInterface) -> bool:
         if not isinstance(settings, PingApplicationConfig):
             raise Exception("Received invalid config type!")
         
@@ -79,7 +80,7 @@ class PingApplication(BaseApplication):
                     "icmp_seq": icmp_seq
                 }
                 
-                adapter.add("ping", data)
+                interface.data_point("ping", data)
 
         except Exception as ex:
             raise Exception(f"Ping error: {ex}")

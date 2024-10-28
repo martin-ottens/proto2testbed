@@ -4,11 +4,12 @@ import time
 from typing import Dict
 
 from applications.base_application import BaseApplication
-from applications.influxdb_adapter import InfluxDBAdapter
 from common.application_configs import ApplicationConfig, ProcmonApplicationConfig
+from application_interface import ApplicationInterface
+
 
 class ProcmonApplication(BaseApplication):
-    def start_collection(self, settings: ApplicationConfig, runtime: int, adapter: InfluxDBAdapter) -> bool:
+    def start_collection(self, settings: ApplicationConfig, runtime: int, interface: ApplicationInterface) -> bool:
         if not isinstance(settings, ProcmonApplicationConfig):
             raise Exception("Received invalid config type!")
         
@@ -65,11 +66,11 @@ class ProcmonApplication(BaseApplication):
         
         def report(system_, processes_, interfaces_) -> None:
             if system_ is not None:
-                adapter.add("proc-system", system_)
+                interface.data_point("proc-system", system_)
             for k, v in processes_.items(): 
-                adapter.add("proc-process", v, {"process": k})
+                interface.data_point("proc-process", v, {"process": k})
             for k, v in interfaces_.items():
-                adapter.add("proc-interface", v, {"interface": k})
+                interface.data_point("proc-interface", v, {"interface": k})
         
         # Processes -> t=0 Offset
         processes = {}

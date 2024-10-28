@@ -1,7 +1,7 @@
 {
     "settings": {
         "management_network": "172.16.99.0/24",
-        "diskimage_basepath": "/tmp"
+        "diskimage_basepath": "/images/"
     },
     "networks": [
         {
