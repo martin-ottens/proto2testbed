@@ -15,6 +15,7 @@ from utils.settings import SettingsWrapper
 from utils.settings import InvokeIntegrationAfter
 from utils.influxdb import InfluxDBAdapter
 from management_server import ManagementServer
+from cli import CLI
 from state_manager import MachineStateManager, AgentManagementState, WaitResult
 from common.instance_manager_message import ApplicationsMessageUpstream, FinishInstanceMessageUpstream
 
@@ -247,6 +248,8 @@ class Controller(Dismantable):
             logger.critical("Instances have reported failed during file preservation or a timeout occured!")
         
     def main(self) -> bool:
+        self.cli = CLI(SettingsWrapper.cli_paramaters.log_quiet, SettingsWrapper.cli_paramaters.log_verbose)
+        self.cli.start()
         self.dismantables.insert(0, self.integration_helper)
 
         try:

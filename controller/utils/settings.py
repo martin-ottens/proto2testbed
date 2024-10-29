@@ -136,6 +136,9 @@ class CLIParameters():
     skip_integration: bool = False
     skip_substitution: bool = False
     preserve: Optional[str] = None
+    log_quiet: bool = False
+    log_verbose: bool = False
+    no_interactive: bool = False
 
 
 class SettingsWrapper():

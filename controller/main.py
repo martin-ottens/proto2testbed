@@ -33,6 +33,8 @@ if __name__ == "__main__":
                         help="Disable KVM virtualization in QEMU")
     parser.add_argument("-s", "--skip_integration", action="store_true", required=False, default=False,
                         help="Skip the execution of integrations")
+    parser.add_argument("-i", "--no_interactive", action='store_true', required=False, default=False,
+                        help="Disable interactive CLI mode")
     parser.add_argument( "-e", "--experiment", required=False, default=None, type=str, 
                         help="Name of experiment series, auto generated if omitted")
     parser.add_argument("-d", "--dont_store", required=False, default=False, action="store_true", 
@@ -45,13 +47,6 @@ if __name__ == "__main__":
                         required=False, default=None)
     
     args = parser.parse_args()
-
-    if args.quiet:
-        logger.remove()
-        logger.add(sys.stdout, level="INFO")
-    elif args.verbose:
-        logger.remove()
-        logger.add(sys.stdout, level="TRACE")
     
     parameters = CLIParameters()
     if os.path.isabs(args.TESTBED_CONFIG):
@@ -69,6 +64,9 @@ if __name__ == "__main__":
     parameters.influx_path = args.influxdb
     parameters.skip_integration = args.skip_integration
     parameters.skip_substitution = args.skip_substitution
+    parameters.log_quiet = args.quiet
+    parameters.log_verbose = args.verbose
+    parameters.no_interactive = args.no_interactive
 
     if args.preserve is not None:
         try:
