@@ -1,71 +1,92 @@
 import sys
-import curses
+import readline # Not unused, when imported, used by input()
+import time
+import termios
 
-from threading import Thread
+from threading import Thread, Event
 from loguru import logger
 
 from utils.interfaces import Dismantable
 
 class CLI(Dismantable):
-
+    
     instance = None
-    logger_enabled: bool = True
 
     def _filter_logging(record):
-        return CLI.logger_enabled
-    
-    def _log_sink(text):
-        win = CLI.instance.output_win
-        if len(text) > win.getmaxyx()[1]:
-            text = text[-win.getmaxyx()[1]:]
-        win.addstr(text)
-        win.refresh()
+        return CLI.instance.enable_output.is_set()
 
     def _enable_logging(self):
         logger.remove()
         if self.log_quiet:
-            logger.add(CLI._log_sink, level="INFO", filter=CLI._filter_logging, colorize=True)
+            logger.add(sys.stdout, level="INFO", filter=CLI._filter_logging, colorize=True)
         elif self.log_verbose:
-            logger.add(CLI._log_sink, level="TRACE", filter=CLI._filter_logging, colorize=True)
+            logger.add(sys.stdout, level="TRACE", filter=CLI._filter_logging, colorize=True)
         else:
-            logger.add(CLI._log_sink, level="DEBUG", filter=CLI._filter_logging, colorize=True)
+            logger.add(sys.stdout, level="DEBUG", filter=CLI._filter_logging, colorize=True)
 
     def _run(self):
-        while True:
-            self.input_win.clear()
-            self.input_win.addstr(0, 0, "> ")
-            self.input_win.refresh()
+        def clear_stdin():
+            termios.tcflush(sys.stdin, termios.TCIOFLUSH)
 
-            cli_input = self.input_win.getstr().decode('utf-8')
+        while True:
+            if not self.enable_interaction.is_set():
+                self.enable_interaction.wait()
+                clear_stdin()
+
+            try:
+                cli_input = input("> ")
+                if not self.enable_interaction.is_set():
+                    self.enable_interaction.wait()
+                    clear_stdin()
+                    continue
+            except EOFError:
+                continue
+            
             if cli_input.strip().lower() == "exit":
                 print("Exiting...")
                 break
-            logger.info(f"You entered: " + cli_input.replace("\n", ""))
+            logger.info(f"cmd: " + cli_input.replace("\n", ""))
 
     def __init__(self, log_quiet: bool, log_verbose: bool):
-        if CLI.instance is None:
-            CLI.instance = self
-
+        CLI.instance = self
         self.log_quiet = log_quiet
         self.log_verbose = log_verbose
-        self.logging_enabled = True
+        self.enable_interaction = Event()
+        self.enable_output = Event()
+
+        self.enable_interaction.clear()
+        self.enable_output.set()
         self._enable_logging()
 
-    def run_wrapper(self, stdscr):
-        curses.curs_set(1)
-        stdscr.clear()
-        stdscr.refresh()
-        height, width = stdscr.getmaxyx()
+    def toggle_output(self, state: bool):
+        if state:
+            self.enable_logger.set()
+        else:
+            self.enable_logger.clear()
 
-        self.output_win = stdscr.subwin(height - 1, width, 0, 0)
-        self.output_win.scrollok(True) 
-        self.input_win = stdscr.subwin(1, width, height - 1, 0)
-        self.input_win.clear()
+    def toggle_interaction(self, state: bool):
+        if self.enable_interaction.is_set() and not state:
+            sys.stdout.write("\033[2K\r") # Erase current line, carriage return
+
+        if state:
+            self.enable_interaction.set()
+        else:
+            self.enable_interaction.clear()
+
+    def toogle_logging(self):
+        time.sleep(5)
+        logger.info("ON")
+        self.toggle_interaction(True)
+        time.sleep(20)
+        self.toggle_interaction(False)
+        logger.info("OFF")
 
     def start(self):
-        curses.wrapper(self.run_wrapper)
         self.thread = Thread(target=self._run, daemon=True)
         self.thread.start()
+
+        t1 = Thread(target=self.toogle_logging, daemon=True)
+        t1.start()
 
     def stop(self):
         pass
