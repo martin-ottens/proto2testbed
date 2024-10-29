@@ -1,12 +1,13 @@
 import sys
 import readline # Not unused, when imported, used by input()
-import time
 import termios
+import pexpect
 
 from threading import Thread, Event
 from loguru import logger
 
 from utils.interfaces import Dismantable
+from state_manager import MachineStateManager
 
 class CLI(Dismantable):
     
@@ -24,6 +25,18 @@ class CLI(Dismantable):
         else:
             logger.add(sys.stdout, level="DEBUG", filter=CLI._filter_logging, colorize=True)
 
+    def _attach_to_tty(self, socket_path: str, name: str):
+        process = pexpect.spawn("/usr/bin/socat", [f"UNIX-CONNECT:{socket_path}", "STDIO,raw,echo=0"], 
+                            timeout=None, encoding="utf-8", echo=False)
+        print(f"# Attached to Instance '{name}', CRTL + ] to disconnect.")
+        process.send("\n")
+        process.readline()
+        process.interact()
+        process.terminate()
+        print("\n# Connection to serial TTY closed.")
+        if process.isalive():
+            logger.error("TTY attach scoat subprocess is still alive after termination!")
+
     def _run(self):
         def clear_stdin():
             termios.tcflush(sys.stdin, termios.TCIOFLUSH)
@@ -32,7 +45,6 @@ class CLI(Dismantable):
             if not self.enable_interaction.is_set():
                 self.enable_interaction.wait()
                 clear_stdin()
-
             try:
                 cli_input = input("> ")
                 if not self.enable_interaction.is_set():
@@ -42,17 +54,51 @@ class CLI(Dismantable):
             except EOFError:
                 continue
             
-            if cli_input.strip().lower() == "exit":
-                print("Exiting...")
-                break
-            logger.info(f"cmd: " + cli_input.replace("\n", ""))
+            parts = cli_input.strip().lower().split(" ", maxsplit=1)
+            if len(parts) != 2:
+                command, args = parts[0], None
+            else:
+                command, args = parts
 
-    def __init__(self, log_quiet: bool, log_verbose: bool):
+            match command:
+                case "continue" | "c":
+                    if self.continue_event is None:
+                        logger.error("Unable to continue testbed, continue_event object missing.")
+                    else:
+                        self.continue_event.set()
+                    continue
+                case "attach" | "a":
+                    if args is None:
+                        logger.error(f"No Instance Name given. Usage: {command} <Instance Name>")
+                        continue
+
+                    target = args.split(" ", maxsplit=1)[0]
+                    machine = self.manager.get_machine(target)
+                    if machine is None:
+                        logger.error(f"Unable to get Instance with name '{machine}'")
+                        continue
+                    socket_path = machine.get_mgmt_tty_path()
+                    if socket_path is None:
+                        logger.error(f"Unable to get TTY Socket for Instance'{machine}'")
+                        continue
+
+                    self.toggle_output(False)
+                    self._attach_to_tty(socket_path, target)
+                    self.toggle_output(True)
+                    logger.info("Resume with CLI after attachemend was terminated.")
+
+                    continue
+                case _:
+                    logger.info(f"Unknown command '{command}', Available: continue, attach")
+
+    def __init__(self, log_quiet: bool, log_verbose: bool, manager: MachineStateManager):
         CLI.instance = self
+        self.manager = manager
         self.log_quiet = log_quiet
         self.log_verbose = log_verbose
         self.enable_interaction = Event()
         self.enable_output = Event()
+        self.continue_event = None
 
         self.enable_interaction.clear()
         self.enable_output.set()
@@ -60,9 +106,9 @@ class CLI(Dismantable):
 
     def toggle_output(self, state: bool):
         if state:
-            self.enable_logger.set()
+            self.enable_output.set()
         else:
-            self.enable_logger.clear()
+            self.enable_output.clear()
 
     def toggle_interaction(self, state: bool):
         if self.enable_interaction.is_set() and not state:
@@ -73,20 +119,17 @@ class CLI(Dismantable):
         else:
             self.enable_interaction.clear()
 
-    def toogle_logging(self):
-        time.sleep(5)
-        logger.info("ON")
+    def start_cli(self, event: Event):
+        self.continue_event = event
         self.toggle_interaction(True)
-        time.sleep(20)
+
+    def stop_cli(self):
+        self.continue_event = None
         self.toggle_interaction(False)
-        logger.info("OFF")
 
     def start(self):
         self.thread = Thread(target=self._run, daemon=True)
         self.thread.start()
-
-        t1 = Thread(target=self.toogle_logging, daemon=True)
-        t1.start()
 
     def stop(self):
         pass

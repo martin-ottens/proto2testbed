@@ -202,7 +202,7 @@ class Controller(Dismantable):
 
         return True
     
-    def wait_before_release(self, on_demand: bool = False):
+    def wait_before_release(self, event: Event, on_demand: bool = False) -> bool:
         sleep_for = SettingsWrapper.cli_paramaters.wait
 
         if on_demand:
@@ -217,13 +217,15 @@ class Controller(Dismantable):
                 logger.success(f"Testbed is ready, CRTL+C to dismantle (Auto stop disabled)")
         
         if sleep_for == -1:
-            try: Event().wait()
+            try: 
+                return event.wait()
             except KeyboardInterrupt:
-                return
-
-        try: time.sleep(sleep_for)
-        except KeyboardInterrupt:
-            return
+                return False
+        else:
+            try: 
+                return event.wait(timeout=sleep_for)
+            except KeyboardInterrupt | TimeoutError:
+                return False
         
     def get_longest_application_duration(self) -> int:
         max_value = 0
@@ -246,10 +248,22 @@ class Controller(Dismantable):
                                                                                   timeout=30)
         if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
             logger.critical("Instances have reported failed during file preservation or a timeout occured!")
+
+    def start_interaction(self) -> bool:
+        event = Event()
+        event.clear()
+        self.cli.start_cli(event)
+        status = self.wait_before_release(event, on_demand=True)
+        self.cli.stop_cli()
+        return status
         
     def main(self) -> bool:
-        self.cli = CLI(SettingsWrapper.cli_paramaters.log_quiet, SettingsWrapper.cli_paramaters.log_verbose)
+        self.cli = CLI(SettingsWrapper.cli_paramaters.log_quiet, 
+                       SettingsWrapper.cli_paramaters.log_verbose, 
+                       self.state_manager)
         self.cli.start()
+        self.dismantables.insert(0, self.cli)
+
         self.dismantables.insert(0, self.integration_helper)
 
         try:
@@ -296,8 +310,9 @@ class Controller(Dismantable):
             return False
         
         if SettingsWrapper.cli_paramaters.pause == "SETUP":
-            self.wait_before_release(on_demand=True)
-            return True
+            if not self.start_interaction():
+                self.send_finish_message()
+                return True
 
         logger.info("Waiting for Instances to start and initialize ...")
         
@@ -318,9 +333,9 @@ class Controller(Dismantable):
             return False
 
         if SettingsWrapper.cli_paramaters.pause == "INIT":
-            self.wait_before_release(on_demand=True)
-            self.send_finish_message()
-            return True
+            if not self.start_interaction():
+                self.send_finish_message()
+                return True
         
         logger.info("Startig applications on Instances.")
         for machine in SettingsWrapper.testbed_config.instances:
@@ -342,9 +357,8 @@ class Controller(Dismantable):
         if experiment_timeout == 0:
             logger.error("Maximum experiment duration could not be calculated -> No applications installed!")
             if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
-                self.wait_before_release(on_demand=True)
+                self.start_interaction()
                 self.send_finish_message()
-                return True
             return False
         else:
             logger.debug(f"Waiting a maximum of {experiment_timeout} seconds for the experiment to finish.")
@@ -353,9 +367,8 @@ class Controller(Dismantable):
             if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
                 logger.critical("Instances have reported failed applications or a timeout occured!")
                 if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
-                    self.wait_before_release(on_demand=True)
+                    self.start_interaction()
                     self.send_finish_message()
-                    return True
                 return False
             elif result == WaitResult.INTERRUPTED:
                 logger.critical("Waiting for applications to finish was interrupted!")
@@ -363,8 +376,7 @@ class Controller(Dismantable):
             logger.success("All Instances reported finished applications!")
             
         if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
-            self.wait_before_release(on_demand=True)
-            self.send_finish_message()
+            self.start_interaction()
         
         self.send_finish_message()
 
