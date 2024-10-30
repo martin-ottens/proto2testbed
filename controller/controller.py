@@ -14,6 +14,7 @@ from utils.config_tools import load_config, load_vm_initialization, check_preser
 from utils.settings import SettingsWrapper
 from utils.settings import InvokeIntegrationAfter
 from utils.influxdb import InfluxDBAdapter
+from utils.continue_mode import *
 from management_server import ManagementServer
 from cli import CLI
 from state_manager import MachineStateManager, AgentManagementState, WaitResult
@@ -31,6 +32,7 @@ class Controller(Dismantable):
 
         self.base_path = Path(SettingsWrapper.cli_paramaters.config)
         self.config_path = self.base_path / "testbed.json"
+        self.pause_after: PauseAfterSteps = SettingsWrapper.cli_paramaters.pause
 
         try:
             SettingsWrapper.testbed_config = load_config(self.config_path, 
@@ -203,29 +205,15 @@ class Controller(Dismantable):
         return True
     
     def wait_before_release(self, event: Event, on_demand: bool = False) -> bool:
-        sleep_for = SettingsWrapper.cli_paramaters.wait
-
         if on_demand:
-            if sleep_for != -1:
-                logger.success(f"Testbed paused after stage {SettingsWrapper.cli_paramaters.pause}, CRTL+C to dismantle (Auto stop after {sleep_for}s)")
-            else: 
-                logger.success(f"Testbed paused after stage {SettingsWrapper.cli_paramaters.pause}, CRTL+C to dismantle (Auto stop disabled)")
+            logger.success(f"Testbed paused after stage {self.pause_after.name}, Interactive mode enabled (CRTL+C to exit).")
         else:
-            if sleep_for != -1:
-                logger.success(f"Testbed is ready, CRTL+C to dismantle (Auto stop after {sleep_for}s)")
-            else:
-                logger.success(f"Testbed is ready, CRTL+C to dismantle (Auto stop disabled)")
-        
-        if sleep_for == -1:
-            try: 
-                return event.wait()
-            except KeyboardInterrupt:
-                return False
-        else:
-            try: 
-                return event.wait(timeout=sleep_for)
-            except KeyboardInterrupt | TimeoutError:
-                return False
+            logger.success(f"Testbed is ready, Interactive mode enabled (CRTL+C to exit).")
+       
+        try: 
+            return event.wait()
+        except KeyboardInterrupt:
+            return False
         
     def get_longest_application_duration(self) -> int:
         max_value = 0
@@ -249,13 +237,23 @@ class Controller(Dismantable):
         if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
             logger.critical("Instances have reported failed during file preservation or a timeout occured!")
 
-    def start_interaction(self) -> bool:
+    def start_interaction(self, at_step: PauseAfterSteps) -> bool:
         event = Event()
+        contine_mode = CLIContinue(at_step)
         event.clear()
-        self.cli.start_cli(event)
+        self.cli.start_cli(event, contine_mode)
         status = self.wait_before_release(event, on_demand=True)
         self.cli.stop_cli()
-        return status
+        
+        if not status:
+            return False
+        else:
+            if contine_mode.mode == ContinueMode.EXIT:
+                return False
+            else: # ContinueMode.CONTINUE_TO
+                self.pause_after = contine_mode.pause
+                return True
+
         
     def main(self) -> bool:
         self.cli = CLI(SettingsWrapper.cli_paramaters.log_quiet, 
@@ -309,8 +307,8 @@ class Controller(Dismantable):
             logger.critical("Critical error during instance setup")
             return False
         
-        if SettingsWrapper.cli_paramaters.pause == "SETUP":
-            if not self.start_interaction():
+        if self.pause_after == PauseAfterSteps.SETUP:
+            if not self.start_interaction(PauseAfterSteps.SETUP):
                 self.send_finish_message()
                 return True
 
@@ -332,8 +330,8 @@ class Controller(Dismantable):
             logger.critical("Critical error during integration start!")
             return False
 
-        if SettingsWrapper.cli_paramaters.pause == "INIT":
-            if not self.start_interaction():
+        if self.pause_after == PauseAfterSteps.INIT:
+            if not self.start_interaction(PauseAfterSteps.INIT):
                 self.send_finish_message()
                 return True
         
@@ -356,8 +354,8 @@ class Controller(Dismantable):
     
         if experiment_timeout == 0:
             logger.error("Maximum experiment duration could not be calculated -> No applications installed!")
-            if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
-                self.start_interaction()
+            if self.pause_after == PauseAfterSteps.EXPERIMENT:
+                self.start_interaction(PauseAfterSteps.EXPERIMENT)
                 self.send_finish_message()
             return False
         else:
@@ -366,8 +364,8 @@ class Controller(Dismantable):
                                                                                     timeout=experiment_timeout)
             if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
                 logger.critical("Instances have reported failed applications or a timeout occured!")
-                if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
-                    self.start_interaction()
+                if self.pause_after == PauseAfterSteps.EXPERIMENT:
+                    self.start_interaction(PauseAfterSteps.EXPERIMENT)
                     self.send_finish_message()
                 return False
             elif result == WaitResult.INTERRUPTED:
@@ -375,8 +373,8 @@ class Controller(Dismantable):
                 return False
             logger.success("All Instances reported finished applications!")
             
-        if SettingsWrapper.cli_paramaters.pause == "EXPERIMENT":
-            self.start_interaction()
+        if self.pause_after == PauseAfterSteps.EXPERIMENT:
+            self.start_interaction(PauseAfterSteps.EXPERIMENT)
         
         self.send_finish_message()
 

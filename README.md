@@ -10,7 +10,7 @@ README are relative to the root of the cloned repo.
 
 ### Installation of Required Dependencies on Host
 ```bash
-apt install qemu-utils qemu-system-x86 qemu-system-gui bridge-utils iptables net-tools genisoimage python3 iproute2 influxdb influxdb-client make
+apt install qemu-utils qemu-system-x86 qemu-system-gui bridge-utils iptables net-tools genisoimage python3 iproute2 influxdb influxdb-client make socat
 ```
 
 The InfluxDB is by default configured to allow arbitrary, privileged connections (the management network of the testbed needs full access to the InfluxDB on the host).

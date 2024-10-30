@@ -4,6 +4,7 @@ from abc import ABC
 from dataclasses import dataclass
 
 from common.application_configs import ApplicationConfig
+from utils.continue_mode import PauseAfterSteps
 
 @dataclass
 class TestbedSettings():
@@ -124,9 +125,8 @@ class TestbedConfig():
 
 @dataclass
 class CLIParameters():
-    config: Optional[str] = None
+    config: PauseAfterSteps = PauseAfterSteps.DISABLE
     pause: Optional[str] = None
-    wait: Optional[int] = None
     sudo_mode: bool = False
     disable_kvm: bool = False
     clean: bool = False

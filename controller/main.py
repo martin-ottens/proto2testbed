@@ -11,6 +11,7 @@ from pathlib import Path
 from controller import Controller
 from utils.settings import CLIParameters, SettingsWrapper
 from utils.pidfile import PidFile
+from utils.continue_mode import PauseAfterSteps
 
 
 if __name__ == "__main__":
@@ -18,15 +19,13 @@ if __name__ == "__main__":
     parser.add_argument("TESTBED_CONFIG", type=str, help="Path to testbed package")
     parser.add_argument("--clean", action="store_true", required=False, default=False,
                         help="Clean network interfaces before startup (Beware of concurrent testbeds!)")
-    parser.add_argument("--pause", choices=["SETUP", "INIT", "EXPERIMENT", "DISABLE"], 
-                        required=False, default="DISABLE", type=str,
+    parser.add_argument("--pause", choices=[p.name for p in PauseAfterSteps], 
+                        required=False, default=PauseAfterSteps.DISABLE.name, type=str,
                         help="Stop after step of controller and wait (--wait)")
     parser.add_argument("-v", "--verbose", action="store_true", required=False, default=False,
                         help="Print TRACE log messages")
     parser.add_argument("-q", "--quiet", action="store_true", required=False, default=False,
                         help="Only print INFO, ERROR, SUCCESS or CRITICAL log messages")
-    parser.add_argument("--wait", required=False, type=int, default=-1, 
-                        help="Wait before shutdown, -1 = wait forever (default), x >= 0 = wait x seconds")
     parser.add_argument("--sudo", action="store_true", required=False, default=False,
                         help="Prepend 'sudo' to all commands (non-interactive), root required otherwise")
     parser.add_argument("--no_kvm", action="store_true", required=False, default=False,
@@ -54,8 +53,7 @@ if __name__ == "__main__":
     else:
         parameters.config = f"{os.getcwd()}/{args.TESTBED_CONFIG}"
 
-    parameters.pause = args.pause
-    parameters.wait = args.wait
+    parameters.pause = PauseAfterSteps[args.pause]
     parameters.sudo_mode = args.sudo
     parameters.disable_kvm = args.no_kvm
     parameters.clean = args.clean

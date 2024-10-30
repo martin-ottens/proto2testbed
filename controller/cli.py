@@ -5,37 +5,123 @@ import pexpect
 
 from threading import Thread, Event
 from loguru import logger
+from typing import Optional, List
 
 from utils.interfaces import Dismantable
+from utils.continue_mode import *
 from state_manager import MachineStateManager
 
 class CLI(Dismantable):
-    
+    _CLEAN_LOG_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>"
     instance = None
 
     def _filter_logging(record):
         return CLI.instance.enable_output.is_set()
 
     def _enable_logging(self):
+        logger.level(name="CLI", no=45, color="<magenta>")
         logger.remove()
         if self.log_quiet:
-            logger.add(sys.stdout, level="INFO", filter=CLI._filter_logging, colorize=True)
+            logger.add(sys.stdout, level="INFO", 
+                       format=CLI._CLEAN_LOG_FORMAT,
+                       filter=CLI._filter_logging, 
+                       colorize=True)
         elif self.log_verbose:
-            logger.add(sys.stdout, level="TRACE", filter=CLI._filter_logging, colorize=True)
+            logger.add(sys.stdout, level="TRACE", 
+                       filter=CLI._filter_logging,
+                       colorize=True)
         else:
-            logger.add(sys.stdout, level="DEBUG", filter=CLI._filter_logging, colorize=True)
+            logger.add(sys.stdout, level="DEBUG", 
+                       filter=CLI._filter_logging, 
+                       format=CLI._CLEAN_LOG_FORMAT,
+                       colorize=True)
 
-    def _attach_to_tty(self, socket_path: str, name: str):
+    def _attach_to_tty(self, socket_path: str):
         process = pexpect.spawn("/usr/bin/socat", [f"UNIX-CONNECT:{socket_path}", "STDIO,raw,echo=0"], 
                             timeout=None, encoding="utf-8", echo=False)
-        print(f"# Attached to Instance '{name}', CRTL + ] to disconnect.")
         process.send("\n")
         process.readline()
         process.interact()
         process.terminate()
-        print("\n# Connection to serial TTY closed.")
+        print("\n")
         if process.isalive():
             logger.error("TTY attach scoat subprocess is still alive after termination!")
+
+    def handle_command(self, base_command: str, args: Optional[List[str]]) -> bool:
+        match base_command:
+            case "continue" | "c":
+                continue_to = PauseAfterSteps.DISABLE
+                if args is not None and len(args) >= 1:
+                    try:
+                        continue_to = PauseAfterSteps[args[0].upper()]
+                    except Exception:
+                        logger.log("CLI", f"Can't continue to '{args[0]}': State not INIT OR EXPERIMENT")
+                        return True
+        
+                if self.continue_event is None:
+                    logger.log("CLI", "Unable to continue testbed, continue_event object missing.")
+                    return True
+                else:
+                    if not self.continue_mode.update(ContinueMode.CONTINUE_TO, continue_to):
+                        logger.log("CLI", f"Can't continue to '{args[0]}': Step is in the past.")
+                        return True
+                    
+                    logger.log("CLI", f"Continue with testbed execution. Interaction will be disabled.")
+                    self.continue_event.set()
+                    return True
+            case "attach" | "a":
+                if args is None and len(args) < 1:
+                    logger.log("CLI", f"No Instance Name given. Usage: {base_command} <Instance Name>")
+                    return True
+                target = args[0]
+                machine = self.manager.get_machine(target)
+                if machine is None:
+                    logger.error("CLI", f"Unable to get Instance with name '{machine}'")
+                    return True
+                socket_path = machine.get_mgmt_tty_path()
+                if socket_path is None:
+                    logger.log("CLI", f"Unable to get TTY Socket for Instance'{machine}'")
+                    return True
+                logger.log("CLI", f"Attaching to Instance '{target}', CRTL + ] to disconnect.")
+                self.toggle_output(False)
+                self._attach_to_tty(socket_path)
+                self.toggle_output(True)
+                logger.log("CLI", f"Connection to serial TTY of Instance '{target}' closed.")
+                return True
+            case "copy" | "cp":
+                logger.log("CLI", "Not implemented.")
+                return True
+            case "preserve" | "p":
+                logger.log("CLI", "Not implemented.")
+                return True
+            case "list" | "ls":
+                for machine in self.manager.get_all_machines():
+                    logger.log("CLI", f"- Instance '{machine.name}' ({machine.uuid}) in state {machine.get_state().name}")
+                return True
+            case "exit" | "e":
+                self.continue_mode.update(ContinueMode.EXIT)
+                if self.continue_event is None:
+                    logger.log("CLI", "Unable to exit testbed, continue_event object missing.")
+                    return True
+                else:
+                    logger.log("CLI", f"Shutting down testbed. Interaction will be disabled.")
+                    self.continue_event.set()
+                    return True
+            case "help" | "h":
+                logger.opt(ansi=True).log("CLI", "--------- Proto²Testbed Interactive Mode Help ---------")
+                logger.opt(ansi=True).log("CLI", "  <u>c</u>ontinue (INIT|EXPERIMENT) -> Continue testbed (to next pause step)", color=True)
+                logger.opt(ansi=True).log("CLI", "  <u>a</u>ttach \<Instance>          -> Attach to TTY of an Instance", color=True)
+                logger.opt(ansi=True).log("CLI", "  <u>c</u>o<u>p</u>y (\<Instance>:)\<Path> (\<Instance>:)\Path -> Copy files from/to instance", color=True)
+                logger.opt(ansi=True).log("CLI", "  <u>l</u>i<u>s</u>t                      -> List all Instances in testbed", color=True)
+                logger.opt(ansi=True).log("CLI", "  <u>p</u>reserve \<Instance>:\<Path> -> Mark file or directory for preservation", color=True)
+                logger.opt(ansi=True).log("CLI", "  <u>e</u>xit                       -> Terminate Testbed", color=True)
+                logger.opt(ansi=True).log("CLI", "  <u>h</u>elp                       -> Show this help", color=True)
+                logger.opt(ansi=True).log("CLI", "------------------------------------------------------")
+                return True
+
+
+            case _:
+                return False
 
     def _run(self):
         def clear_stdin():
@@ -59,37 +145,18 @@ class CLI(Dismantable):
                 command, args = parts[0], None
             else:
                 command, args = parts
+                args = args.split(" ")
+            
+            status = False
+            try:
+                status = self.handle_command(command, args)
+            except Exception as ex:
+                status = False
+                logger.opt(exception=ex).error("Error running command")
+            
+            if not status:
+                logger.log("CLI", f"Unknown command '{command}' or error running it, use 'help' to show available commands.")
 
-            match command:
-                case "continue" | "c":
-                    if self.continue_event is None:
-                        logger.error("Unable to continue testbed, continue_event object missing.")
-                    else:
-                        self.continue_event.set()
-                    continue
-                case "attach" | "a":
-                    if args is None:
-                        logger.error(f"No Instance Name given. Usage: {command} <Instance Name>")
-                        continue
-
-                    target = args.split(" ", maxsplit=1)[0]
-                    machine = self.manager.get_machine(target)
-                    if machine is None:
-                        logger.error(f"Unable to get Instance with name '{machine}'")
-                        continue
-                    socket_path = machine.get_mgmt_tty_path()
-                    if socket_path is None:
-                        logger.error(f"Unable to get TTY Socket for Instance'{machine}'")
-                        continue
-
-                    self.toggle_output(False)
-                    self._attach_to_tty(socket_path, target)
-                    self.toggle_output(True)
-                    logger.info("Resume with CLI after attachemend was terminated.")
-
-                    continue
-                case _:
-                    logger.info(f"Unknown command '{command}', Available: continue, attach")
 
     def __init__(self, log_quiet: bool, log_verbose: bool, manager: MachineStateManager):
         CLI.instance = self
@@ -119,8 +186,9 @@ class CLI(Dismantable):
         else:
             self.enable_interaction.clear()
 
-    def start_cli(self, event: Event):
+    def start_cli(self, event: Event, continue_mode: CLIContinue):
         self.continue_event = event
+        self.continue_mode = continue_mode
         self.toggle_interaction(True)
 
     def stop_cli(self):
