@@ -14,7 +14,7 @@ class ContinueMode(Enum):
 class CLIContinue():
     def __init__(self, stopped_at: PauseAfterSteps):
         self.stopped_at = stopped_at
-        self.mode = ContinueMode.CONTINUE_TO
+        self.mode = ContinueMode.EXIT
         self.pause = PauseAfterSteps.DISABLE
 
     def update(self, mode: ContinueMode, pause: PauseAfterSteps = PauseAfterSteps.DISABLE) -> bool:

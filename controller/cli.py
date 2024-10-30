@@ -25,17 +25,14 @@ class CLI(Dismantable):
         if self.log_quiet:
             logger.add(sys.stdout, level="INFO", 
                        format=CLI._CLEAN_LOG_FORMAT,
-                       filter=CLI._filter_logging, 
-                       colorize=True)
+                       filter=CLI._filter_logging)
         elif self.log_verbose:
             logger.add(sys.stdout, level="TRACE", 
-                       filter=CLI._filter_logging,
-                       colorize=True)
+                       filter=CLI._filter_logging)
         else:
             logger.add(sys.stdout, level="DEBUG", 
                        filter=CLI._filter_logging, 
-                       format=CLI._CLEAN_LOG_FORMAT,
-                       colorize=True)
+                       format=CLI._CLEAN_LOG_FORMAT)
 
     def _attach_to_tty(self, socket_path: str):
         process = pexpect.spawn("/usr/bin/socat", [f"UNIX-CONNECT:{socket_path}", "STDIO,raw,echo=0"], 

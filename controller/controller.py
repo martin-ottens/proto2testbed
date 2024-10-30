@@ -32,7 +32,7 @@ class Controller(Dismantable):
 
         self.base_path = Path(SettingsWrapper.cli_paramaters.config)
         self.config_path = self.base_path / "testbed.json"
-        self.pause_after: PauseAfterSteps = SettingsWrapper.cli_paramaters.pause
+        self.pause_after: PauseAfterSteps = SettingsWrapper.cli_paramaters.interact
 
         try:
             SettingsWrapper.testbed_config = load_config(self.config_path, 
@@ -210,17 +210,6 @@ class Controller(Dismantable):
             return False
 
         return True
-    
-    def wait_before_release(self, event: Event, on_demand: bool = False) -> bool:
-        if on_demand:
-            logger.success(f"Testbed paused after stage {self.pause_after.name}, Interactive mode enabled (CRTL+C to exit).")
-        else:
-            logger.success(f"Testbed is ready, Interactive mode enabled (CRTL+C to exit).")
-       
-        try: 
-            return event.wait()
-        except KeyboardInterrupt:
-            return False
         
     def get_longest_application_duration(self) -> int:
         max_value = 0
@@ -248,9 +237,20 @@ class Controller(Dismantable):
         event = Event()
         contine_mode = CLIContinue(at_step)
         event.clear()
-        self.cli.start_cli(event, contine_mode)
-        status = self.wait_before_release(event, on_demand=True)
-        self.cli.stop_cli()
+
+        if SettingsWrapper.cli_paramaters.interact is not PauseAfterSteps.DISABLE:
+            self.cli.start_cli(event, contine_mode)
+            logger.success(f"Testbed paused after stage {self.pause_after.name}, Interactive mode enabled (CRTL+C to exit).")
+        else:
+            logger.success(f"Testbed paused after stage {self.pause_after.name} (CRTL+C to exit).")
+       
+        try: 
+            status = event.wait()
+        except KeyboardInterrupt:
+            status = False
+
+        if SettingsWrapper.cli_paramaters.interact is not PauseAfterSteps.DISABLE:
+            self.cli.stop_cli()
         
         if not status:
             return False

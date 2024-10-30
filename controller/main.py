@@ -19,9 +19,9 @@ if __name__ == "__main__":
     parser.add_argument("TESTBED_CONFIG", type=str, help="Path to testbed package")
     parser.add_argument("--clean", action="store_true", required=False, default=False,
                         help="Clean network interfaces before startup (Beware of concurrent testbeds!)")
-    parser.add_argument("--pause", choices=[p.name for p in PauseAfterSteps], 
+    parser.add_argument("--interact", "-i", choices=[p.name for p in PauseAfterSteps], 
                         required=False, default=PauseAfterSteps.DISABLE.name, type=str,
-                        help="Stop after step of controller and wait (--wait)")
+                        help="Interact with Conctroller after step is completed")
     parser.add_argument("-v", "--verbose", action="store_true", required=False, default=False,
                         help="Print TRACE log messages")
     parser.add_argument("-q", "--quiet", action="store_true", required=False, default=False,
@@ -32,8 +32,6 @@ if __name__ == "__main__":
                         help="Disable KVM virtualization in QEMU")
     parser.add_argument("-s", "--skip_integration", action="store_true", required=False, default=False,
                         help="Skip the execution of integrations")
-    parser.add_argument("-i", "--no_interactive", action='store_true', required=False, default=False,
-                        help="Disable interactive CLI mode")
     parser.add_argument( "-e", "--experiment", required=False, default=None, type=str, 
                         help="Name of experiment series, auto generated if omitted")
     parser.add_argument("-d", "--dont_store", required=False, default=False, action="store_true", 
@@ -47,13 +45,16 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
+    logger.remove() # Early logging setup
+    logger.add(sys.stdout, level="DEBUG")
+
     parameters = CLIParameters()
     if os.path.isabs(args.TESTBED_CONFIG):
         parameters.config = args.TESTBED_CONFIG
     else:
         parameters.config = f"{os.getcwd()}/{args.TESTBED_CONFIG}"
 
-    parameters.pause = PauseAfterSteps[args.pause]
+    parameters.interact = PauseAfterSteps[args.interact]
     parameters.sudo_mode = args.sudo
     parameters.disable_kvm = args.no_kvm
     parameters.clean = args.clean
@@ -64,7 +65,10 @@ if __name__ == "__main__":
     parameters.skip_substitution = args.skip_substitution
     parameters.log_quiet = args.quiet
     parameters.log_verbose = args.verbose
-    parameters.no_interactive = args.no_interactive
+
+    if parameters.interact != PauseAfterSteps.DISABLE and not os.isatty(sys.stdout.fileno()):
+        logger.error("TTY does not allow user interaction, disabling 'interact' parameter")
+        parameters.interact = PauseAfterSteps.DISABLE
 
     if args.preserve is not None:
         try:

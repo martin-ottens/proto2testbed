@@ -125,8 +125,8 @@ class TestbedConfig():
 
 @dataclass
 class CLIParameters():
-    config: PauseAfterSteps = PauseAfterSteps.DISABLE
-    pause: Optional[str] = None
+    config: Optional[str] = None
+    interact: PauseAfterSteps = PauseAfterSteps.DISABLE
     sudo_mode: bool = False
     disable_kvm: bool = False
     clean: bool = False
@@ -138,7 +138,6 @@ class CLIParameters():
     preserve: Optional[str] = None
     log_quiet: bool = False
     log_verbose: bool = False
-    no_interactive: bool = False
 
 
 class SettingsWrapper():
