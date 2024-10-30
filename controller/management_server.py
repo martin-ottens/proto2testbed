@@ -23,13 +23,15 @@ class ManagementClientConnection(threading.Thread):
                  manager: state_manager.MachineStateManager, 
                  instance: state_manager.MachineState,
                  influx_adapter: InfluxDBAdapter,
-                 timeout: int):
+                 timeout: int,
+                 init_instant: bool):
         threading.Thread.__init__(self)
         self.socket_path = socket_path
         self.expected_instance = instance
         self.influx_adapter = influx_adapter
         self.manager = manager
         self.timeout = timeout
+        self.init_instant = init_instant
         self.daemon = True
         self.stop_event = threading.Event()
         self.client = None
@@ -73,10 +75,13 @@ class ManagementClientConnection(threading.Thread):
                     self.send_message(InitializeMessageUpstream(None, None).to_json().encode("utf-8"))
                 else:
                     self.client.set_state(state_manager.AgentManagementState.STARTED)
-                    logger.info(f"Management: Client '{self.expected_instance.name}': Started. Sending setup instructions.")
-                    self.send_message(InitializeMessageUpstream(
-                        self.client.get_setup_env()[0], 
-                        self.client.get_setup_env()[1]).to_json().encode("utf-8"))
+                    if self.init_instant:
+                        logger.info(f"Management: Client '{self.expected_instance.name}': Started. Sending setup instructions for instant setup.")
+                        self.send_message(InitializeMessageUpstream(
+                            self.client.get_setup_env()[0], 
+                            self.client.get_setup_env()[1]).to_json().encode("utf-8"))
+                    else:
+                        logger.info(f"Management: Client '{self.expected_instance.name}': Started. Setup deferred.")
             case InstanceStatus.INITIALIZED:
                 self.client.set_state(state_manager.AgentManagementState.INITIALIZED)
                 logger.info(f"Management: Client {self.client.name} initialized.")
@@ -216,12 +221,13 @@ class ManagementClientConnection(threading.Thread):
         self.client_socket.sendall(message + b'\n')
 
 class ManagementServer(Dismantable):
-    def __init__(self, state_manager: state_manager.MachineStateManager, startup_init_timeout: int, influx_adapter: InfluxDBAdapter):
+    def __init__(self, state_manager: state_manager.MachineStateManager, startup_init_timeout: int, influx_adapter: InfluxDBAdapter, init_instant: bool = False):
         self.client_threads = []
         self.influx_adapter = influx_adapter
         self.keep_running = threading.Event()
         self.startup_init_timeout = startup_init_timeout
         self.manager = state_manager
+        self.init_instant = init_instant
         self.is_started = False
 
     def start(self):
@@ -236,7 +242,8 @@ class ManagementServer(Dismantable):
                                                                self.manager, 
                                                                instance, 
                                                                self.influx_adapter, 
-                                                               self.startup_init_timeout)
+                                                               self.startup_init_timeout,
+                                                               self.init_instant)
                 client_connection.start()
                 self.client_threads.append(client_connection)
             except Exception as ex:

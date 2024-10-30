@@ -18,7 +18,7 @@ from utils.continue_mode import *
 from management_server import ManagementServer
 from cli import CLI
 from state_manager import MachineStateManager, AgentManagementState, WaitResult
-from common.instance_manager_message import ApplicationsMessageUpstream, FinishInstanceMessageUpstream
+from common.instance_manager_message import InitializeMessageUpstream, ApplicationsMessageUpstream, FinishInstanceMessageUpstream
 
 class Controller(Dismantable):
     def __init__(self):
@@ -190,12 +190,15 @@ class Controller(Dismantable):
 
         return True
     
-    def start_management_infrastructure(self) -> bool:
+    def start_management_infrastructure(self, init_instances_instant: bool) -> bool:
         for instance in self.state_manager.get_all_machines():
             instance.prepare_interchange_dir()
         
         try:
-            magamenet_server = ManagementServer(self.state_manager, SettingsWrapper.testbed_config.settings.startup_init_timeout, self.influx_db)
+            magamenet_server = ManagementServer(self.state_manager, 
+                                                SettingsWrapper.testbed_config.settings.startup_init_timeout, 
+                                                self.influx_db,
+                                                init_instances_instant)
             magamenet_server.start()
             self.dismantables.insert(0, magamenet_server)
         except Exception as ex:
@@ -254,6 +257,20 @@ class Controller(Dismantable):
                 self.pause_after = contine_mode.pause
                 return True
 
+    def wait_for_to_become(self, timeout: int, stage: str, waitstate: AgentManagementState, interact_on_failure: bool = True):
+        logger.debug(f"Waiting a maximum of {timeout} seconds for action '{stage}' to finish.")
+        result: WaitResult = self.state_manager.wait_for_machines_to_become_state(waitstate, timeout)
+        if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
+            logger.critical(f"Instances have reported failure during action '{stage}' or a timeout occured!")
+            if interact_on_failure:
+                self.start_interaction(PauseAfterSteps.DISABLE)
+                self.send_finish_message()
+            return False
+        elif result == WaitResult.INTERRUPTED:
+            logger.critical(f"Action '{stage}' was interrupted!")
+            return False
+        else:
+            return True
         
     def main(self) -> bool:
         self.cli = CLI(SettingsWrapper.cli_paramaters.log_quiet, 
@@ -299,31 +316,38 @@ class Controller(Dismantable):
             logger.critical("Critical error while loading Instance initialization!")
             return False
 
-        if not self.start_management_infrastructure():
+        if not self.start_management_infrastructure(self.pause_after != PauseAfterSteps.SETUP):
             logger.critical("Critical error during start of management infrastructure!")
             return False
 
         if not self.setup_infrastructure():
             logger.critical("Critical error during instance setup")
             return False
-        
+
+        setup_timeout = SettingsWrapper.testbed_config.settings.startup_init_timeout        
         if self.pause_after == PauseAfterSteps.SETUP:
+            logger.info("Waiting for Instances to start ...")
+
+            if not self.wait_for_to_become(setup_timeout, "Infrastructure Setup", 
+                                           AgentManagementState.STARTED, False):
+                return False
+
             if not self.start_interaction(PauseAfterSteps.SETUP):
                 self.send_finish_message()
                 return True
-
-        logger.info("Waiting for Instances to start and initialize ...")
+            
+            for machine in self.state_manager.get_all_machines():
+                machine.send_message(InitializeMessageUpstream(
+                            machine.get_setup_env()[0], 
+                            machine.get_setup_env()[1]).to_json().encode("utf-8"))
+        else:
+            logger.info("Waiting for Instances to start and initialize ...")
         
-        setup_timeout = SettingsWrapper.testbed_config.settings.startup_init_timeout
-        logger.debug(f"Waiting a maximum of {setup_timeout} seconds for Instances to start and initialize.")
-        result: WaitResult =  self.state_manager.wait_for_machines_to_become_state(AgentManagementState.INITIALIZED, 
-                                                                                   timeout=setup_timeout)
-        if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
-            logger.critical("Instances are not ready: Error or timeout during initialization!")
+        if not self.wait_for_to_become(setup_timeout, 'Instance Initialization', 
+                                AgentManagementState.INITIALIZED, 
+                                self.pause_after == PauseAfterSteps.INIT):
             return False
-        elif result == WaitResult.INTERRUPTED:
-            logger.critical("Setup was interrupted, shutting down testbed!")
-            return False
+        
         logger.success("All Instances reported up & ready!")
 
         if self.integration_helper.handle_stage_start(InvokeIntegrationAfter.INIT) == False :
@@ -359,18 +383,9 @@ class Controller(Dismantable):
                 self.send_finish_message()
             return False
         else:
-            logger.debug(f"Waiting a maximum of {experiment_timeout} seconds for the experiment to finish.")
-            result: WaitResult = self.state_manager.wait_for_machines_to_become_state(AgentManagementState.FINISHED,
-                                                                                    timeout=experiment_timeout)
-            if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
-                logger.critical("Instances have reported failed applications or a timeout occured!")
-                if self.pause_after == PauseAfterSteps.EXPERIMENT:
-                    self.start_interaction(PauseAfterSteps.EXPERIMENT)
-                    self.send_finish_message()
-                return False
-            elif result == WaitResult.INTERRUPTED:
-                logger.critical("Waiting for applications to finish was interrupted!")
-                return False
+            self.wait_for_to_become(experiment_timeout, 'Experiment', 
+                                    AgentManagementState.FINISHED, 
+                                    self.pause_after == PauseAfterSteps.EXPERIMENT)
             logger.success("All Instances reported finished applications!")
             
         if self.pause_after == PauseAfterSteps.EXPERIMENT:

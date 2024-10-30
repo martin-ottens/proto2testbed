@@ -68,6 +68,16 @@ def handle_experiment(payload, manager, instance_name):
         message = DownstreamMassage(InstanceStatus.EXPERIMENT_DONE)
         manager.send_to_server(message)
 
+def handle_finish(application_data, preserver: PreserveHandler, manager: ManagementClient):
+    print(f"Starting File Preservation", file=sys.stderr, flush=True)
+    finish_message = FinishInstanceMessageUpstream(**application_data)
+    preserver.batch_add(finish_message.preserve_files)
+    preserve_status = InstanceStatus.FAILED
+    if preserver.preserve():
+        preserve_status = InstanceStatus.FINISHED
+    message = DownstreamMassage(preserve_status)
+    manager.send_to_server(message)
+    print(f"File preservation completed, Instance ready for shut down", file=sys.stderr, flush=True)
 
 def main():
     instance_name = get_hostname()
@@ -91,8 +101,13 @@ def main():
             # 2. Install instance and report status
             # 2.1. Get initialization data from management server
             installation_data = manager.wait_for_command()
-            if "status" not in installation_data or installation_data.get("status") != "initialize":
-                raise Exception("Invalid message received from management server")
+            if "status" not in installation_data or installation_data.get("status") != InstanceStatus.INITIALIZED.value:
+                # Finish before initialization is finished -> untypical and just for debugging.
+                if "status" in installation_data and installation_data.get("status") == InstanceStatus.FINISHED.value:
+                    handle_finish(application_data, preserver, manager)
+                    while True: time.sleep(1)
+                else:
+                    raise Exception("Invalid message received from management server")
 
             if "script" not in installation_data or "environment" not in installation_data:
                 raise Exception("Initialization message error: Fields are missing")
@@ -165,15 +180,7 @@ def main():
                 print(f"Starting execution of Applications", file=sys.stderr, flush=True)
                 handle_experiment(application_data, manager, instance_name)
             elif application_data["status"] == FinishInstanceMessageUpstream.status_name:
-                print(f"Starting File Preservation", file=sys.stderr, flush=True)
-                finish_message = FinishInstanceMessageUpstream(**application_data)
-                preserver.batch_add(finish_message.preserve_files)
-                preserve_status = InstanceStatus.FAILED
-                if preserver.preserve():
-                    preserve_status = InstanceStatus.FINISHED
-                message = DownstreamMassage(preserve_status)
-                manager.send_to_server(message)
-                print(f"File preservation completed, Instance ready for shut down", file=sys.stderr, flush=True)
+                handle_finish(application_data, preserver, manager)
                 while True: time.sleep(1)
             else:
                 raise Exception(f"Invalid Upstream Message Package received: {application_data['status']}")
