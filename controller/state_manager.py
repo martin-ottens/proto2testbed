@@ -31,7 +31,7 @@ class WaitResult(Enum):
 class MachineState():
     __INTERCHANGE_BASE_PATH = "/tmp/testbed-"
 
-    def __init__(self, name: str, script_file: str, setup_env: Optional[dict[str, str]], manager):
+    def __init__(self, name: str, script_file: str, setup_env: Optional[dict[str, str]], manager, preserve_files: Optional[List[str]]):
         self.name: str = name
         self.script_file: str = script_file
         self.uuid = ''.join(random.choices(string.ascii_letters, k=8))
@@ -46,9 +46,23 @@ class MachineState():
         self._state: AgentManagementState = AgentManagementState.UNKNOWN
         self.connection = None
         self.interchange_ready = False
+        self.interfaces_hostside: List[str] = []
+        self.preserve_files: List[str] = []
+        if preserve_files is not None:
+            self.preserve_files = preserve_files
+        self.mgmt_ip_addr: Optional[str] = None
 
     def __str__(self) -> str:
         return f"{self.name} ({self.uuid})"
+
+    def add_preserve_file(self, file: str):
+        self.preserve_files.append(file)
+
+    def add_interface(self, interface_name: str):
+        self.interfaces_hostside.append(interface_name)
+    
+    def set_mgmt_ip(self, ip_addr: str):
+        self.mgmt_ip_addr = ip_addr
     
     def get_setup_env(self) -> Tuple[str, dict[str, str]]:
         return self.script_file, self.setup_env
@@ -166,11 +180,11 @@ class MachineStateManager():
     def get_all_machines(self) -> List[MachineState]:
         return list(self.map.values())
     
-    def add_machine(self, name: str, script_file: str, setup_env: dict[str, str]):
+    def add_machine(self, name: str, script_file: str, setup_env: dict[str, str], preserve_files: Optional[List[str]]):
         if name in self.map:
             raise Exception(f"Machine {name} was already configured")
         
-        self.map[name] = MachineState(name, script_file, setup_env, self)
+        self.map[name] = MachineState(name, script_file, setup_env, self, preserve_files)
         self.map[name].set_setup_env_entry("INSTANCE_NAME", name)
     
     def remove_machine(self, name: str):

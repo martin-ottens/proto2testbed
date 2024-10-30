@@ -83,7 +83,8 @@ class ApplicationsMessageUpstream(JSONSerializer):
 class FinishInstanceMessageUpstream(JSONSerializer):
     status_name = "finish"
 
-    def __init__(self, preserve_files: Optional[List[str]] = None, status = None):
+    def __init__(self, preserve_files: Optional[List[str]] = None, do_preserve: bool = True, status = None):
         self.status = FinishInstanceMessageUpstream.status_name
         self.preserve_files = preserve_files
+        self.do_preserve = do_preserve
 

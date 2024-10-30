@@ -17,7 +17,7 @@ all: control instance-manager.service postinst $(SOURCES)
 	cp instance-manager.service $(BASENAME)/lib/systemd/system/.
 	cp -r src/*.py src/applications/ $(BASENAME)/usr/lib/instance-manager/.
 	cp -Lr src/common $(BASENAME)/usr/lib/instance-manager/.
-	rm -f $(BASENAME)/usr/lib/instance-manager/common/__pycache__
+	rm -rf $(BASENAME)/usr/lib/instance-manager/common/__pycache__
 	cp -p im $(BASENAME)/usr/local/bin/.
 	dpkg-deb --build $(BASENAME)
 

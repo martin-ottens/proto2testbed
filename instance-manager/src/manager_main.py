@@ -71,6 +71,13 @@ def handle_experiment(payload, manager, instance_name):
 def handle_finish(application_data, preserver: PreserveHandler, manager: ManagementClient):
     print(f"Starting File Preservation", file=sys.stderr, flush=True)
     finish_message = FinishInstanceMessageUpstream(**application_data)
+
+    if not finish_message.do_preserve:
+        print(f"Skipping preservation, it is not enabled in the controller", file=sys.stderr, flush=True)
+        message = DownstreamMassage(InstanceStatus.FINISHED)
+        manager.send_to_server(message)
+        return
+
     preserver.batch_add(finish_message.preserve_files)
     preserve_status = InstanceStatus.FAILED
     if preserver.preserve():
@@ -101,10 +108,10 @@ def main():
             # 2. Install instance and report status
             # 2.1. Get initialization data from management server
             installation_data = manager.wait_for_command()
-            if "status" not in installation_data or installation_data.get("status") != InstanceStatus.INITIALIZED.value:
+            if "status" not in installation_data or installation_data.get("status") != InitializeMessageUpstream.status_name:
                 # Finish before initialization is finished -> untypical and just for debugging.
-                if "status" in installation_data and installation_data.get("status") == InstanceStatus.FINISHED.value:
-                    handle_finish(application_data, preserver, manager)
+                if "status" in installation_data and installation_data.get("status") == FinishInstanceMessageUpstream.status_name:
+                    handle_finish(installation_data, preserver, manager)
                     while True: time.sleep(1)
                 else:
                     raise Exception("Invalid message received from management server")

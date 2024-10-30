@@ -10,6 +10,7 @@ from typing import Optional, List
 from utils.interfaces import Dismantable
 from utils.continue_mode import *
 from state_manager import MachineStateManager
+from utils.settings import SettingsWrapper
 
 class CLI(Dismantable):
     _CLEAN_LOG_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>"
@@ -71,12 +72,12 @@ class CLI(Dismantable):
                     return True
             case "attach" | "a":
                 if args is None and len(args) < 1:
-                    logger.log("CLI", f"No Instance Name given. Usage: {base_command} <Instance Name>")
+                    logger.log("CLI", f"No Instance name provided. Usage: {base_command} <Instance Name>")
                     return True
                 target = args[0]
                 machine = self.manager.get_machine(target)
                 if machine is None:
-                    logger.error("CLI", f"Unable to get Instance with name '{machine}'")
+                    logger.log("CLI", f"Unable to get Instance with name '{machine}'")
                     return True
                 socket_path = machine.get_mgmt_tty_path()
                 if socket_path is None:
@@ -89,14 +90,33 @@ class CLI(Dismantable):
                 logger.log("CLI", f"Connection to serial TTY of Instance '{target}' closed.")
                 return True
             case "copy" | "cp":
-                logger.log("CLI", "Not implemented.")
+                logger.log("CLI", "Not yet implemented.")
                 return True
             case "preserve" | "p":
-                logger.log("CLI", "Not implemented.")
+                if args is None or len(args) < 2:
+                    logger.log("CLI", f"No Instance name or path provided. Usage: {base_command} <Instance Name> <Path>")
+                    return True
+                target = args[0]
+                machine = self.manager.get_machine(target)
+                if machine is None:
+                    logger.log("CLI", f"Unable to get Instance with name '{machine}'")
+                    return True
+                
+                if SettingsWrapper.cli_paramaters.preserve is None:
+                    logger.log("CLI", f"File preservation is not enabled in this testbed run.")
+                    return True
+                
+                machine.add_preserve_file(args[1])
+                logger.log("CLI", f"File '{args[1]}' was as added to preserve list of Instance '{target}'")
                 return True
             case "list" | "ls":
                 for machine in self.manager.get_all_machines():
-                    logger.log("CLI", f"- Instance '{machine.name}' ({machine.uuid}) in state {machine.get_state().name}")
+                    line = f"- Instance '{machine.name}' ({machine.uuid}) | {machine.get_state().name}"
+                    if len(machine.interfaces_hostside) != 0:
+                        line += f" | Interfaces: {', '.join(machine.interfaces_hostside)}"
+                    if machine.mgmt_ip_addr is not None:
+                        line += f" | MGMT IP: {machine.mgmt_ip_addr}"
+                    logger.log("CLI", line)
                 return True
             case "exit" | "e":
                 self.continue_mode.update(ContinueMode.EXIT)
@@ -118,8 +138,6 @@ class CLI(Dismantable):
                 logger.opt(ansi=True).log("CLI", "  <u>h</u>elp                       -> Show this help", color=True)
                 logger.opt(ansi=True).log("CLI", "------------------------------------------------------")
                 return True
-
-
             case _:
                 return False
 

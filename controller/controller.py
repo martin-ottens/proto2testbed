@@ -113,12 +113,14 @@ class Controller(Dismantable):
         wait_for_interfaces = []
         diskimage_basepath = Path(SettingsWrapper.testbed_config.settings.diskimage_basepath)
         for index, instance in enumerate(SettingsWrapper.testbed_config.instances):
+            machine = self.state_manager.get_machine(instance.name)
             extra_interfaces = {}
 
             for if_index, if_bridge in enumerate(instance.networks):
                 if_int_name = f"v_{index}_{if_index}"
                 extra_interfaces[if_int_name] = if_bridge
                 wait_for_interfaces.append(if_int_name)
+                machine.add_interface(if_bridge)
 
             try:
                 diskimage_path = Path(instance.diskimage)
@@ -136,6 +138,7 @@ class Controller(Dismantable):
                             "ip": ipaddress.IPv4Interface(f"{self.mgmt_ips.pop(0)}/{self.mgmt_netmask}"),
                             "gateway": str(self.mgmt_gateway)
                     }
+                    machine.set_mgmt_ip(management_settings["ip"])
 
                 wrapper = InstanceHelper(instance=self.state_manager.get_machine(instance.name),
                                     management=management_settings,
@@ -151,6 +154,7 @@ class Controller(Dismantable):
 
                 if self.has_mgmt_network:
                     extra_interfaces[f"v_{index}_m"] = "br-mgmt"
+                    machine.add_interface("br-mgmt")
                     wait_for_interfaces.append(f"v_{index}_m")
 
                 instances[instance.name] = (wrapper, extra_interfaces, )
@@ -230,13 +234,13 @@ class Controller(Dismantable):
     
     def send_finish_message(self):
         logger.info("Sending finish instructions to Instances")
-        for machine in SettingsWrapper.testbed_config.instances:
-            state = self.state_manager.get_machine(machine.name)
-            message = FinishInstanceMessageUpstream(machine.preserve_files)
-            state.send_message(message.to_json().encode("utf-8"))
+        for machine in self.state_manager.get_all_machines():
+            message = FinishInstanceMessageUpstream(machine.preserve_files, 
+                                                    SettingsWrapper.cli_paramaters.preserve is not None)
+            machine.send_message(message.to_json().encode("utf-8"))
 
         result: WaitResult = self.state_manager.wait_for_machines_to_become_state(AgentManagementState.FILES_PRESERVED,
-                                                                                  timeout=30)
+                                                                                  timeout=30000)
         if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
             logger.critical("Instances have reported failed during file preservation or a timeout occured!")
 

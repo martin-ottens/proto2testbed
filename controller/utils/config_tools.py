@@ -81,7 +81,7 @@ def load_vm_initialization(config: TestbedConfig, base_path: Path, state_manager
                     logger.critical(f"Unable to load environment dict for VM {machine.name}")
                     return False
         
-        state_manager.add_machine(machine.name, script_file, env_variables)
+        state_manager.add_machine(machine.name, script_file, env_variables, machine.preserve_files)
 
     return True
 
