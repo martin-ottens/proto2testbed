@@ -63,7 +63,7 @@ class ManagementClientConnection(threading.Thread):
                 return False
 
         match message_obj.get_status():
-            case InstanceStatus.STARTED:
+            case InstanceMessageType.STARTED:
                 previous = self.client.get_state()
                 if previous == state_manager.AgentManagementState.DISCONNECTED:
                     logger.error(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Instance Manager failed?")
@@ -82,44 +82,44 @@ class ManagementClientConnection(threading.Thread):
                             self.client.get_setup_env()[1]).to_json().encode("utf-8"))
                     else:
                         logger.info(f"Management: Client '{self.expected_instance.name}': Started. Setup deferred.")
-            case InstanceStatus.INITIALIZED:
+            case InstanceMessageType.INITIALIZED:
                 self.client.set_state(state_manager.AgentManagementState.INITIALIZED)
                 logger.info(f"Management: Client {self.client.name} initialized.")
-            case InstanceStatus.MSG_ERROR | InstanceStatus.MSG_INFO | InstanceStatus.MSG_SUCCESS | InstanceStatus.MSG_WARNING | InstanceStatus.MSG_DEBUG | InstanceStatus.DATA_POINT:
+            case InstanceMessageType.MSG_ERROR | InstanceMessageType.MSG_INFO | InstanceMessageType.MSG_SUCCESS | InstanceMessageType.MSG_WARNING | InstanceMessageType.MSG_DEBUG | InstanceMessageType.DATA_POINT:
                 pass
-            case InstanceStatus.FAILED | InstanceStatus.EXPERIMENT_FAILED:
+            case InstanceMessageType.FAILED | InstanceMessageType.EXPERIMENT_FAILED:
                 self.client.set_state(state_manager.AgentManagementState.FAILED)
                 if message_obj.message is not None:
                     logger.error(f"Management: Client {self.client.name} reported failure with message: {message_obj.message}")
                 else:
                     logger.error(f"Management: Client {self.client.name} reported failure without message.")
-                if message_obj.get_status() == InstanceStatus.FAILED:
+                if message_obj.get_status() == InstanceMessageType.FAILED:
                     return False
                 else:
                     return True
-            case InstanceStatus.EXPERIMENT_DONE:
+            case InstanceMessageType.EXPERIMENT_DONE:
                 self.client.set_state(state_manager.AgentManagementState.FINISHED)
                 logger.info(f"Management: Client {self.client.name} reported finished applications.")
-            case InstanceStatus.FINISHED:
+            case InstanceMessageType.FINISHED:
                 self.client.set_state(state_manager.AgentManagementState.FILES_PRESERVED)
                 logger.info(f"Management: Client {self.client.name} is ready for shut down.")
             case _:
                 logger.warning(f"Management: Client {self.client.name}: Unkown message type '{message_obj.status}'")
 
         if message_obj.message is not None:
-            if message_obj.get_status() == InstanceStatus.DATA_POINT:
+            if message_obj.get_status() == InstanceMessageType.DATA_POINT:
                 if not self.influx_adapter.insert(message_obj.message):
                     logger.warning(f"Management: Client {self.client.name}: Unable to add reported point to InfluxDB")
                 return True
 
             match message_obj.get_status():
-                case InstanceStatus.MSG_INFO:
+                case InstanceMessageType.MSG_INFO:
                     fn = logger.info
-                case InstanceStatus.MSG_ERROR:
+                case InstanceMessageType.MSG_ERROR:
                     fn = logger.error
-                case InstanceStatus.MSG_SUCCESS:
+                case InstanceMessageType.MSG_SUCCESS:
                     fn = logger.success
-                case InstanceStatus.MSG_DEBUG:
+                case InstanceMessageType.MSG_DEBUG:
                     fn = logger.debug
                 case _:
                     fn = logger.warning

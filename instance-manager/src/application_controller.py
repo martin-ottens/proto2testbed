@@ -7,7 +7,7 @@ from multiprocessing import Process, Manager
 from threading import Event, Thread, Barrier
 
 from common.application_configs import Applications, ApplicationConfig
-from common.instance_manager_message import InstanceStatus
+from common.instance_manager_message import InstanceMessageType
 
 from management_client import ManagementClient, DownstreamMassage
 from application_interface import ApplicationInterface
@@ -89,7 +89,7 @@ class ApplicationController(Thread):
         process.join(self.application.get_runtime_upper_bound(self.config.runtime) + 1)
 
         if process.is_alive():
-            message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
+            message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
                                         f"Application {self.config.name} still runs after timeout.")
             self.mgmt_client.send_to_server(message)
             try:
@@ -97,12 +97,12 @@ class ApplicationController(Thread):
                 for child in parent.children(recursive=True):
                     try: child.send_signal(signal.SIGTERM)
                     except Exception as ex:
-                        message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
+                        message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
                                                     f"Application {self.config.name}:\n Unable to kill childs: {ex}")
                         self.mgmt_client.send_to_server(message)
                         continue
             except Exception as ex:
-                message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
+                message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
                                             f"Application {self.config.name}:\n Unable get childs: {ex}")
                 self.mgmt_client.send_to_server(message)
                 pass
@@ -112,11 +112,11 @@ class ApplicationController(Thread):
         process.join()
         
         if not self.shared_state["error_flag"]:
-            message = DownstreamMassage(InstanceStatus.MSG_SUCCESS, 
+            message = DownstreamMassage(InstanceMessageType.MSG_SUCCESS, 
                                         f"Application {self.config.name} finished")
             self.mgmt_client.send_to_server(message)
         else:
-            message = DownstreamMassage(InstanceStatus.MSG_ERROR, 
+            message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
                                         f"Application {self.config.name} reported error: \n{self.shared_state['error_string']}")
             self.mgmt_client.send_to_server(message)
         

@@ -18,7 +18,7 @@ def get_hostname() -> str:
     return socket.getfqdn()
 
 class DownstreamMassage():
-    def __init__(self, status: InstanceStatus, message = None):
+    def __init__(self, status: InstanceMessageType, message = None):
         self.message = InstanceManagerDownstream(get_hostname(), str(status), message)
     
     def set_message(self, message):
@@ -80,7 +80,7 @@ class ManagementClient():
             for k, v in tags.items():
                 data[0]["tags"][k] = v
 
-        message: DownstreamMassage = DownstreamMassage(InstanceStatus.DATA_POINT, data)
+        message: DownstreamMassage = DownstreamMassage(InstanceMessageType.DATA_POINT, data)
         self.send_to_server(message)
 
 

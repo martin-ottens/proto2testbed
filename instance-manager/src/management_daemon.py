@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from preserve_handler import PreserveHandler
 from management_client import ManagementClient, DownstreamMassage
-from common.instance_manager_message import InstanceStatus
+from common.instance_manager_message import InstanceMessageType
 
 class IMClientThread(Thread):
     client_id: int = 0
@@ -57,15 +57,15 @@ class IMClientThread(Thread):
         type = None
         match data["level"]:
             case "SUCCESS":
-                type = InstanceStatus.MSG_SUCCESS
+                type = InstanceMessageType.MSG_SUCCESS
             case "INFO":
-                type = InstanceStatus.MSG_INFO
+                type = InstanceMessageType.MSG_INFO
             case "WARNING":
-                type = InstanceStatus.MSG_WARNING
+                type = InstanceMessageType.MSG_WARNING
             case "ERROR":
-                type = InstanceStatus.MSG_ERROR
+                type = InstanceMessageType.MSG_ERROR
             case "DEBUG":
-                type = InstanceStatus.MSG_DEBUG
+                type = InstanceMessageType.MSG_DEBUG
             case _:
                 return self._respond_to_client(False, f"Invalid log level '{data['level']}'")
             

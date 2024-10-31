@@ -6,7 +6,8 @@ from typing import Dict, List, Any, Optional
 from common.application_configs import ApplicationConfig
 from common.interfaces import JSONSerializer
 
-class InstanceStatus(Enum):
+
+class InstanceMessageType(Enum):
     STARTED = "started"
     INITIALIZED = "initialized"
     DATA_POINT = "data_point"
@@ -19,6 +20,7 @@ class InstanceStatus(Enum):
     EXPERIMENT_FAILED = "exp_failed"
     EXPERIMENT_DONE = "exp_done"
     FINISHED = "finished"
+    COPIED_FILE = "copied_file"
     UNKNOWN = "unknown"
 
     def __str__(self):
@@ -26,14 +28,15 @@ class InstanceStatus(Enum):
     
     @staticmethod
     def from_str(status: str):
-        try: return InstanceStatus(status)
+        try: return InstanceMessageType(status)
         except Exception:
-            return InstanceStatus.UNKNOWN
+            return InstanceMessageType.UNKNOWN
         
         
 class JSONSerializable():
     def as_json_bytes(self) -> bytes:
         return json.dumps(vars(self)).encode("utf-8")
+
 
 class JSONSerializable():
     def as_json_bytes(self) -> bytes:
@@ -48,8 +51,9 @@ class InstanceManagerDownstream(JSONSerializer):
         self.status = status
         self.message = message
     
-    def get_status(self) -> InstanceStatus:
-        return InstanceStatus.from_str(self.status)
+    def get_status(self) -> InstanceMessageType:
+        return InstanceMessageType.from_str(self.status)
+
 
 class InitializeMessageUpstream(JSONSerializer):
     status_name =  "initialize"
@@ -58,6 +62,7 @@ class InitializeMessageUpstream(JSONSerializer):
         self.status = InitializeMessageUpstream.status_name
         self.script = script
         self.environment = environment
+
 
 class ApplicationsMessageUpstream(JSONSerializer):
     status_name = "experiment"
@@ -79,6 +84,16 @@ class ApplicationsMessageUpstream(JSONSerializer):
             obj.applications.append(ApplicationConfig(**application))
 
         return obj
+    
+
+class CopyFileMessageUpstream(JSONSerializer):
+    status_name = "copy"
+
+    def __init__(self, source: str, target: str, status=None):
+        self.status = CopyFileMessageUpstream.status_name
+        self.source = source
+        self.target = target
+
 
 class FinishInstanceMessageUpstream(JSONSerializer):
     status_name = "finish"
