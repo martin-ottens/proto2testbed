@@ -25,24 +25,29 @@ class PreserveHandler():
         if preserve_file is not None:
             self.files.append(preserve_file)
 
+    def check_and_add_exchange_mount(self):
+        if os.path.ismount(self.exchange_mount):
+            return
+
+        proc = None
+        try:
+            proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", self.exchange_p9_dev, self.exchange_mount])
+        except Exception as ex:
+            message = DownstreamMassage(InstanceMessageType.FAILED, f"Unable to mount exchange direcory!")
+            self.manager.send_to_server(message)
+            raise Exception("Unable to mount exchange directory!") from ex
+        
+        if proc is not None and proc.returncode != 0:
+            message = DownstreamMassage(InstanceMessageType.FAILED, 
+                                        f"Mounting of exchange directory failed with code ({proc.returncode})\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {proc.stderr.decode('utf-8')}")
+            self.manager.send_to_server(message)
+            raise Exception(f"Unable to mount exchange directory: {proc.stderr}")
+
     def preserve(self) -> bool:
         if len(self.files) == 0:
             return True
 
-        if not os.path.ismount(self.exchange_mount):
-            proc = None
-            try:
-                proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", self.exchange_p9_dev, self.exchange_mount])
-            except Exception as ex:
-                message = DownstreamMassage(InstanceMessageType.FAILED, f"Unable to mount exchange direcory!")
-                self.manager.send_to_server(message)
-                raise Exception("Unable to mount exchange directory!") from ex
-
-            if proc is not None and proc.returncode != 0:
-                message = DownstreamMassage(InstanceMessageType.FAILED, 
-                                            f"Mounting of exchange directory failed with code ({proc.returncode})\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {proc.stderr.decode('utf-8')}")
-                self.manager.send_to_server(message)
-                raise Exception(f"Unable to mount exchange directory: {proc.stderr}")
+        self.check_and_add_exchange_mount()
 
         for preserve_file in self.files:
             print(f"Preserving file or direcory '{preserve_file}'", file=sys.stderr, flush=True)

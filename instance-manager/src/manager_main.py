@@ -1,10 +1,8 @@
 #!/usr/bin/python3
 
 import subprocess
-import json
 import os
 import shutil
-import time
 import sys
 
 from threading import Barrier
@@ -33,6 +31,7 @@ class IMState(Enum):
     EXPERIMENT_RUNNING = auto()
     READY_FOR_SHUTDOWN = auto()
     FAILED = auto()
+
 
 class InstanceManager():
     
@@ -154,8 +153,60 @@ class InstanceManager():
             print(f"File preservation failed.", file=sys.stderr, flush=True)
             return False
         
-    def handle_file_copy(data) -> bool:
-        pass
+    def handle_file_copy(self, data) -> bool:
+        copy_instructions = CopyFileMessageUpstream(**data)
+
+        if copy_instructions.proc_id is None:
+            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
+                                       f"Copy failed, no proc_id was provided to Instance.")
+            print(f"Invalid copy instructin packet: proc_id missing!")
+
+        source = Path(copy_instructions.source)
+        target = Path(copy_instructions.target)
+        source_is_local = False
+        if source.absolute():
+            source_is_local = True
+
+        if target.absolute() and source_is_local:
+            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
+                                       f"Can't copy from '{copy_instructions.source}' to '{copy_instructions.target}': Both are local.")
+            print(f"Unable to process CopyFileMessage: Cannot copy from local to local", file=sys.stderr, flush=True)
+            return True
+        
+        self.preserver.check_and_add_exchange_mount()
+        
+        if not source_is_local:
+            source = Path(EXCHANGE_MOUNT) / source
+        else:
+            target = Path(EXCHANGE_MOUNT) / target
+
+        if not source.exists():
+            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
+                                   f"Can't copy from '{source}': File or directory does not exist!")
+            print(f"Unable to process CopyFileMessage: File or directory '{source}' does not exist!", file=sys.stderr, flush=True)
+            return True
+
+        try:
+            if source.is_dir():
+                shutil.copytree(source, target)
+            else:
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                shutil.copy2(source, target)
+
+            if not source_is_local:
+                shutil.rmtree(source, ignore_errors=True)
+        except Exception as ex:
+            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
+                                   f"Copy failed on Instance: {ex}")
+            print(f"Unable to copy from '{source}' to '{target}': {ex}", file=sys.stderr, flush=True)
+            return True
+
+        self.message_to_controller(InstanceMessageType.MSG_DEBUG, 
+                                   f"Copied from to '{source}' to '{target}' on Instance.")
+        print(f"Copied from to '{source}' to '{target}'", file=sys.stderr, flush=True)
+        message = DownstreamMassage(InstanceMessageType.COPIED_FILE, copy_instructions.proc_id)
+        self.manager.send_to_server(message)
+        return True
 
     def _run_instance_manager(self):
         self.manager.start()

@@ -103,6 +103,10 @@ class ManagementClientConnection(threading.Thread):
             case InstanceMessageType.FINISHED:
                 self.client.set_state(state_manager.AgentManagementState.FILES_PRESERVED)
                 logger.info(f"Management: Client {self.client.name} is ready for shut down.")
+                return True
+            case InstanceMessageType.COPIED_FILE:
+                self.client.file_copy_helper(message_obj.message)
+                return True
             case _:
                 logger.warning(f"Management: Client {self.client.name}: Unkown message type '{message_obj.status}'")
 

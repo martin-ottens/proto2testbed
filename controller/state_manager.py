@@ -11,6 +11,7 @@ from typing import Tuple, Optional, List
 from threading import Lock, Semaphore
 
 from utils.system_commands import invoke_subprocess
+from helper.file_copy_helper import FileCopyHelper
 
 class AgentManagementState(Enum):
     UNKNOWN = 0
@@ -51,6 +52,7 @@ class MachineState():
         if preserve_files is not None:
             self.preserve_files = preserve_files
         self.mgmt_ip_addr: Optional[str] = None
+        self.file_copy_helper = FileCopyHelper(self)
 
     def __str__(self) -> str:
         return f"{self.name} ({self.uuid})"

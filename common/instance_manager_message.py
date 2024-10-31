@@ -89,10 +89,11 @@ class ApplicationsMessageUpstream(JSONSerializer):
 class CopyFileMessageUpstream(JSONSerializer):
     status_name = "copy"
 
-    def __init__(self, source: str, target: str, status=None):
+    def __init__(self, source: str, target: str, proc_id: str, status=None):
         self.status = CopyFileMessageUpstream.status_name
         self.source = source
         self.target = target
+        self.proc_id = proc_id
 
 
 class FinishInstanceMessageUpstream(JSONSerializer):

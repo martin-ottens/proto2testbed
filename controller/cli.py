@@ -16,6 +16,10 @@ class CLI(Dismantable):
     _CLEAN_LOG_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>"
     instance = None
 
+    def setup_early_logging():
+        logger.remove()
+        logger.add(sys.stdout, level="DEBUG", format=CLI._CLEAN_LOG_FORMAT)
+
     def _filter_logging(record):
         return CLI.instance.enable_output.is_set()
 
@@ -68,7 +72,7 @@ class CLI(Dismantable):
                     self.continue_event.set()
                     return True
             case "attach" | "a":
-                if args is None and len(args) < 1:
+                if args is None or len(args) < 1:
                     logger.log("CLI", f"No Instance name provided. Usage: {base_command} <Instance Name>")
                     return True
                 target = args[0]
@@ -87,7 +91,46 @@ class CLI(Dismantable):
                 logger.log("CLI", f"Connection to serial TTY of Instance '{target}' closed.")
                 return True
             case "copy" | "cp":
-                logger.log("CLI", "Not yet implemented.")
+                if args is None or len(args) < 2:
+                    logger.log("CLI", f"No source and/or destination provided. Usage {base_command} (<From Instance>:)<From Path> (<To Instance>:)<To Path>")
+                    return True
+                
+                source_str = args[0]
+                destination_str = args[1]
+
+                if len(list(filter(lambda x: ":" in x, [source_str, destination_str]))) != 1:
+                    logger.log("CLI", f"Cannot copy from Instance to Instance or Host to Host. Host -> Instance or Instance -> Host possible.")
+                    return True
+                
+                source_path = None
+                destination_path = None
+                instance = None
+                copy_to_instance = False
+
+                if ":" in source_str:
+                    instance, source_path = source_str.split(":", maxsplit=1)
+                    copy_to_instance = False
+                else:
+                    source_path = source_str
+                
+                if ":" in destination_str:
+                    instance, destination_path = destination_str.split(":", maxsplit=1)
+                    copy_to_instance = True
+                else:
+                    destination_path = destination_str
+
+                if instance is None:
+                    raise Exception("Instance not given after parsing.")
+                
+                machine = self.manager.get_machine(instance)
+                if machine is None:
+                    logger.log("CLI", f"Unable to get Instance with name '{instance}'")
+                    return True
+
+                status, message = machine.file_copy_helper.copy(source_path, destination_path, copy_to_instance)
+                if not status:
+                    logger.log("CLI", message)
+
                 return True
             case "preserve" | "p":
                 if args is None or len(args) < 2:

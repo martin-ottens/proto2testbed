@@ -12,6 +12,7 @@ from controller import Controller
 from utils.settings import CLIParameters, SettingsWrapper
 from utils.pidfile import PidFile
 from utils.continue_mode import PauseAfterSteps
+from cli import CLI
 
 
 if __name__ == "__main__":
@@ -44,9 +45,8 @@ if __name__ == "__main__":
                         required=False, default=None)
     
     args = parser.parse_args()
-    
-    logger.remove() # Early logging setup
-    logger.add(sys.stdout, level="DEBUG")
+
+    CLI.setup_early_logging()
 
     parameters = CLIParameters()
     if os.path.isabs(args.TESTBED_CONFIG):
