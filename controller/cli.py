@@ -110,15 +110,21 @@ class CLI(Dismantable):
 
                 if ":" in source_str:
                     instance, source_path = source_str.split(":", maxsplit=1)
+                    source_path = Path(source_path)
                     copy_to_instance = False
                 else:
-                    source_path = source_str
+                    source_path = Path(source_str)
                 
                 if ":" in destination_str:
                     instance, destination_path = destination_str.split(":", maxsplit=1)
+                    destination_path = Path(destination_path)
                     copy_to_instance = True
                 else:
-                    destination_path = destination_str
+                    destination_path = Path(destination_str)
+
+                if not source_path.is_absolute() or not destination_path.is_absolute():
+                    logger.log("CLI", "Source and destination paths must be absolute.")
+                    return True
 
                 if instance is None:
                     raise Exception("Instance not given after parsing.")
@@ -128,8 +134,8 @@ class CLI(Dismantable):
                     logger.log("CLI", f"Unable to get Instance with name '{instance}'")
                     return True
 
-                status, message = machine.file_copy_helper.copy(Path(source_path), 
-                                                                Path(destination_path), 
+                status, message = machine.file_copy_helper.copy(source_path, 
+                                                                destination_path, 
                                                                 copy_to_instance)
                 if not status:
                     logger.log("CLI", message)
@@ -201,12 +207,14 @@ class CLI(Dismantable):
             except EOFError:
                 continue
             
-            parts = cli_input.strip().lower().split(" ", maxsplit=1)
+            parts = cli_input.strip().split(" ", maxsplit=1)
             if len(parts) != 2:
                 command, args = parts[0], None
             else:
                 command, args = parts
                 args = args.split(" ")
+
+            command = command.lower()
             
             status = False
             try:

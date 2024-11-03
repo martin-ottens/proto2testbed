@@ -187,17 +187,28 @@ class InstanceManager():
             return True
 
         try:
+            destination = target
+            if target.is_dir():
+                destination = target / Path(os.path.basename(source))
+
             if source.is_dir():
-                shutil.copytree(source, target)
+                shutil.copytree(source, destination)
             else:
-                os.makedirs(os.path.dirname(target), exist_ok=True)
-                shutil.copy2(source, target)
+                os.makedirs(os.path.dirname(destination), exist_ok=True)
+                shutil.copy2(source, destination)
 
             if not source_is_local:
                 if source.is_dir():
                     shutil.rmtree(source, ignore_errors=True)
                 else:
                     os.remove(source)
+
+            if copy_instructions.source_renameto is not None:
+                rename_path = target / Path(os.path.basename(source))
+                rename_to = target / copy_instructions.source_renameto
+
+                os.rename(rename_path, rename_to)
+        
         except Exception as ex:
             self.message_to_controller(InstanceMessageType.MSG_ERROR, 
                                    f"Copy failed on Instance: {ex}")

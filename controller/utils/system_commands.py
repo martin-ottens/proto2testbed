@@ -63,17 +63,28 @@ def get_DNS_resolver() -> str:
 
 def copy_file_or_directory(source: Path, target: Path) -> bool:
     try:
+        destination = target
+        if target.is_dir():
+            destination = target / Path(os.path.basename(source))
+
         if source.is_dir():
-            shutil.copytree(source, target)
+            shutil.copytree(source, destination)
         else:
-            os.makedirs(os.path.dirname(target), exist_ok=True)
-            shutil.copy2(source, target)
+            os.makedirs(os.path.dirname(destination), exist_ok=True)
+            shutil.copy2(source, destination)
         
         return True
     except Exception as ex:
-        logger.opt(exception=ex).error(f"Error while copying from {source} to {target}")
+        logger.opt(exception=ex).error(f"Error while copying from '{source}' to '{target}'")
         return False
 
+def rename_file_or_direcory(file_or_directory: Path, new_name: str) -> bool:
+    try:
+        os.rename(file_or_directory, new_name)
+        return True
+    except Exception as ex:
+        logger.opt(exception=ex).error(f"Error while renaming '{file_or_directory}' to '{new_name}'")
+        return False
 
 def remove_file_or_direcory(to_delete: Path):
     try:

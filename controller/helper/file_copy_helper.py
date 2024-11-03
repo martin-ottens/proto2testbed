@@ -1,13 +1,14 @@
 import random
 import string
 import shutil
+import os
 
 from pathlib import Path
 from typing import Tuple, Dict
 from loguru import logger
 
 from common.instance_manager_message import CopyFileMessageUpstream
-from utils.system_commands import copy_file_or_directory, remove_file_or_direcory
+from utils.system_commands import copy_file_or_directory, remove_file_or_direcory, rename_file_or_direcory
 
 class FileCopyAction():
     def __init__(self, source: Path, destination: Path, copy_to_instance: bool):
@@ -41,7 +42,10 @@ class FileCopyHelper():
             action = FileCopyAction(source_path, destination_path, copy_to_instance)
             self.pending[proc_id] = action
 
-            message = CopyFileMessageUpstream(proc_id, str(destination_path), proc_id)
+            message = CopyFileMessageUpstream(proc_id, 
+                                              str(destination_path), 
+                                              os.path.basename(str(source_path)), 
+                                              proc_id)
             self.machine.send_message(message.to_json().encode("utf-8"))
         
             # (Wait for reply)
@@ -51,7 +55,7 @@ class FileCopyHelper():
             self.pending[proc_id] = action
 
             # Instruct the Instance to copy from source to exchange mount
-            message = CopyFileMessageUpstream(str(source_path), proc_id, proc_id)
+            message = CopyFileMessageUpstream(str(source_path), proc_id, None, proc_id)
             self.machine.send_message(message.to_json().encode("utf-8"))
 
             # (Copy from exchange mount to target)
@@ -89,6 +93,14 @@ class FileCopyHelper():
             if not remove_file_or_direcory(source):
                 logger.error(f"Unable to clean up '{source}' after sucesful copy!")
                 success = False
+
+            if action.destination.is_dir():
+                rename_path = action.destination / Path(os.path.basename(source))
+                rename_to = action.destination / Path(os.path.basename(action.source))
+
+                if not rename_file_or_direcory(rename_path, str(rename_to)):
+                    logger.error(f"Unable to rename '{rename_path}' to '{rename_to}' after sucesful copy!")
+                    success = False
 
             if success:
                 logger.info(f"Sucessfully copied from '{self.machine.name}:{action.source}' to '{action.destination}'")

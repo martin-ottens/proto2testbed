@@ -102,5 +102,5 @@ def check_preserve_dir(preserve_dir: Optional[str]) -> bool:
         logger.debug(f"File Preservation directory {preserve_dir} does not exist, creating it.")
         os.mkdir(preserve_dir)
 
-    logger.info(f"File Preservation: Saving instance files to {preserve_dir}")
+    logger.info(f"File Preservation: Saving Instance files to {preserve_dir}")
     return True
