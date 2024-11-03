@@ -6,6 +6,7 @@ import pexpect
 from threading import Thread, Event
 from loguru import logger
 from typing import Optional, List
+from pathlib import Path
 
 from utils.interfaces import Dismantable
 from utils.continue_mode import *
@@ -127,7 +128,9 @@ class CLI(Dismantable):
                     logger.log("CLI", f"Unable to get Instance with name '{instance}'")
                     return True
 
-                status, message = machine.file_copy_helper.copy(source_path, destination_path, copy_to_instance)
+                status, message = machine.file_copy_helper.copy(Path(source_path), 
+                                                                Path(destination_path), 
+                                                                copy_to_instance)
                 if not status:
                     logger.log("CLI", message)
 

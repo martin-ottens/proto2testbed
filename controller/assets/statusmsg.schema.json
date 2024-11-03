@@ -22,7 +22,8 @@
                 "exp_done",
                 "exp_failed",
                 "failed",
-                "finished"
+                "finished",
+                "copied_file"
             ]
         },
         "message": {

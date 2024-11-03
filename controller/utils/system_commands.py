@@ -1,6 +1,8 @@
 import subprocess
 import pexpect
 import re
+import os
+import shutil
 
 from typing import List
 from loguru import logger
@@ -34,6 +36,7 @@ def invoke_subprocess(command: List[str] | str, capture_output: bool = True, she
     
     return subprocess.run(command, capture_output=capture_output, shell=shell)
 
+
 @log_trace
 def invoke_pexpect(command: List[str] | str, timeout: int = None, encoding: str = "utf-8", needs_root: bool = False) -> pexpect.spawn:
     if isinstance(command, str) and needs_root:
@@ -42,6 +45,7 @@ def invoke_pexpect(command: List[str] | str, timeout: int = None, encoding: str 
         command = ["sudo"] + command
 
     return pexpect.spawn(command, timeout=timeout, encoding=encoding)
+
 
 def get_DNS_resolver() -> str:
     pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
@@ -55,3 +59,30 @@ def get_DNS_resolver() -> str:
         raise Exception("Invalid results when getting DNS Resolver from /etc/resolv.conf - is an IPv4 resolver configured?")
     
     return address.replace("\n", "")
+
+
+def copy_file_or_directory(source: Path, target: Path) -> bool:
+    try:
+        if source.is_dir():
+            shutil.copytree(source, target)
+        else:
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            shutil.copy2(source, target)
+        
+        return True
+    except Exception as ex:
+        logger.opt(exception=ex).error(f"Error while copying from {source} to {target}")
+        return False
+
+
+def remove_file_or_direcory(to_delete: Path):
+    try:
+        if to_delete.is_dir():
+            shutil.rmtree(to_delete, ignore_errors=True)
+        else:
+            os.remove(to_delete)
+        
+        return True
+    except Exception as ex:
+        logger.opt(exception=ex).error(f"Unable to delete '{to_delete}'")
+        return False

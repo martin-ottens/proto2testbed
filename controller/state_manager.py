@@ -98,6 +98,10 @@ class MachineState():
             return
         
         if file_preservation is not None:
+            # Clean pending copy jobs, so that they are not copied to the testbed results
+            if self.file_copy_helper is not None:
+                self.file_copy_helper.clean_mount()
+
             flist = []
             for _, _, files in os.walk(self.get_p9_data_path()):
                 for file in files:

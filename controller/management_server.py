@@ -105,7 +105,7 @@ class ManagementClientConnection(threading.Thread):
                 logger.info(f"Management: Client {self.client.name} is ready for shut down.")
                 return True
             case InstanceMessageType.COPIED_FILE:
-                self.client.file_copy_helper(message_obj.message)
+                self.client.file_copy_helper.feedback_from_instance(message_obj.message)
                 return True
             case _:
                 logger.warning(f"Management: Client {self.client.name}: Unkown message type '{message_obj.status}'")

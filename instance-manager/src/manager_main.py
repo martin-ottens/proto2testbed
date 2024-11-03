@@ -164,10 +164,10 @@ class InstanceManager():
         source = Path(copy_instructions.source)
         target = Path(copy_instructions.target)
         source_is_local = False
-        if source.absolute():
+        if source.is_absolute():
             source_is_local = True
 
-        if target.absolute() and source_is_local:
+        if target.is_absolute() and source_is_local:
             self.message_to_controller(InstanceMessageType.MSG_ERROR, 
                                        f"Can't copy from '{copy_instructions.source}' to '{copy_instructions.target}': Both are local.")
             print(f"Unable to process CopyFileMessage: Cannot copy from local to local", file=sys.stderr, flush=True)
@@ -194,7 +194,10 @@ class InstanceManager():
                 shutil.copy2(source, target)
 
             if not source_is_local:
-                shutil.rmtree(source, ignore_errors=True)
+                if source.is_dir():
+                    shutil.rmtree(source, ignore_errors=True)
+                else:
+                    os.remove(source)
         except Exception as ex:
             self.message_to_controller(InstanceMessageType.MSG_ERROR, 
                                    f"Copy failed on Instance: {ex}")
