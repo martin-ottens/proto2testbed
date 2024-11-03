@@ -1,6 +1,6 @@
 import traceback
 
-from applications.base_application import BaseApplication
+from base_application import BaseApplication
 from applications.iperf_common import run_iperf
 from common.application_configs import ApplicationConfig, IperfClientApplicationConfig
 from application_interface import ApplicationInterface
@@ -13,7 +13,10 @@ class IperfClientApplication(BaseApplication):
     def get_runtime_upper_bound(self, runtime: int) -> int:
         return runtime + int(IperfClientApplication.__CONNECT_TIMEOUT_MULTIPLIER * runtime) + IperfClientApplication.__STATIC_DELAY_BEFORE_START
 
-    def start_collection(self, settings: ApplicationConfig, runtime: int, interface: ApplicationInterface) -> bool:
+    def set_and_validate_config(self, config: ApplicationConfig) -> bool:
+        pass
+
+    def start(self, runtime: int) -> bool:
         if not isinstance(settings, IperfClientApplicationConfig):
             raise Exception("Received invalid config type!")
         

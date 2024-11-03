@@ -106,7 +106,7 @@ class InstanceManager():
 
     def handle_experiment(self, data) -> bool:
         print(f"Starting execution of Applications", file=sys.stderr, flush=True)
-        applications = ApplicationsMessageUpstream.from_json(data)
+        applications = InstallApplicationsMessageUpstream.from_json(data)
 
         barrier = Barrier(len(applications.applications) + 1)
         threads: List[ApplicationController] = []
@@ -125,12 +125,12 @@ class InstanceManager():
 
         if failed != 0:
             print(f"Execution of Applications finished, {failed} failed.", file=sys.stderr, flush=True)
-            self.message_to_controller(InstanceMessageType.EXPERIMENT_FAILED, 
+            self.message_to_controller(InstanceMessageType.APPS_FAILED, 
                                         f"{failed} Applications(s) failed.")
             return False
         else:
             print(f"Execution of Applications successfully completed.", file=sys.stderr, flush=True)
-            self.message_to_controller(InstanceMessageType.EXPERIMENT_DONE)
+            self.message_to_controller(InstanceMessageType.APPS_DONE)
             return True
 
     def handle_finish(self, data) -> False:
@@ -249,7 +249,7 @@ class InstanceManager():
                             self.state = IMState.INITIALIZED
                         else:
                             self.state = IMState.FAILED
-                case ApplicationsMessageUpstream.status_name:
+                case InstallApplicationsMessageUpstream.status_name:
                     if self.state != IMState.INITIALIZED:
                         print(f"Got 'applications' message from controller, but im in state {self.state.value}, skipping.")
                         self.message_to_controller(InstanceMessageType.MSG_ERROR, "Instance is not yet initialized.")

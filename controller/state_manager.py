@@ -17,10 +17,11 @@ class AgentManagementState(Enum):
     UNKNOWN = 0
     STARTED = 1
     INITIALIZED = 2
-    IN_EXPERIMENT = 3
-    FINISHED = 4
-    FILES_PRESERVED = 5
-    DISCONNECTED = 6
+    APPS_READY = 3 # TODO: New step
+    IN_EXPERIMENT = 4
+    FINISHED = 5
+    FILES_PRESERVED = 6
+    DISCONNECTED = 7
     FAILED = 99
 
 class WaitResult(Enum):

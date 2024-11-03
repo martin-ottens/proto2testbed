@@ -19,8 +19,9 @@
                 "msg_success",
                 "msg_warning",
                 "msg_debug",
-                "exp_done",
-                "exp_failed",
+                "apps_installed",
+                "apps_done",
+                "apps_failed",
                 "failed",
                 "finished",
                 "copied_file"

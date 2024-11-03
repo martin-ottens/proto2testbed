@@ -1,12 +1,15 @@
 import subprocess
 
-from applications.base_application import BaseApplication
+from base_application import BaseApplication
 from common.application_configs import ApplicationConfig, PingApplicationConfig
 from application_interface import ApplicationInterface
 
 
 class PingApplication(BaseApplication):
-    def start_collection(self, settings: ApplicationConfig, runtime: int, interface: ApplicationInterface) -> bool:
+    def set_and_validate_config(self, config: ApplicationConfig) -> bool:
+        pass
+
+    def start_collection(self, runtime: int) -> bool:
         if not isinstance(settings, PingApplicationConfig):
             raise Exception("Received invalid config type!")
         

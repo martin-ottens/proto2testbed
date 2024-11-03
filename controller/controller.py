@@ -18,7 +18,7 @@ from utils.continue_mode import *
 from management_server import ManagementServer
 from cli import CLI
 from state_manager import MachineStateManager, AgentManagementState, WaitResult
-from common.instance_manager_message import InitializeMessageUpstream, ApplicationsMessageUpstream, FinishInstanceMessageUpstream
+from common.instance_manager_message import InitializeMessageUpstream, InstallApplicationsMessageUpstream, FinishInstanceMessageUpstream
 
 class Controller(Dismantable):
     def __init__(self):
@@ -366,7 +366,7 @@ class Controller(Dismantable):
         logger.info("Startig applications on Instances.")
         for machine in SettingsWrapper.testbed_config.instances:
             state = self.state_manager.get_machine(machine.name)
-            message = ApplicationsMessageUpstream(machine.applications)
+            message = InstallApplicationsMessageUpstream(machine.applications)
             state.send_message(message.to_json().encode("utf-8"))
             state.set_state(AgentManagementState.IN_EXPERIMENT)
             

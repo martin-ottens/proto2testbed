@@ -17,8 +17,9 @@ class InstanceMessageType(Enum):
     MSG_DEBUG = "msg_debug"
     MSG_ERROR = "msg_error"
     FAILED = "failed"
-    EXPERIMENT_FAILED = "exp_failed"
-    EXPERIMENT_DONE = "exp_done"
+    APPS_INSTALLED = "apps_installed"
+    APPS_FAILED = "apps_failed"
+    APPS_DONE = "apps_done"
     FINISHED = "finished"
     COPIED_FILE = "copied_file"
     UNKNOWN = "unknown"
@@ -64,17 +65,17 @@ class InitializeMessageUpstream(JSONSerializer):
         self.environment = environment
 
 
-class ApplicationsMessageUpstream(JSONSerializer):
-    status_name = "experiment"
+class InstallApplicationsMessageUpstream(JSONSerializer):
+    status_name = "install_apps"
 
     def __init__(self, applications: Optional[List[ApplicationConfig]] = None, 
                  status = None) -> None:
-        self.status = ApplicationsMessageUpstream.status_name
+        self.status = InstallApplicationsMessageUpstream.status_name
         self.applications = applications
 
     @staticmethod
     def from_json(json):
-        obj = ApplicationsMessageUpstream(**json)
+        obj = InstallApplicationsMessageUpstream(**json)
 
         if obj.applications is None:
             return obj
@@ -84,6 +85,13 @@ class ApplicationsMessageUpstream(JSONSerializer):
             obj.applications.append(ApplicationConfig(**application))
 
         return obj
+
+
+class RunApplicationsMessageUpstream(JSONSerializer):
+    status_name = "run_apps"
+
+    def __init__(self, status = None):
+        self.status = RunApplicationsMessageUpstream.status_name
     
 
 class CopyFileMessageUpstream(JSONSerializer):

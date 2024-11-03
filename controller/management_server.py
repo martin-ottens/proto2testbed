@@ -87,7 +87,7 @@ class ManagementClientConnection(threading.Thread):
                 logger.info(f"Management: Client {self.client.name} initialized.")
             case InstanceMessageType.MSG_ERROR | InstanceMessageType.MSG_INFO | InstanceMessageType.MSG_SUCCESS | InstanceMessageType.MSG_WARNING | InstanceMessageType.MSG_DEBUG | InstanceMessageType.DATA_POINT:
                 pass
-            case InstanceMessageType.FAILED | InstanceMessageType.EXPERIMENT_FAILED:
+            case InstanceMessageType.FAILED | InstanceMessageType.APPS_FAILED:
                 self.client.set_state(state_manager.AgentManagementState.FAILED)
                 if message_obj.message is not None:
                     logger.error(f"Management: Client {self.client.name} reported failure with message: {message_obj.message}")
@@ -97,7 +97,10 @@ class ManagementClientConnection(threading.Thread):
                     return False
                 else:
                     return True
-            case InstanceMessageType.EXPERIMENT_DONE:
+            case InstanceMessageType.APPS_INSTALLED:
+                # TODO
+                pass
+            case InstanceMessageType.APPS_DONE:
                 self.client.set_state(state_manager.AgentManagementState.FINISHED)
                 logger.info(f"Management: Client {self.client.name} reported finished applications.")
             case InstanceMessageType.FINISHED:
