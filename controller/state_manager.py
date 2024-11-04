@@ -12,16 +12,18 @@ from threading import Lock, Semaphore
 
 from utils.system_commands import invoke_subprocess
 from helper.file_copy_helper import FileCopyHelper
+from common.application_configs import ApplicationConfig
 
 class AgentManagementState(Enum):
     UNKNOWN = 0
     STARTED = 1
     INITIALIZED = 2
-    APPS_READY = 3 # TODO: New step
-    IN_EXPERIMENT = 4
-    FINISHED = 5
-    FILES_PRESERVED = 6
-    DISCONNECTED = 7
+    APPS_SENDED = 3
+    APPS_READY = 4
+    IN_EXPERIMENT = 5
+    FINISHED = 6
+    FILES_PRESERVED = 7
+    DISCONNECTED = 8
     FAILED = 99
 
 class WaitResult(Enum):
@@ -33,7 +35,8 @@ class WaitResult(Enum):
 class MachineState():
     __INTERCHANGE_BASE_PATH = "/tmp/testbed-"
 
-    def __init__(self, name: str, script_file: str, setup_env: Optional[dict[str, str]], manager, preserve_files: Optional[List[str]]):
+    def __init__(self, name: str, script_file: str, 
+                 setup_env: Optional[dict[str, str]], manager,):
         self.name: str = name
         self.script_file: str = script_file
         self.uuid = ''.join(random.choices(string.ascii_letters, k=8))
@@ -50,8 +53,7 @@ class MachineState():
         self.interchange_ready = False
         self.interfaces_hostside: List[str] = []
         self.preserve_files: List[str] = []
-        if preserve_files is not None:
-            self.preserve_files = preserve_files
+        self.apps = Optional[List[ApplicationConfig]]
         self.mgmt_ip_addr: Optional[str] = None
         self.file_copy_helper = FileCopyHelper(self)
 
@@ -75,6 +77,9 @@ class MachineState():
     
     def get_state(self) -> AgentManagementState:
         return self._state
+    
+    def add_apps(self, apps: Optional[List[ApplicationConfig]]):
+        self.apps = apps
 
     def set_state(self, new_state: AgentManagementState):
         if self._state == new_state:
@@ -187,11 +192,12 @@ class MachineStateManager():
     def get_all_machines(self) -> List[MachineState]:
         return list(self.map.values())
     
-    def add_machine(self, name: str, script_file: str, setup_env: dict[str, str], preserve_files: Optional[List[str]]):
+    def add_machine(self, name: str, script_file: str, 
+                    setup_env: dict[str, str]):
         if name in self.map:
             raise Exception(f"Machine {name} was already configured")
         
-        self.map[name] = MachineState(name, script_file, setup_env, self, preserve_files)
+        self.map[name] = MachineState(name, script_file, setup_env, self)
         self.map[name].set_setup_env_entry("INSTANCE_NAME", name)
     
     def remove_machine(self, name: str):

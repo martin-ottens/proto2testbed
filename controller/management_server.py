@@ -13,6 +13,7 @@ from common.instance_manager_message import *
 from utils.influxdb import InfluxDBAdapter
 
 import state_manager
+from state_manager import AgentManagementState
 
 class ManagementClientConnection(threading.Thread):
     __MAX_FRAME_LEN = 8192
@@ -65,16 +66,23 @@ class ManagementClientConnection(threading.Thread):
         match message_obj.get_status():
             case InstanceMessageType.STARTED:
                 previous = self.client.get_state()
-                if previous == state_manager.AgentManagementState.DISCONNECTED:
+                if previous == AgentManagementState.DISCONNECTED:
                     logger.error(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Instance Manager failed?")
-                    self.client.set_state(state_manager.AgentManagementState.FAILED)
+                    self.client.set_state(AgentManagementState.FAILED)
                     self.send_message(InitializeMessageUpstream(None, None).to_json().encode("utf-8"))
-                elif previous == state_manager.AgentManagementState.INITIALIZED:
+
+                elif previous == AgentManagementState.INITIALIZED:
                     logger.warning(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Skipping Instance setup!")
-                    self.client.set_state(state_manager.AgentManagementState.INITIALIZED)
+                    self.client.set_state(AgentManagementState.INITIALIZED)
                     self.send_message(InitializeMessageUpstream(None, None).to_json().encode("utf-8"))
+
+                elif previous == AgentManagementState.APPS_READY or previous == AgentManagementState.APPS_SENDED:
+                    logger.warning(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Re-Installing apps!")
+                    self.client.set_state(AgentManagementState.INITIALIZED)
+                    self.send_message(InstallApplicationsMessageUpstream(self.expected_instance.apps).to_json().encode("utf-8"))
+                
                 else:
-                    self.client.set_state(state_manager.AgentManagementState.STARTED)
+                    self.client.set_state(AgentManagementState.STARTED)
                     if self.init_instant:
                         logger.info(f"Management: Client '{self.expected_instance.name}': Started. Sending setup instructions for instant setup.")
                         self.send_message(InitializeMessageUpstream(
@@ -83,12 +91,14 @@ class ManagementClientConnection(threading.Thread):
                     else:
                         logger.info(f"Management: Client '{self.expected_instance.name}': Started. Setup deferred.")
             case InstanceMessageType.INITIALIZED:
-                self.client.set_state(state_manager.AgentManagementState.INITIALIZED)
+                self.client.set_state(AgentManagementState.INITIALIZED)
                 logger.info(f"Management: Client {self.client.name} initialized.")
+
             case InstanceMessageType.MSG_ERROR | InstanceMessageType.MSG_INFO | InstanceMessageType.MSG_SUCCESS | InstanceMessageType.MSG_WARNING | InstanceMessageType.MSG_DEBUG | InstanceMessageType.DATA_POINT:
                 pass
+
             case InstanceMessageType.FAILED | InstanceMessageType.APPS_FAILED:
-                self.client.set_state(state_manager.AgentManagementState.FAILED)
+                self.client.set_state(AgentManagementState.FAILED)
                 if message_obj.message is not None:
                     logger.error(f"Management: Client {self.client.name} reported failure with message: {message_obj.message}")
                 else:
@@ -97,19 +107,24 @@ class ManagementClientConnection(threading.Thread):
                     return False
                 else:
                     return True
+                
             case InstanceMessageType.APPS_INSTALLED:
-                # TODO
-                pass
+                self.client.set_state(AgentManagementState.APPS_READY)
+                logger.info(f"Management: Client {self.client.name} installed apps, ready for experiment.")
+
             case InstanceMessageType.APPS_DONE:
-                self.client.set_state(state_manager.AgentManagementState.FINISHED)
+                self.client.set_state(AgentManagementState.FINISHED)
                 logger.info(f"Management: Client {self.client.name} reported finished applications.")
+
             case InstanceMessageType.FINISHED:
-                self.client.set_state(state_manager.AgentManagementState.FILES_PRESERVED)
+                self.client.set_state(AgentManagementState.FILES_PRESERVED)
                 logger.info(f"Management: Client {self.client.name} is ready for shut down.")
                 return True
+            
             case InstanceMessageType.COPIED_FILE:
                 self.client.file_copy_helper.feedback_from_instance(message_obj.message)
                 return True
+            
             case _:
                 logger.warning(f"Management: Client {self.client.name}: Unkown message type '{message_obj.status}'")
 

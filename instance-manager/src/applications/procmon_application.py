@@ -1,23 +1,36 @@
 import psutil
 import time
 
-from typing import Dict
+from typing import Dict, List, Optional, Tuple
 
 from base_application import BaseApplication
-from common.application_configs import ApplicationConfig, ProcmonApplicationConfig
-from application_interface import ApplicationInterface
+from common.application_configs import ApplicationSettings
+
+
+class ProcmonApplicationConfig(ApplicationSettings):
+    def __init__(self, interval: int = 1, interfaces: List[str] = None,
+                 processes: List[str] = None, system: bool = True) -> None:
+        self.interval = interval
+        self.interfaces = interfaces
+        self.processes = processes
+        self.system = system
 
 
 class ProcmonApplication(BaseApplication):
-    def set_and_validate_config(self, config: ApplicationConfig) -> bool:
-        pass
+    NAME = "procmon"
 
-    def start_collection(self, runtime: int) -> bool:
-        if not isinstance(settings, ProcmonApplicationConfig):
-            raise Exception("Received invalid config type!")
-        
+    def set_and_validate_config(self, config: ApplicationSettings) -> Tuple[bool, Optional[str]]:
+        try:
+            self.settings = ProcmonApplicationConfig(**config)
+            return True, None
+        except Exception as ex:
+            return False, f"Config validation failed: {ex}"
 
-        if settings.system is False and settings.interfaces is None and settings.processes is None:
+    def start(self, runtime: int) -> bool:
+        if self.settings is None:
+            return False
+
+        if self.settings.system is False and self.settings.interfaces is None and self.settings.processes is None:
             raise Exception("Procmon has nothing to do (system, process, and interface monitoring disabled!")
         
         def proc_to_dict(process: psutil.Process) -> Dict[str, float]:
@@ -69,19 +82,19 @@ class ProcmonApplication(BaseApplication):
         
         def report(system_, processes_, interfaces_) -> None:
             if system_ is not None:
-                interface.data_point("proc-system", system_)
+                self.interface.data_point("proc-system", system_)
             for k, v in processes_.items(): 
-                interface.data_point("proc-process", v, {"process": k})
+                self.interface.data_point("proc-process", v, {"process": k})
             for k, v in interfaces_.items():
-                interface.data_point("proc-interface", v, {"interface": k})
+                self.interface.data_point("proc-interface", v, {"interface": k})
         
         # Processes -> t=0 Offset
         processes = {}
-        if settings.processes is not None:
+        if self.settings.processes is not None:
             for psutil_proc in psutil.process_iter(["cmdline", "pid"]):
                 cmdline = " ".join(psutil_proc.info["cmdline"])
                 found = None
-                for config_process in settings.processes:
+                for config_process in self.settings.processes:
                     if cmdline.startswith(config_process):
                         found = config_process
                         break
@@ -98,28 +111,28 @@ class ProcmonApplication(BaseApplication):
                     "proc": psutil_proc
                 }
             
-            for proc_name in settings.processes:
+            for proc_name in self.settings.processes:
                 if proc_name not in processes.keys():
                     raise Exception(f"Unable to find process with cmdline '{proc_name}'!")
     
 
         # Interfaces -> t=0 Offset
         interfaces = {}
-        if settings.interfaces is not None:
+        if self.settings.interfaces is not None:
             net_io_list = psutil.net_io_counters(pernic=True, nowrap=False)
-            for if_name in settings.interfaces:
+            for if_name in self.settings.interfaces:
                 if if_name not in net_io_list.keys():
                     raise Exception(f"Unable to find interface {if_name}")
                 interfaces[if_name] = snetio_to_dict(net_io_list[if_name])
         
         # System
         system = None
-        if settings.system is True:
+        if self.settings.system is True:
             system = system_to_dict()
         
         tracking_error_flag = 0
         sleep_left = runtime
-        while sleep_left >= settings.interval:
+        while sleep_left >= self.settings.interval:
             # Processes
             run_processes = {}
             for proc_name, elem in processes.items():
@@ -137,7 +150,7 @@ class ProcmonApplication(BaseApplication):
             for int_name, elem in interfaces.items():
                 try:
                     run_interfaces[int_name] = diff_two_dicts(elem, snetio_to_dict(net_io_list[int_name]))
-                except Exception as ex:
+                except Exception as _:
                     run_interfaces[int_name] = elem
                     tracking_error_flag += 1
             
@@ -149,7 +162,7 @@ class ProcmonApplication(BaseApplication):
             
             report(run_system, run_processes, run_interfaces)
             
-            time.sleep(min(sleep_left, settings.interval))
-            sleep_left -= settings.interval
+            time.sleep(min(sleep_left, self.settings.interval))
+            sleep_left -= self.settings.interval
             
         return tracking_error_flag == 0

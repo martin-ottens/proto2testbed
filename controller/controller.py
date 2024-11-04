@@ -18,7 +18,7 @@ from utils.continue_mode import *
 from management_server import ManagementServer
 from cli import CLI
 from state_manager import MachineStateManager, AgentManagementState, WaitResult
-from common.instance_manager_message import InitializeMessageUpstream, InstallApplicationsMessageUpstream, FinishInstanceMessageUpstream
+from common.instance_manager_message import *
 
 class Controller(Dismantable):
     def __init__(self):
@@ -328,7 +328,7 @@ class Controller(Dismantable):
             logger.critical("Critical error during instance setup")
             return False
 
-        setup_timeout = SettingsWrapper.testbed_config.settings.startup_init_timeout        
+        setup_timeout = SettingsWrapper.testbed_config.settings.startup_init_timeout
         if self.pause_after == PauseAfterSteps.SETUP:
             logger.info("Waiting for Instances to start ...")
 
@@ -346,9 +346,22 @@ class Controller(Dismantable):
                             machine.get_setup_env()[1]).to_json().encode("utf-8"))
         else:
             logger.info("Waiting for Instances to start and initialize ...")
+
+        if not self.wait_for_to_become(setup_timeout, "Instance Initialization", 
+                                       AgentManagementState.INITIALIZED, 
+                                       self.pause_after == PauseAfterSteps.INIT):
+            return False
+
+        logger.info("Instances are initialized, invoking installtion of apps ...")
+        for config_machine in SettingsWrapper.testbed_config.instances:
+            machine = self.state_manager.get_machine(config_machine.name)
+            apps = config_machine.applications
+            machine.add_apps(apps)
+            machine.set_state(AgentManagementState.APPS_SENDED)
+            machine.send_message(InstallApplicationsMessageUpstream(apps).to_json().encode("utf-8"))
         
-        if not self.wait_for_to_become(setup_timeout, 'Instance Initialization', 
-                                AgentManagementState.INITIALIZED, 
+        if not self.wait_for_to_become(setup_timeout, 'App Installation', 
+                                AgentManagementState.APPS_READY, 
                                 self.pause_after == PauseAfterSteps.INIT):
             return False
         
@@ -364,11 +377,10 @@ class Controller(Dismantable):
                 return True
         
         logger.info("Startig applications on Instances.")
-        for machine in SettingsWrapper.testbed_config.instances:
-            state = self.state_manager.get_machine(machine.name)
-            message = InstallApplicationsMessageUpstream(machine.applications)
-            state.send_message(message.to_json().encode("utf-8"))
-            state.set_state(AgentManagementState.IN_EXPERIMENT)
+        message = RunApplicationsMessageUpstream().to_json().encode("utf-8")
+        for machine in self.state_manager.get_all_machines():
+            machine.send_message(message)
+            machine.set_state(AgentManagementState.IN_EXPERIMENT)
             
         logger.info("Waiting for Instances to finish applications ...")
 

@@ -6,43 +6,24 @@ import traceback
 from multiprocessing import Process, Manager
 from threading import Event, Thread, Barrier
 
-from common.application_configs import Applications, ApplicationConfig
+from common.application_configs import ApplicationConfig
 from common.instance_manager_message import InstanceMessageType
 
 from management_client import ManagementClient, DownstreamMassage
 from application_interface import ApplicationInterface
 
-from applications.base_application import BaseApplication
-from applications.iperf_client_application import IperfClientApplication
-from applications.iperf_server_application import IperfServerApplication
-from applications.ping_application import PingApplication
-from applications.procmon_application import ProcmonApplication
-from applications.run_program_application import RunProgramApplication
+from base_application import BaseApplication
 
 IM_SOCKET_PATH = "/tmp/im.sock"
 
 class ApplicationController(Thread):
-    @staticmethod
-    def map_application(application: Applications) -> BaseApplication:
-        match application:
-            case Applications.IPERF3_SERVER:
-                return IperfServerApplication()
-            case Applications.IPERF3_CLIENT:
-                return IperfClientApplication()
-            case Applications.PING:
-                return PingApplication()
-            case Applications.PROCMON:
-                return ProcmonApplication()
-            case Applications.RUN_PROGRAM:
-                return RunProgramApplication()
-            case _:
-                raise Exception(f"Unmapped application {application}")
             
-    def __init__(self, config: ApplicationConfig, client: ManagementClient,
-                 start_barrier: Barrier, instance_name: str) -> None:
+    def __init__(self, app: BaseApplication, config: ApplicationConfig, 
+                 client: ManagementClient, start_barrier: Barrier, 
+                 instance_name: str) -> None:
         super(ApplicationController, self).__init__()
-        self.config = config
-        self.application: BaseApplication = ApplicationController.map_application(config.application)
+        self.config: ApplicationConfig = config
+        self.app: BaseApplication = app
         self.mgmt_client: ManagementClient = client
         self.settings = config.settings
         self.barrier: Barrier = start_barrier
@@ -52,6 +33,10 @@ class ApplicationController(Thread):
         self.instance_name = instance_name
         self.shared_state["error_flag"] = False
         self.shared_state["error_string"] = None
+
+    def __del__(self) -> None:
+        del self.app
+        del self.config
 
     def __fork_run(self):
         """
@@ -67,7 +52,7 @@ class ApplicationController(Thread):
                 interface.connect()
             except Exception as ex:
                 raise "Unable to connect to Instance Manager Daemon" from ex
-            rc = self.application.start_collection(self.settings, self.config.runtime, interface)
+            rc = self.app.start(self.settings, self.config.runtime, interface)
 
             interface.disconnect()
             if not rc:
@@ -86,7 +71,7 @@ class ApplicationController(Thread):
         time.sleep(self.config.delay)
 
         process.start()
-        process.join(self.application.get_runtime_upper_bound(self.config.runtime) + 1)
+        process.join(self.app.get_runtime_upper_bound(self.config.runtime) + 1)
 
         if process.is_alive():
             message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 

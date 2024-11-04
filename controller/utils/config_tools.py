@@ -81,7 +81,7 @@ def load_vm_initialization(config: TestbedConfig, base_path: Path, state_manager
                     logger.critical(f"Unable to load environment dict for VM {machine.name}")
                     return False
         
-        state_manager.add_machine(machine.name, script_file, env_variables, machine.preserve_files)
+        state_manager.add_machine(machine.name, script_file, env_variables)
 
     return True
 
@@ -102,5 +102,5 @@ def check_preserve_dir(preserve_dir: Optional[str]) -> bool:
         logger.debug(f"File Preservation directory {preserve_dir} does not exist, creating it.")
         os.mkdir(preserve_dir)
 
-    logger.info(f"File Preservation: Saving Instance files to {preserve_dir}")
+    logger.info(f"File Preservation: Saving instance files to {preserve_dir}")
     return True

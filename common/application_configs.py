@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from common.interfaces import JSONSerializer
 
-class ApplicationConfig(ABC):
+class ApplicationSettings(ABC):
     pass
 
 class ApplicationConfig(JSONSerializer):
@@ -15,4 +15,4 @@ class ApplicationConfig(JSONSerializer):
         self.runtime: int = runtime
         self.dont_store: bool = dont_store
         self.application = application
-        self.settings: str = settings
+        self.settings: ApplicationConfig = settings

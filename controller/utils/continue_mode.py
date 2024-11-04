@@ -11,6 +11,7 @@ class ContinueMode(Enum):
     EXIT = "exit"
     CONTINUE_TO = "continue_to"
 
+
 class CLIContinue():
     def __init__(self, stopped_at: PauseAfterSteps):
         self.stopped_at = stopped_at

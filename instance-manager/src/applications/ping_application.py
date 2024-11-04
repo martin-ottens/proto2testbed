@@ -1,17 +1,35 @@
 import subprocess
 
+from typing import Tuple, Optional
+
 from base_application import BaseApplication
-from common.application_configs import ApplicationConfig, PingApplicationConfig
-from application_interface import ApplicationInterface
+from common.application_configs import ApplicationSettings
+
+
+class PingApplicationConfig(ApplicationSettings):
+    def __init__(self, target: str, source: str = None, interval: int = 1,
+                 packetsize: int = None, ttl: int = None, timeout: int = 1) -> None:
+        self.target = target
+        self.source = source
+        self.interval = interval
+        self.packetsize = packetsize
+        self.ttl = ttl
+        self.timeout = timeout
 
 
 class PingApplication(BaseApplication):
-    def set_and_validate_config(self, config: ApplicationConfig) -> bool:
-        pass
+    NAME = "ping"
 
-    def start_collection(self, runtime: int) -> bool:
-        if not isinstance(settings, PingApplicationConfig):
-            raise Exception("Received invalid config type!")
+    def set_and_validate_config(self, config: ApplicationSettings) -> Tuple[bool, Optional[str]]:
+        try:
+            self.settings = PingApplicationConfig(**config)
+            return True, None
+        except Exception as ex:
+            return False, f"Config validation failed: {ex}"
+
+    def start(self, runtime: int) -> bool:
+        if self.settings is None:
+            return False
         
         command = ["/usr/bin/ping", "-O", "-B", "-D"]
 
@@ -19,24 +37,24 @@ class PingApplication(BaseApplication):
         command.append(str(runtime))
 
         command.append("-W")
-        command.append(str(settings.timeout))
+        command.append(str(self.settings.timeout))
 
         command.append("-i")
-        command.append(str(settings.interval))
+        command.append(str(self.settings.interval))
 
-        if settings.source is not None:
+        if self.settings.source is not None:
             command.append("-I")
-            command.append(settings.source)
+            command.append(self.settings.source)
 
-        if settings.ttl is not None:
+        if self.settings.ttl is not None:
             command.append("-t")
-            command.append(str(settings.ttl))
+            command.append(str(self.settings.ttl))
 
-        if settings.packetsize is not None:
+        if self.settings.packetsize is not None:
             command.append("-s")
-            command.append(str(settings.packetsize))
+            command.append(str(self.settings.packetsize))
     
-        command.append(settings.target)
+        command.append(self.settings.target)
 
         try:
             process = subprocess.Popen(command, shell=False, 
@@ -83,7 +101,7 @@ class PingApplication(BaseApplication):
                     "icmp_seq": icmp_seq
                 }
                 
-                interface.data_point("ping", data)
+                self.interface.data_point("ping", data)
 
         except Exception as ex:
             raise Exception(f"Ping error: {ex}")

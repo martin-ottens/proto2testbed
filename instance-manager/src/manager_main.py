@@ -5,14 +5,14 @@ import os
 import shutil
 import sys
 
-from threading import Barrier
 from pathlib import Path
 from enum import Enum, auto
+from typing import Optional
 
 from preserve_handler import PreserveHandler
 from management_daemon import IMDaemonServer
 from management_client import ManagementClient, DownstreamMassage, get_hostname
-from application_controller import ApplicationController
+from application_manager import ApplicationManager
 
 from common.instance_manager_message import *
 
@@ -28,6 +28,7 @@ IM_SOCKET_PATH = "/tmp/im.sock"
 class IMState(Enum):
     STARTED = auto()
     INITIALIZED = auto()
+    APPS_READY = auto()
     EXPERIMENT_RUNNING = auto()
     READY_FOR_SHUTDOWN = auto()
     FAILED = auto()
@@ -39,9 +40,10 @@ class InstanceManager():
         self.instance_name = get_hostname()
         self.manager = ManagementClient(self.instance_name)
         self.preserver = PreserveHandler(self.manager, EXCHANGE_MOUNT, EXCHANGE_P9_DEV)
-        self.exec_dir = None
         self.daemon = IMDaemonServer(self.manager, IM_SOCKET_PATH, self.preserver)
         self.state = IMState.STARTED
+        self.application_manager: Optional[ApplicationManager] = None
+        self.start_exec_path = os.getcwd()
 
     def message_to_controller(self, type: InstanceMessageType, payload = None):
         self.manager.send_to_server(DownstreamMassage(type, payload))
@@ -104,34 +106,29 @@ class InstanceManager():
         self.message_to_controller(InstanceMessageType.INITIALIZED)
         return True
 
-    def handle_experiment(self, data) -> bool:
-        print(f"Starting execution of Applications", file=sys.stderr, flush=True)
+    def install_apps(self, data) -> bool:
+        print(f"Starting installation of Applications", file=sys.stderr, flush=True)
         applications = InstallApplicationsMessageUpstream.from_json(data)
 
-        barrier = Barrier(len(applications.applications) + 1)
-        threads: List[ApplicationController] = []
-        for application in applications.applications:
-            t = ApplicationController(application, self.manager, barrier, self.instance_name)
-            t.start()
-            threads.append(t)
+        if self.application_manager is not None:
+            print(f"Purging previous installed application_manager")
+            del self.application_manager
+        
+        self.application_manager = ApplicationManager(self, 
+                                                      TESTBED_PACKAGE_MOUNT, 
+                                                      self.start_exec_path, 
+                                                      self.instance_name)
 
-        barrier.wait()
+        return self.application_manager.install_apps(applications.applications, IM_SOCKET_PATH)
 
-        failed = 0
-        for t in threads:
-            t.join()
-            if t.error_occured():
-                failed += 1
-
-        if failed != 0:
-            print(f"Execution of Applications finished, {failed} failed.", file=sys.stderr, flush=True)
-            self.message_to_controller(InstanceMessageType.APPS_FAILED, 
-                                        f"{failed} Applications(s) failed.")
+    def run_apps(self) -> bool:
+        if self.application_manager is None:
+            print("Unable to run experiment: No application manager is installed")
+            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
+                                   f"Can' run apps: No applications manager is configured.")
             return False
-        else:
-            print(f"Execution of Applications successfully completed.", file=sys.stderr, flush=True)
-            self.message_to_controller(InstanceMessageType.APPS_DONE)
-            return True
+        
+        return self.application_manager.run_apps()
 
     def handle_finish(self, data) -> False:
         print(f"Starting File Preservation", file=sys.stderr, flush=True)
@@ -250,14 +247,25 @@ class InstanceManager():
                         else:
                             self.state = IMState.FAILED
                 case InstallApplicationsMessageUpstream.status_name:
-                    if self.state != IMState.INITIALIZED:
-                        print(f"Got 'applications' message from controller, but im in state {self.state.value}, skipping.")
-                        self.message_to_controller(InstanceMessageType.MSG_ERROR, "Instance is not yet initialized.")
+                    if self.state != IMState.INITIALIZED and self.state != IMState.APPS_READY:
+                        print(f"Got 'install_apps' message from controller, but im in state {self.state.value}, skipping.")
+                        self.message_to_controller(InstanceMessageType.MSG_ERROR, "Instance is not ready for app installation.")
+                        continue
+
+                    if self.install_apps(data):
+                        self.state = IMState.APPS_READY
+                    else:
+                        self.state = IMState.FAILED
+                    continue
+                case RunApplicationsMessageUpstream.status_name:
+                    if self.state != IMState.APPS_READY:
+                        print(f"Got 'run_apps' message from controller, but im in state {self.state.value}, skipping.")
+                        self.message_to_controller(InstanceMessageType.MSG_ERROR, "Instance has not yet installed apps.")
                         continue
 
                     self.state = IMState.EXPERIMENT_RUNNING
-                    if self.handle_experiment(data):
-                        self.state = IMState.INITIALIZED
+                    if self.run_apps():
+                        self.state = IMState.APPS_READY
                     else:
                         self.state = IMState.FAILED
                     continue
@@ -287,8 +295,6 @@ class InstanceManager():
                 self.daemon.stop()
             if self.manager is not None:
                 self.manager.stop()
-            if self.exec_dir is not None:
-                shutil.rmtree(self.exec_dir)
 
 
 if __name__ == "__main__":
