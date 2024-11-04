@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import sys
+import os
 import pexpect
 
 def main(socket_path: str):
@@ -20,5 +21,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     ids = sys.argv[1]
+
+    socket_path = f"/tmp/testbed-{ids}/tty.sock"
+    if not os.path.exists(socket_path):
+        print(f"# Instance with ID '{ids}' does not exist.")
+        sys.exit(1)
+
     print(f"# Attached to Instance '{ids}', CRTL + ] to disconnect.")
-    main(f"/tmp/testbed-{ids}/tty.sock")
+    main(socket_path)
