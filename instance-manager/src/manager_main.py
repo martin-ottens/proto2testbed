@@ -115,6 +115,7 @@ class InstanceManager():
             del self.application_manager
         
         self.application_manager = ApplicationManager(self, 
+                                                      self.manager,
                                                       TESTBED_PACKAGE_MOUNT, 
                                                       self.start_exec_path, 
                                                       self.instance_name)

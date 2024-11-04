@@ -28,7 +28,7 @@ class IperfServerApplication(BaseApplication):
         except Exception as ex:
             return False, f"Config validation failed: {ex}"
 
-    def start_collection(self, runtime: int) -> bool:
+    def start(self, runtime: int) -> bool:
         if self.settings is None:
             return False
         

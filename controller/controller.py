@@ -388,7 +388,7 @@ class Controller(Dismantable):
 
         # Calculate by longest application
         if experiment_timeout == -1:
-            experiment_timeout = self.get_longest_application_duration()
+            experiment_timeout = self.get_longest_application_duration() + 10
             if experiment_timeout != 0:
                 experiment_timeout *= 2
     

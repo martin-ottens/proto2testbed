@@ -55,7 +55,7 @@ class IperfClientApplication(BaseApplication):
             command.append("--bandwidth")
             command.append(f"{self.settings.bandwidth_kbps}k")
         
-        if self.ettings.streams is not None:
+        if self.settings.streams is not None:
             command.append("--parallel")
             command.append(str(self.settings.streams))
         

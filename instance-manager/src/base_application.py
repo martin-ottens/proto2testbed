@@ -8,9 +8,12 @@ class BaseApplication(ABC):
     API_VERSION = "1.0"
     NAME = "##DONT_LOAD##"
 
-    def __init__(self, interface: ApplicationInterface):
-        self.interface = interface
+    def __init__(self):
+        self.interface = None
         self.settings = None
+
+    def attach_interface(self, interface: ApplicationInterface):
+        self.interface = interface
 
     def get_runtime_upper_bound(self, runtime: int) -> int:
         return runtime

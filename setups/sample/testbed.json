@@ -62,6 +62,21 @@
                         "interfaces": ["enp0s3"],
                         "system": true
                     }
+                },
+                {
+                    "application": "apps/log_app",
+                    "name": "dynload_log",
+                    "runtime": 60,
+                    "settings": {
+                        "level": "INFO",
+                        "messages": [
+                            "Log message one",
+                            "Log message two",
+                            "Log message three",
+                            "Log message four",
+                            "Log message five"
+                        ]
+                    }
                 }
             ]
         },

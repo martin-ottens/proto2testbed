@@ -7,18 +7,23 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 from threading import Barrier
 
+from management_client import ManagementClient
 from base_application import BaseApplication
 from common.application_configs import ApplicationConfig
 from application_controller import ApplicationController
 from application_interface import ApplicationInterface
 from common.instance_manager_message import InstanceMessageType
 
+
 class ApplicationManager():
     __COMPATIBLE_API_VERSION = "1.0"
     __PACKAGED_APPS = "applications/"
 
-    def __init__(self, main, testbed_package_base: str, app_base: str, instance_name: str) -> None:
+    def __init__(self, main, manager: ManagementClient, 
+                 testbed_package_base: str, app_base: str, 
+                 instance_name: str) -> None:
         self.main = main
+        self.manager = manager
         self.instance_name = instance_name
         self.app_base = Path(app_base)
         self.testbed_package_base = Path(testbed_package_base)
@@ -62,7 +67,7 @@ class ApplicationManager():
             
         return True
     
-    def _load_single_app(self, module_name: str, path: Path) -> bool:
+    def _load_single_app(self, module_name: str, path: Path, loaded_by_package: bool = False) -> bool:
         try:
             spec = importlib.util.spec_from_file_location(module_name, path)
             module = importlib.util.module_from_spec(spec)
@@ -78,6 +83,10 @@ class ApplicationManager():
 
             class_name = obj.NAME
             print(f"AppLoader: Loaded '{class_name}' from file '{path}'", file=sys.stdout, flush=True)
+            if loaded_by_package:
+                self.app_map[module_name] = obj
+                return True
+
             self.app_map[class_name] = obj
             added += 1
         
@@ -106,9 +115,13 @@ class ApplicationManager():
         for config in apps:
             if config.application not in self.app_map.keys():
                 # Try to load from testbed package
-                module_path = self.testbed_package_base / Path(config.application)
+                app_file = config.application
+                if not app_file.endswith(".py"):
+                    app_file += ".py"
 
-                if not self._load_single_app(config.application, module_path):
+                module_path = self.testbed_package_base / Path(app_file)
+
+                if not self._load_single_app(config.application, module_path, True):
                     self.main.message_to_controller(InstanceMessageType.FAILED, 
                                                     f"Unable to install app '{config.name}@{config.application}': Not found.")
                     return False
@@ -116,7 +129,6 @@ class ApplicationManager():
                                                 f"Loaded App '{config.application}' from testbed package.")
 
 
-            app_interface = ApplicationInterface(config.name, socket_path)
             app_instance: BaseApplication = self.app_map[config.application]()
 
             try:
@@ -146,12 +158,13 @@ class ApplicationManager():
                 return False
             
             app_controller = ApplicationController(app_instance, config, 
-                                                   self.main, self.barrier, 
+                                                   self.manager, self.barrier, 
                                                    self.instance_name)
             self.app_exec.append(app_controller)
         
         self.main.message_to_controller(InstanceMessageType.MSG_DEBUG, 
                                                         f"Apps loaded: {len(self.app_map)}, Scheduled to execute: {len(self.app_exec)}")
+        self.main.message_to_controller(InstanceMessageType.APPS_INSTALLED)
         return True
         
 

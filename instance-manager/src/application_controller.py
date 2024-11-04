@@ -50,9 +50,11 @@ class ApplicationController(Thread):
             try:
                 interface = ApplicationInterface(self.config.name, IM_SOCKET_PATH)
                 interface.connect()
+                self.app.attach_interface(interface)
             except Exception as ex:
                 raise "Unable to connect to Instance Manager Daemon" from ex
-            rc = self.app.start(self.settings, self.config.runtime, interface)
+            
+            rc = self.app.start(self.config.runtime)
 
             interface.disconnect()
             if not rc:
@@ -67,11 +69,11 @@ class ApplicationController(Thread):
         process = Process(target=self.__fork_run, args=())
         
         self.barrier.wait()
-        
-        time.sleep(self.config.delay)
 
+        print(f"{self.config.name} timeout: {self.app.get_runtime_upper_bound(self.config.runtime)}/{self.config.runtime}", flush=True)        
+        time.sleep(self.config.delay)
         process.start()
-        process.join(self.app.get_runtime_upper_bound(self.config.runtime) + 1)
+        process.join(self.app.get_runtime_upper_bound(self.config.runtime) + 10)
 
         if process.is_alive():
             message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 

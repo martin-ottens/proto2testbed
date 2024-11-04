@@ -57,7 +57,7 @@ class ApplicationInterface():
 
             return status == "ok"
         except Exception as ex:
-            print(f"Unable so communicate to Instance Manager Daemon: {ex}", file=sys.stderr, flush=True)
+            print(f"Unable to communicate to Instance Manager Daemon: {ex}", file=sys.stderr, flush=True)
             return False
 
     def log(self, level: LogMessageLevel, message: str) -> bool:
@@ -80,7 +80,7 @@ class ApplicationInterface():
         else:
             payload["tags"] = additional_tags
 
-        # tags.intsnace will be added by Instance Manager Daemon
+        # tags.instance will be added by Instance Manager Daemon
         payload["tags"]["application"] = self.app_name
 
         return self._send_to_daemon(payload)
