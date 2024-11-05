@@ -143,6 +143,9 @@ class InstanceHelper(Dismantable):
     def dismantle(self) -> None:
         self._destory_instance()
 
+    def dismantle_parallel(self) -> bool:
+        return True
+
     def get_name(self) -> str:
         return f"VirtualMachine {self.instance.name}"
 

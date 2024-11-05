@@ -9,3 +9,6 @@ class Dismantable(NamedInstance):
     @abstractmethod
     def dismantle(self) -> None:
         pass
+
+    def dismantle_parallel(self) -> bool:
+        return False

@@ -3,8 +3,8 @@ import time
 
 from pathlib import Path
 from loguru import logger
-from typing import List, Tuple
-from threading import Event
+from typing import List
+from threading import Event, Thread
 
 from helper.network_helper import NetworkBridge
 from helper.instance_helper import InstanceHelper
@@ -50,12 +50,21 @@ class Controller(Dismantable):
         if self.dismantables is None:
             return
         
+        async_dismantle = []
         while len(self.dismantables) > 0:
             dismantable = self.dismantables.pop(0)
             try:
-                dismantable.dismantle()
+                if not dismantable.dismantle_parallel():
+                    dismantable.dismantle()
+                else:
+                    thread = Thread(target=dismantable.dismantle, daemon=True)
+                    thread.start()
+                    async_dismantle.append(thread)
             except Exception as ex:
                 logger.opt(exception=ex).error(f"Unable to dismantle {dismantable.get_name()}")
+
+        for thread in async_dismantle:
+            thread.join()
 
     def __del__(self):
         self._destory()

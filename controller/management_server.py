@@ -165,8 +165,8 @@ class ManagementClientConnection(threading.Thread):
                 logger.debug(f"Management: Socket '{self.socket_path}' for Instance {self.expected_instance.name} ready")
                 break
 
-            if (started_waiting + self.timeout) < time.time():
-                logger.error(f"Management: Client connection error: Socket '{self.socket_path}' does not exist after timeout!")
+            if ((started_waiting + self.timeout) < time.time()) or self.stop_event.is_set():
+                logger.error(f"Management: Client connection error: Socket '{self.socket_path}' does not exist after timeout or waiting was interrupted!")
                 return
 
         try:
