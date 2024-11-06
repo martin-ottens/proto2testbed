@@ -20,6 +20,9 @@ from cli import CLI
 from state_manager import MachineStateManager, AgentManagementState, WaitResult
 from common.instance_manager_message import *
 
+SUPPORTED_INSTANCE_NUMBER = 50
+
+
 class Controller(Dismantable):
     def __init__(self):
         if SettingsWrapper.cli_paramaters is None:
@@ -75,14 +78,23 @@ class Controller(Dismantable):
     def get_name(self) -> str:
         return f"Controller"
     
-    def setup_local_network(self) -> bool:
-        # TODO: Generate a mgmt Network with "auto" option
-        #       172.16-31.0-255.0/24
-        #       EXP ----  ----- UID % 255
-        
+    def setup_local_network(self) -> bool:        
         self.network_mapping = NetworkMappingHelper()
 
-        self.mgmt_network = ipaddress.IPv4Network(SettingsWrapper.testbed_config.settings.management_network)
+        if SettingsWrapper.testbed_config.settings.management_network.lower() == "auto":
+            self.mgmt_network = NetworkBridge.generate_auto_management_network(SettingsWrapper.cli_paramaters.unique_run_name)
+            if self.mgmt_network is None:
+                logger.critical(f"Unable to generate a management subnet for 'auto' option.")
+                return False
+            else:
+                logger.info(f"Generated Management Network subnet '{self.mgmt_network}' for 'auto' option.")
+        else:
+            self.mgmt_network = ipaddress.IPv4Network(SettingsWrapper.testbed_config.settings.management_network)
+
+            if NetworkBridge.is_network_in_use(self.mgmt_network):
+                logger.critical(f"Network '{self.mgmt_network}' is already in use on this host.")
+                return False
+
         self.mgmt_ips = list(self.mgmt_network.hosts())
         self.mgmt_netmask = ipaddress.IPv4Network(f"0.0.0.0/{self.mgmt_network.netmask}").prefixlen
 
@@ -108,6 +120,10 @@ class Controller(Dismantable):
     def setup_infrastructure(self) -> bool:
         if self.network_mapping is None:
             logger.critical("Infrastructure setup was called before local network setup!")
+            return False
+        
+        if len(SettingsWrapper.testbed_config.instances) > SUPPORTED_INSTANCE_NUMBER:
+            logger.critical(f"{len(SettingsWrapper.testbed_config.instances)} Instances configured, a maximum of {SUPPORTED_INSTANCE_NUMBER} is supported.")
             return False
 
         for network in SettingsWrapper.testbed_config.networks:

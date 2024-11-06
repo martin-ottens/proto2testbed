@@ -2,6 +2,9 @@ import ipaddress
 import json
 import random
 import string
+import ipaddress
+import psutil
+import socket
 
 from typing import Dict, List, Optional, Tuple
 from loguru import logger
@@ -19,7 +22,40 @@ class NetworkBridge(Dismantable):
         json_interfaces = list(map(lambda x: x["ifname"], json.loads(process.stdout.decode("utf-8"))))
 
         return all(x in json_interfaces for x in interfaces)
+    
+    @staticmethod
+    def generate_auto_management_network(seed: str) -> Optional[ipaddress.IPv4Network]:
+        random.seed(seed)
 
+        supernet = ipaddress.ip_network("172.16.0.0/12")
+        possible_subnets = list(supernet.subnets(new_prefix=26))
+
+        tries_left = 10
+        while True:
+            if tries_left <= 0:
+                return None
+
+            subnet = random.choice(possible_subnets)
+            if NetworkBridge.is_network_in_use(subnet):
+                tries_left -= 1
+                continue
+
+            return subnet
+        
+    @staticmethod
+    def is_network_in_use(network: ipaddress.IPv4Network) -> bool:
+        for iface, addresses in psutil.net_if_addrs().items():
+            for address in addresses:
+                if address.family != socket.AF_INET:
+                    continue
+
+                test_ip = ipaddress.ip_address(address.address)
+
+                if test_ip in network:
+                    logger.debug(f"IP '{test_ip}' from network '{network}' is already in use on interface '{iface}'")
+                    return True
+
+        return False
 
     def _run_command(self, command: List[str]):
         process = invoke_subprocess(command, needs_root=True)
