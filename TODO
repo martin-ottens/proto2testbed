@@ -1,7 +1,0 @@
-- Specify a single command that will be executed on the host during experiment in testbed config
-- Add CLI mode to controller frontend that allows to attach to Instance TTY (+ Auto login)
-- Rework Communication Protocol Instance Manager <-> Controller, decouple application config from testbed config schema
-- Dynamic loading of applications from testbed host?
-- Fully automated Debian Base Image Builder
-- Allow concurrent testbeds on single host (name bridges, tap devs with id)
-- Parallel Instance Stop

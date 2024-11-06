@@ -148,7 +148,7 @@ class InstanceHelper(Dismantable):
         return True
 
     def get_name(self) -> str:
-        return f"VirtualMachine {self.instance.name}"
+        return f"Instance {self.instance.name}"
 
     def ready_to_start(self) -> bool:
         return self.qemu_command is not None and self.qemu_handle is None
@@ -157,24 +157,24 @@ class InstanceHelper(Dismantable):
         if self.qemu_handle is not None:
             return False
 
-        logger.debug(f"VM {self.instance.name}: Starting instance ...")
+        logger.debug(f"Instance '{self.instance.name}': Starting instance ...")
         try:
             self.qemu_handle = invoke_pexpect(self.qemu_command, needs_root=True)
             if self.debug:
                 self.qemu_handle.logfile = sys.stdout
             self.qemu_handle.expect_exact("(qemu)", timeout=10)
         except pexpect.EOF as ex:
-            raise Exception(f"Unable to start VM {self.instance.name}, process exited unexpected") from ex
+            raise Exception(f"Unable to start Instance '{self.instance.name}', process exited unexpected") from ex
         except pexpect.TIMEOUT as ex:
-            raise Exception(f"Unable to start VM {self.instance.name}, timeout during QEMU start") from ex
-        logger.info(f"VM {self.instance.name}: Instance was started!")
+            raise Exception(f"Unable to start Instance '{self.instance.name}', timeout during QEMU start") from ex
+        logger.info(f"Instance '{self.instance.name}': Instance was started!")
         return True
 
     def stop_instance(self) -> bool:
         if self.qemu_handle is None:
             return False
 
-        logger.debug(f"VM {self.instance.name}: Stopping instance ...")
+        logger.debug(f"Instance '{self.instance.name}': Stopping instance ...")
         try:
             self.qemu_handle.sendline("system_powerdown")
             self.qemu_handle.expect(pexpect.EOF, timeout=30)
@@ -183,7 +183,7 @@ class InstanceHelper(Dismantable):
         finally:
             self.qemu_handle = None
 
-        logger.info(f"VM {self.instance.name}: Instance was stopped!")
+        logger.info(f"Instance '{self.instance.name}': Instance was stopped!")
         return True
 
     def instance_status(self) -> str:
@@ -196,5 +196,5 @@ class InstanceHelper(Dismantable):
             self.qemu_handle.expect_exact("(qemu)", timeout=1)
             return status
         except Exception as ex:
-            logger.opt(exception=ex).warning(f"VM {self.instance.name}: Unable to get status")
+            logger.opt(exception=ex).warning(f"Instance '{self.instance.name}': Unable to get status")
             return "VM status: unkown"

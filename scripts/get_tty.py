@@ -13,7 +13,7 @@ def main(socket_path: str):
     process.terminate()
     print("\n# Connection to serial TTY closed.")
     if process.isalive():
-        print("scoat subprocess is still alive!")
+        print("Warning: scoat subprocess is still alive after termination!")
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

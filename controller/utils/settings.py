@@ -6,6 +6,7 @@ from pathlib import Path
 
 from common.application_configs import ApplicationConfig
 from utils.continue_mode import PauseAfterSteps
+from utils.config_tools import DefaultConfigs
 
 @dataclass
 class TestbedSettings():
@@ -105,3 +106,4 @@ class CLIParameters():
 class SettingsWrapper():
     cli_paramaters: CLIParameters = None
     testbed_config: TestbedConfig = None
+    default_configs: DefaultConfigs = None

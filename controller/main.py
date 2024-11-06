@@ -12,6 +12,7 @@ from pathlib import Path
 
 from controller import Controller
 from utils.settings import CLIParameters, SettingsWrapper
+from utils.config_tools import DefaultConfigs
 from utils.pidfile import PidFile
 from utils.continue_mode import PauseAfterSteps
 from cli import CLI
@@ -100,6 +101,7 @@ if __name__ == "__main__":
         logger.critical("Unable to start: You need to be root!")
         sys.exit(1)
 
+    SettingsWrapper.default_configs = DefaultConfigs("/etc/proto2testbed/proto2testbed_defaults.json")
 
     script_name = sys.argv[0]
     try:

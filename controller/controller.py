@@ -214,7 +214,7 @@ class Controller(Dismantable):
                 break
 
             if time.time() > wait_until:
-                logger.critical("VM Interfaces are not ready after 20 seconds!")
+                logger.critical("Interfaces are not ready after 20 seconds!")
                 return False
 
             time.sleep(1)
@@ -230,7 +230,7 @@ class Controller(Dismantable):
                 else:
                     logger.info(f"{name} ({self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(list(map(lambda x: str(x), extra_interfaces.values())))}")
         except Exception as ex:
-            logger.opt(exception=ex).critical("Unable to attach VM interfaces to bridges.")
+            logger.opt(exception=ex).critical("Unable to attach Instance interfaces to bridges.")
             return False
 
         for instance in self.state_manager.get_all_machines():

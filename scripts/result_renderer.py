@@ -201,6 +201,11 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
 
         for item in application_data:
             logger.info(f"------> Processing application entry {item[0]}")
+
+            if item[0] not in MAPPING.keys():
+                logger.warning(f"------> No mapping found for entry {item[0]}, skipping.")
+                continue
+
             for field, plotinfo in MAPPING[item[0]].items():
                 match item[0]:
                     case "proc-process":
@@ -238,17 +243,20 @@ def main(client: InfluxDBClient, experiment: str, config, out: str):
                               map_application_to_type(instance_name, application_name, application_type), application_delay)
             
 def load_config(path: str, skip_substitution: bool = False):
-    if not Path(path).exists():
-        logger.critical(f"Unable to find file '{path}' in given setup.")
-        return None
+    pathp = Path(path)
+    if not pathp.exists():
+        pathp = pathp / Path("testbed.json")
+        if not pathp.exists():
+            logger.critical(f"Unable to find file '{path}(testbed.json)' in given setup.")
+            return None
 
-    with open(path, "r") as handle:
+    with open(pathp, "r") as handle:
         config_str = handle.read()
 
     placeholders = list(map(lambda x: x.strip(), re.findall(r'{{\s*(.*?)\s*}}', config_str)))
     if skip_substitution:
         if placeholders is not None and len(placeholders) != 0:
-            logger.warning(f"Config '{path}' contains placeholders, but substitution is disabled")
+            logger.warning(f"Config '{pathp}' contains placeholders, but substitution is disabled")
             logger.warning(f"Found placeholders: {', '.join(list(map(lambda x: f'{{{{{x}}}}}', placeholders)))}")
     else:
         missing_replacements = []
@@ -280,6 +288,9 @@ if __name__ == "__main__":
     parser.add_argument("--skip_substitution", action="store_true", required=False, default=False, 
                         help="Skip substitution of placeholders with environment variable values in config")
     args = parser.parse_args()
+
+    logger.remove()
+    logger.add(sys.stdout, level="DEBUG", format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>")
 
     try:
         if args.influx_user is not None:

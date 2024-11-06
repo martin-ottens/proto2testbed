@@ -48,6 +48,7 @@ def wait_for_shell_on_vm(proc: pexpect.spawn, timeout: int = PEXPECT_TIMEOUT):
 
 def run_one_command_on_vm(command: str, proc: pexpect.spawn, 
                           expected_rc: int = 0, timeout: int = PEXPECT_TIMEOUT) -> bool:
+    logger.success(f"Exceuting command '{command}' on VM.")
     proc.sendline(command)
     wait_for_shell_on_vm(proc, timeout=timeout)
     proc.sendline("echo $?")
@@ -61,7 +62,6 @@ def run_one_command_on_vm(command: str, proc: pexpect.spawn,
         logger.error(f"Command '{command}' finished with unexpected exit code: {rc} != {expected_rc}")
         return False
     else:
-        logger.success(f"Command '{command}' was executed on VM.")
         return True
 
 
@@ -144,6 +144,9 @@ if __name__ == "__main__":
     parser.add_argument("--timeout", "-t", required=False, default=PEXPECT_TIMEOUT, type=int,
                         help="Base timeout for all commands")
     args = parser.parse_args()
+
+    logger.remove()
+    logger.add(sys.stdout, level="DEBUG", format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>")
 
     logger.info(f"Preparing QEMU image {args.IMAGE}")
 

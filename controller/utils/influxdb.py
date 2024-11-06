@@ -11,6 +11,7 @@ from influxdb import InfluxDBClient
 
 from utils.interfaces import Dismantable
 from utils.system_commands import get_asset_relative_to
+from utils.settings import SettingsWrapper
 
 class InfluxDBAdapter(Dismantable):
     def _insert_thread(self):
@@ -82,14 +83,19 @@ class InfluxDBAdapter(Dismantable):
 
         if config_path is None:
             if not store_disabled and "INFLUXDB_DATABASE" not in os.environ.keys():
-                logger.critical("InfluxDBAdapter: INFLUXDB_DATABASE not set in environment. Set varaible or specify config.")
-                raise Exception("INFLUXDB_DATABASE not set in environment")
+                default_database = SettingsWrapper.default_configs.get_defaults("influx_database")
+                if default_database is None:
+                    logger.critical("InfluxDBAdapter: INFLUXDB_DATABASE not set in environment. Set varaible or specify config.")
+                    raise Exception("INFLUXDB_DATABASE not set in environment")
+                else:
+                    self.database = default_database
+            else:
+                self.database = os.environ.get("INFLUXDB_DATABASE")
 
             self.host = os.environ.get("INFLUXDB_HOST", "127.0.0.1")
             self.port = os.environ.get("INFLUXDB_PORT", 8086)
             self.user  = os.environ.get("INFLUXDB_USER", None)
             self.password = os.environ.get("INFLUXDB_PASSWORD", None)
-            self.database = os.environ.get("INFLUXDB_DATABASE")
             self.timeout = 20
             self.retries = 4
 

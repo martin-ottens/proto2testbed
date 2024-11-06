@@ -16,6 +16,9 @@ if __name__ == "__main__":
     parser.add_argument("--influx_pass", type=str, help="InfluxDB password", required=False, default=None)
     args = parser.parse_args()
 
+    logger.remove()
+    logger.add(sys.stdout, level="DEBUG", format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>")
+
     try:
         if args.influx_user is not None:
             client = InfluxDBClient(host=args.influx_host, port=args.influx_port, 

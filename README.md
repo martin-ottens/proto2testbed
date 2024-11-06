@@ -1,4 +1,4 @@
-# Proto-Testbed
+# Proto²Testbed
 
 ## 1. Prepare Host Machine
 
