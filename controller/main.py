@@ -3,10 +3,13 @@
 import argparse
 import sys
 import os
+import signal
+import random
+import string
+import socket
 
 from loguru import logger
 from pathlib import Path
-
 
 from controller import Controller
 from utils.settings import CLIParameters, SettingsWrapper
@@ -70,6 +73,17 @@ if __name__ == "__main__":
         logger.error("TTY does not allow user interaction, disabling 'interact' parameter")
         parameters.interact = PauseAfterSteps.DISABLE
 
+    if parameters.experiment is None:
+        parameters.experiment = "".join(random.choices(string.ascii_letters + string.digits, k=8))
+        if not parameters.dont_use_influx:
+            logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {parameters.experiment}")
+
+    original_uid = os.environ.get("SUDO_UID", None)
+    if original_uid is None:
+        original_uid = os.getuid()
+
+    parameters.unique_run_name = f"{''.join(parameters.experiment.split())}-{str(original_uid)}"
+
     if args.preserve is not None:
         try:
             parameters.preserve = Path(args.preserve)
@@ -90,7 +104,7 @@ if __name__ == "__main__":
 
     script_name = sys.argv[0]
     try:
-        with PidFile("/tmp/proto-testbed.pid", name=script_name):
+        with PidFile(f"/tmp/ptb-{parameters.unique_run_name}.pid", name=script_name):
 
             try:
                 controller = Controller()
@@ -104,6 +118,11 @@ if __name__ == "__main__":
                 logger.opt(exception=ex).critical("Uncaught Controller Exception")
                 status = False
             finally:
+                def void_signal_handler(signo, _):
+                    logger.warning(f"Signal {signal.Signals(signo).name} was inhibited during testbed shutdown.")
+
+                signal.signal(signal.SIGINT, void_signal_handler)
+                signal.signal(signal.SIGTERM, void_signal_handler)
                 controller.dismantle()
     except Exception as ex:
         logger.opt(exception=ex).critical(f"Another instance of '{script_name}' is still running.")

@@ -162,7 +162,7 @@ class CLI(Dismantable):
                 for machine in self.manager.get_all_machines():
                     line = f"- Instance '{machine.name}' ({machine.uuid}) | {machine.get_state().name}"
                     if len(machine.interfaces_hostside) != 0:
-                        line += f" | Interfaces: {', '.join(machine.interfaces_hostside)}"
+                        line += f" | Interfaces: {', '.join(list(map(lambda x: str(x), machine.interfaces_hostside)))}"
                     if machine.mgmt_ip_addr is not None:
                         line += f" | MGMT IP: {machine.mgmt_ip_addr}"
                     logger.log("CLI", line)

@@ -12,6 +12,7 @@ from threading import Lock, Semaphore
 
 from utils.system_commands import invoke_subprocess
 from helper.file_copy_helper import FileCopyHelper
+from helper.network_helper import BridgeMapping
 from common.application_configs import ApplicationConfig
 
 class AgentManagementState(Enum):
@@ -33,7 +34,7 @@ class WaitResult(Enum):
     INTERRUPTED = 3
 
 class MachineState():
-    __INTERCHANGE_BASE_PATH = "/tmp/testbed-"
+    __INTERCHANGE_BASE_PATH = "/tmp/ptb-i-"
 
     def __init__(self, name: str, script_file: str, 
                  setup_env: Optional[dict[str, str]], manager,):
@@ -51,7 +52,7 @@ class MachineState():
         self._state: AgentManagementState = AgentManagementState.UNKNOWN
         self.connection = None
         self.interchange_ready = False
-        self.interfaces_hostside: List[str] = []
+        self.interfaces_hostside: List[BridgeMapping] = []
         self.preserve_files: List[str] = []
         self.apps = Optional[List[ApplicationConfig]]
         self.mgmt_ip_addr: Optional[str] = None
@@ -63,8 +64,8 @@ class MachineState():
     def add_preserve_file(self, file: str):
         self.preserve_files.append(file)
 
-    def add_interface(self, interface_name: str):
-        self.interfaces_hostside.append(interface_name)
+    def add_interface(self, interface: BridgeMapping):
+        self.interfaces_hostside.append(interface)
     
     def set_mgmt_ip(self, ip_addr: str):
         self.mgmt_ip_addr = ip_addr

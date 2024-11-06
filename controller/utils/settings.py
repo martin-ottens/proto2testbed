@@ -138,6 +138,7 @@ class CLIParameters():
     preserve: Optional[str] = None
     log_quiet: bool = False
     log_verbose: bool = False
+    unique_run_name: str = None
 
 
 class SettingsWrapper():

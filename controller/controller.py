@@ -6,7 +6,7 @@ from loguru import logger
 from typing import List
 from threading import Event, Thread
 
-from helper.network_helper import NetworkBridge
+from helper.network_helper import NetworkBridge, NetworkMappingHelper
 from helper.instance_helper import InstanceHelper
 from helper.integration_helper import IntegrationHelper
 from utils.interfaces import Dismantable
@@ -25,10 +25,10 @@ class Controller(Dismantable):
         if SettingsWrapper.cli_paramaters is None:
             raise Exception("No CLIParamaters class object was set before calling the controller")
 
-        self.networks = {}
         self.dismantables: List[Dismantable] = []
         self.state_manager: MachineStateManager = MachineStateManager()
         self.has_mgmt_network = False
+        self.network_mapping: Optional[NetworkMappingHelper] = None 
 
         self.base_path = Path(SettingsWrapper.cli_paramaters.config)
         self.config_path = self.base_path / "testbed.json"
@@ -42,7 +42,7 @@ class Controller(Dismantable):
             logger.opt(exception=ex).critical("Internal error loading config!")
             raise Exception("Internal config loading error!")
     
-    def _destory(self) -> None:
+    def _destory(self, spawn_threads: bool = True) -> None:
         self.setup_env = None
         self.networks = None
         self.state_manager.remove_all()
@@ -54,7 +54,7 @@ class Controller(Dismantable):
         while len(self.dismantables) > 0:
             dismantable = self.dismantables.pop(0)
             try:
-                if not dismantable.dismantle_parallel():
+                if not spawn_threads or not dismantable.dismantle_parallel():
                     dismantable.dismantle()
                 else:
                     thread = Thread(target=dismantable.dismantle, daemon=True)
@@ -67,7 +67,7 @@ class Controller(Dismantable):
             thread.join()
 
     def __del__(self):
-        self._destory()
+        self._destory(spawn_threads=False)
 
     def dismantle(self) -> None:
         self._destory()
@@ -76,19 +76,28 @@ class Controller(Dismantable):
         return f"Controller"
     
     def setup_local_network(self) -> bool:
+        # TODO: Generate a mgmt Network with "auto" option
+        #       172.16-31.0-255.0/24
+        #       EXP ----  ----- UID % 255
+        
+        self.network_mapping = NetworkMappingHelper()
+
         self.mgmt_network = ipaddress.IPv4Network(SettingsWrapper.testbed_config.settings.management_network)
         self.mgmt_ips = list(self.mgmt_network.hosts())
         self.mgmt_netmask = ipaddress.IPv4Network(f"0.0.0.0/{self.mgmt_network.netmask}").prefixlen
 
         # Setup Networks
         try:
-            mgmt_bridge = NetworkBridge("br-mgmt", SettingsWrapper.cli_paramaters.clean)
+            mgmt_bridge_mapping = self.network_mapping.add_bridge_mapping("br-mgmt")
+            mgmt_bridge = NetworkBridge(mgmt_bridge_mapping.dev_name, 
+                                        mgmt_bridge_mapping.name, 
+                                        SettingsWrapper.cli_paramaters.clean)
+            mgmt_bridge_mapping.bridge = mgmt_bridge
             self.dismantables.insert(0, mgmt_bridge)
             self.mgmt_gateway = self.mgmt_ips.pop(0)
             mgmt_bridge.setup_local(ip=ipaddress.IPv4Interface(f"{self.mgmt_gateway}/{self.mgmt_netmask}"), 
                                     nat=self.mgmt_network)
             mgmt_bridge.start_bridge()
-            self.networks["br-mgmt"] = mgmt_bridge
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to setup management network!")
             return False
@@ -97,18 +106,21 @@ class Controller(Dismantable):
         return True
 
     def setup_infrastructure(self) -> bool:
-        if self.has_mgmt_network and len(self.networks) == 0:
+        if self.network_mapping is None:
             logger.critical("Infrastructure setup was called before local network setup!")
             return False
 
         for network in SettingsWrapper.testbed_config.networks:
             try:
-                bridge = NetworkBridge(network.name, SettingsWrapper.cli_paramaters.clean)
+                bridge_mapping = self.network_mapping.add_bridge_mapping(network.name)
+                bridge = NetworkBridge(bridge_mapping.dev_name,
+                                       bridge_mapping.name, 
+                                       SettingsWrapper.cli_paramaters.clean)
+                bridge_mapping.bridge = bridge
                 self.dismantables.insert(0, bridge)
                 for pyhsical_port in network.host_ports:
                     bridge.add_device(pyhsical_port)
                 bridge.start_bridge()
-                self.networks[network.name] = bridge
             except Exception as ex:
                 logger.opt(exception=ex).critical(f"Unable to setup additional network {network.name}")
                 return False
@@ -121,15 +133,19 @@ class Controller(Dismantable):
         instances = {}
         wait_for_interfaces = []
         diskimage_basepath = Path(SettingsWrapper.testbed_config.settings.diskimage_basepath)
-        for index, instance in enumerate(SettingsWrapper.testbed_config.instances):
+        for instance in SettingsWrapper.testbed_config.instances:
             machine = self.state_manager.get_machine(instance.name)
             extra_interfaces = {}
 
-            for if_index, if_bridge in enumerate(instance.networks):
-                if_int_name = f"v_{index}_{if_index}"
-                extra_interfaces[if_int_name] = if_bridge
+            for if_bridge in instance.networks:
+                if_int_name = self.network_mapping.generate_tap_name()
+                if_bridge_mapping = self.network_mapping.get_bridge_mapping(if_bridge)
+                if if_bridge_mapping is None:
+                    logger.critical(f"Unable to map network '{if_bridge}' for Instance '{instance.name}': Not mapped.")
+                    return False
+                extra_interfaces[if_int_name] = if_bridge_mapping.bridge
                 wait_for_interfaces.append(if_int_name)
-                machine.add_interface(if_bridge)
+                machine.add_interface(if_bridge_mapping)
 
             try:
                 diskimage_path = Path(instance.diskimage)
@@ -143,7 +159,7 @@ class Controller(Dismantable):
                 management_settings = None
                 if self.has_mgmt_network:
                     management_settings = {
-                            "interface": f"v_{index}_m",
+                            "interface": self.network_mapping.generate_tap_name(),
                             "ip": ipaddress.IPv4Interface(f"{self.mgmt_ips.pop(0)}/{self.mgmt_netmask}"),
                             "gateway": str(self.mgmt_gateway)
                     }
@@ -162,9 +178,11 @@ class Controller(Dismantable):
                 wrapper.start_instance()
 
                 if self.has_mgmt_network:
-                    extra_interfaces[f"v_{index}_m"] = "br-mgmt"
-                    machine.add_interface("br-mgmt")
-                    wait_for_interfaces.append(f"v_{index}_m")
+                    mgmt_bridge_mapping = self.network_mapping.get_bridge_mapping("br-mgmt")
+                    mgmt_if_int_name = management_settings["interface"]
+                    extra_interfaces[mgmt_if_int_name] = mgmt_bridge_mapping.bridge
+                    wait_for_interfaces.append(mgmt_if_int_name)
+                    machine.add_interface(mgmt_bridge_mapping)
 
                 instances[instance.name] = (wrapper, extra_interfaces, )
             except Exception as ex:
@@ -188,11 +206,11 @@ class Controller(Dismantable):
             for name, instance in instances.items():
                 wrapper, extra_interfaces = instance
                 for interface, bridge in extra_interfaces.items():
-                    self.networks[bridge].add_device(interface)
+                    bridge.add_device(interface)
                 if self.has_mgmt_network:
-                    logger.info(f"{name} ({wrapper.ip_address}, {self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(extra_interfaces.values())}")
+                    logger.info(f"{name} ({wrapper.ip_address}, {self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(list(map(lambda x: str(x), extra_interfaces.values())))}")
                 else:
-                    logger.info(f"{name} ({self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(extra_interfaces.values())}")
+                    logger.info(f"{name} ({self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(list(map(lambda x: str(x), extra_interfaces.values())))}")
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to attach VM interfaces to bridges.")
             return False

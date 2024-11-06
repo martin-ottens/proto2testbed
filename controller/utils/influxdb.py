@@ -1,5 +1,4 @@
 import os
-import random
 import json
 import threading
 import queue
@@ -79,13 +78,7 @@ class InfluxDBAdapter(Dismantable):
     def __init__(self, series_name: Optional[str] = None,
                  store_disabled: bool = False, config_path: Optional[Path] = None):
         self.store_disabled = store_disabled
-
-        if series_name is None:
-            self.series_name = "".join(random.choices('0123456789abcdef', k=7))
-            if not store_disabled:
-                logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {self.series_name}")
-        else:
-            self.series_name = series_name
+        self.series_name = series_name
 
         if config_path is None:
             if not store_disabled and "INFLUXDB_DATABASE" not in os.environ.keys():
