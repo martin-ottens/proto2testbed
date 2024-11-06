@@ -9,7 +9,7 @@
 if [[ -f /etc/os-release ]]; then
     source /etc/os-release
 
-    if [[ "$ID" != "debian" || "$VERSION_ID" == "12" ]]; then
+    if [[ "$ID" != "debian" || "$VERSION_ID" != "12" ]]; then
         echo "OS Release is not Debian 12, installer not compatible." >&2
         exit 1
     fi

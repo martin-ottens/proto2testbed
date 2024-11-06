@@ -4,4 +4,7 @@
 SCRIPT=$(realpath "$0")
 REPO_BASE=$(dirname "$SCRIPT")
 
+CALLER_SCRIPT=$(basename "$0")
+export CALLER_SCRIPT
+
 python3 $REPO_BASE/controller/main.py ${@:1}

@@ -33,8 +33,6 @@ class IntegrationLoader():
         self.app_base = Path(app_base)
         self.integration_map: Dict[str, BaseIntegration] = {}
 
-        self._read_packaged_integrations()
-
     def _check_valid_integration(self, cls, loaded_file) -> bool:
         if not issubclass(cls, BaseIntegration) or cls.__name__ == "BaseIntegration":
             return False
@@ -88,7 +86,7 @@ class IntegrationLoader():
 
         return added != 0
 
-    def _read_packaged_integrations(self) -> None:
+    def init_packaged_integrations(self) -> None:
         for filename in os.listdir(self.app_base / Path(IntegrationLoader.__PACKAGED_INTEGRATIONS)):
             filepath = Path(os.path.join(self.app_base, IntegrationLoader.__PACKAGED_INTEGRATIONS, filename)).absolute()
 
@@ -116,16 +114,19 @@ class IntegrationLoader():
 
 
 class IntegrationHelper(Dismantable):
-    def __init__(self, integrations: List[Integration], 
-                 testbed_package_base: str, app_base: str) -> None:
+    def __init__(self, testbed_package_base: str, app_base: str) -> None:
         self.loader = IntegrationLoader(testbed_package_base, app_base)
-        self.integrations = integrations
+        self.integrations = None
 
         self.mapped_integrations = {
             InvokeIntegrationAfter.INIT: [],
             InvokeIntegrationAfter.NETWORK: [],
             InvokeIntegrationAfter.STARTUP: []
         }
+
+    def apply_configured_integrations(self, integrations: List[Integration]):
+        self.loader.init_packaged_integrations()
+        self.integrations = integrations
 
         for integration in integrations:
             integration_obj = self.loader.get_packaged_or_try_load(integration.type)

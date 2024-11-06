@@ -10,24 +10,7 @@ from jsonschema import validate
 import state_manager
 from utils.settings import *
 from utils.system_commands import get_asset_relative_to
-
-
-class DefaultConfigs():
-    def __init__(self, path: str):
-        self.defaults = {}
-        if not os.path.exists(path):
-            logger.debug(f"No default config in path '{path}'")
-        
-        with open(path, "r") as handle:
-            self.defaults = json.load(handle)
-
-    def get_defaults(self, key: str):
-        if self.defaults is None or key not in self.defaults.keys():
-            logger.debug(f"No default value for key '{key}' provided in config.")
-            return None
-        else:
-            return self.defaults.get(key)
-
+from utils.settings import TestbedConfig
 
 def load_config(config_path: Path, skip_substitution: bool = False) -> TestbedConfig:
     if not config_path.exists():

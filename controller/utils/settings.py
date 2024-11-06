@@ -1,12 +1,16 @@
+import os
+import json
+
 from typing import List, Dict, Optional, Any
 from enum import Enum
 from abc import ABC
 from dataclasses import dataclass
 from pathlib import Path
+from loguru import logger
 
 from common.application_configs import ApplicationConfig
 from utils.continue_mode import PauseAfterSteps
-from utils.config_tools import DefaultConfigs
+
 
 @dataclass
 class TestbedSettings():
@@ -15,14 +19,17 @@ class TestbedSettings():
     startup_init_timeout: int = 30
     experiment_timeout: int = -1
 
+
 @dataclass
 class TestbedNetwork():
     name: str
     host_ports: List[str] = None
 
+
 class IntegrationSettings(ABC):
     pass
     
+
 class InvokeIntegrationAfter(Enum):
     STARTUP = "startup"
     NETWORK = "network"
@@ -31,6 +38,7 @@ class InvokeIntegrationAfter(Enum):
     def __str__(self):
         return str(self.value)
     
+
 class Integration():
     def __init__(self, name: str, type: str, environment: Optional[Dict[str, str]] = None,
                  invoke_after: str = str(InvokeIntegrationAfter.STARTUP), wait_after_invoke: int = 0,
@@ -42,6 +50,7 @@ class Integration():
         self.invoke_after: InvokeIntegrationAfter = InvokeIntegrationAfter(invoke_after)
         self.wait_after_invoke = wait_after_invoke
         self.settings: IntegrationSettings = settings
+
 
 class TestbedInstance():
     def __init__(self, name: str, diskimage: str, setup_script: str = None, 
@@ -83,6 +92,23 @@ class TestbedConfig():
 
         for machine in json["instances"]:
             self.instances.append(TestbedInstance(**machine))
+
+
+class DefaultConfigs():
+    def __init__(self, path: str):
+        self.defaults = {}
+        if not os.path.exists(path):
+            logger.debug(f"No default config in path '{path}'")
+        
+        with open(path, "r") as handle:
+            self.defaults = json.load(handle)
+
+    def get_defaults(self, key: str):
+        if self.defaults is None or key not in self.defaults.keys():
+            logger.debug(f"No default value for key '{key}' provided in config.")
+            return None
+        else:
+            return self.defaults.get(key)
 
 
 @dataclass

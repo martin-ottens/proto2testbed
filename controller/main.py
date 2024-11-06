@@ -10,16 +10,11 @@ import string
 from loguru import logger
 from pathlib import Path
 
-from controller import Controller
-from utils.settings import CLIParameters, SettingsWrapper
-from utils.config_tools import DefaultConfigs
-from utils.pidfile import PidFile
-from utils.continue_mode import PauseAfterSteps
-from cli import CLI
-
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    from utils.continue_mode import PauseAfterSteps
+
+    parser = argparse.ArgumentParser(prog=os.environ.get("CALLER_SCRIPT", sys.argv[0]), description="Proto²Testbed Controller")
     parser.add_argument("TESTBED_CONFIG", type=str, help="Path to testbed package")
     parser.add_argument("--clean", action="store_true", required=False, default=False,
                         help="Clean network interfaces before startup (Beware of concurrent testbeds!)")
@@ -48,6 +43,9 @@ if __name__ == "__main__":
                         required=False, default=None)
     
     args = parser.parse_args()
+
+    from cli import CLI
+    from utils.settings import CLIParameters
 
     CLI.setup_early_logging()
 
@@ -95,6 +93,9 @@ if __name__ == "__main__":
     else:
         parameters.preserve = None
 
+    from utils.settings import CLIParameters, SettingsWrapper
+    from utils.config_tools import DefaultConfigs
+
     SettingsWrapper.cli_paramaters = parameters
 
     if not args.sudo and os.geteuid() != 0:
@@ -104,6 +105,10 @@ if __name__ == "__main__":
     SettingsWrapper.default_configs = DefaultConfigs("/etc/proto2testbed/proto2testbed_defaults.json")
 
     script_name = sys.argv[0]
+
+    from controller import Controller
+    from utils.pidfile import PidFile
+
     try:
         with PidFile(f"/tmp/ptb-{parameters.unique_run_name}.pid", name=script_name):
 
