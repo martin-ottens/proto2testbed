@@ -30,6 +30,15 @@
                 "stop_script": "integration/stop.sh",
                 "wait_for_exit": 5
             }
+        },
+        {
+            "name": "loadable",
+            "type": "integration/loadable_integration",
+            "invoke_after": "init",
+            "settings": {
+                "delay": 5,
+                "message": "Hello from loaded integration!"
+            }
         }
     ],
     "instances": [

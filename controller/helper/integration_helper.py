@@ -107,7 +107,7 @@ class IntegrationLoader():
         if not name.endswith(".py"):
             file_name += ".py"
 
-        module_path = self.testbed_package_base / Path(name)
+        module_path = self.testbed_package_base / Path(file_name)
         if not self._load_single_integration(name, module_path, True):
             logger.critical(f"IntegrationLoader: Unable to load Integration '{name}' from testbed package.")
             return None
