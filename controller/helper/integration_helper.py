@@ -1,16 +1,17 @@
 import threading
 import time
+import importlib.util
+import inspect
+import os
 
 from loguru import logger
 from typing import List, Optional
 from dataclasses import dataclass
+from pathlib import Path
 
 from utils.interfaces import Dismantable
 from utils.settings import *
-from integrations.base_integration import BaseIntegration, IntegrationStatusContainer
-from integrations.await_integration import AwaitIntegration
-from integrations.start_stop_integration import StartStopIntegration
-from integrations.ns3_integration import NS3Integration
+from base_integration import BaseIntegration, IntegrationStatusContainer
 
 
 @dataclass
@@ -23,8 +24,101 @@ class IntegrationExecutionWrapper:
     started_at: float = 0
     is_shutdown: bool = False
 
+class IntegrationLoader():
+    __COMPATIBLE_API_VERSION = "1.0"
+    __PACKAGED_INTEGRATIONS = "integrations/"
+
+    def __init__(self, testbed_package_base: str, app_base: str) -> None:
+        self.testbed_package_base = Path(testbed_package_base)
+        self.app_base = Path(app_base)
+        self.integration_map: Dict[str, BaseIntegration] = {}
+
+        self._read_packaged_integrations()
+
+    def _check_valid_integration(self, cls, loaded_file) -> bool:
+        if not issubclass(cls, BaseIntegration) or cls.__name__ == "BaseIntegration":
+            return False
+        
+        if not hasattr(cls, "API_VERSION"):
+            logger.trace(f"IntegrationLoader: Integration in '{loaded_file}' has no API_VERSION")
+            return False
+        
+        if not hasattr(cls, "NAME"):
+            logger.trace(f"IntegrationLoader: Integration in '{loaded_file}' has no NAME")
+            return False
+        
+        if cls.API_VERSION != IntegrationLoader.__COMPATIBLE_API_VERSION:
+            logger.trace(f"IntegrationLoader: Integration in '{loaded_file}' has API_VERSION {cls.API_VERSION}, but {IntegrationLoader.__COMPATIBLE_API_VERSION} required.")
+            return False
+        
+        if cls.NAME == BaseIntegration.NAME:
+            logger.warning(f"IntegrationLoader: Integration in '{loaded_file}' has no own NAME!")
+            return False
+        
+        for method in ["set_and_validate_config", "is_integration_blocking", "get_expected_timeout", "start", "stop"]:
+            if not hasattr(cls, method) or not callable(getattr(cls, method)):
+                logger.trace(f"IntegrationLoader: Integration in '{loaded_file}' is missing method '{method}'")
+                return False
+            
+        return True
+
+    def _load_single_integration(self, module_name: str, path: Path, 
+                                 loaded_by_package: bool = False) -> bool:
+        try:
+            spec = importlib.util.spec_from_file_location(module_name, path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        except Exception as ex:
+            logger.opt(exception=ex).debug(f"Error while loading integration from '{path}'")
+            return False
+        
+        added = 0
+        for _, obj in inspect.getmembers(module, inspect.isclass):
+            if not self._check_valid_integration(obj, path):
+                continue
+
+            class_name = obj.NAME
+            logger.debug(f"IntegrationLoader: Loaded '{class_name}' from file '{path}'")
+            if loaded_by_package:
+                self.integration_map[module_name] = obj
+                return True
+
+            self.integration_map[class_name] = obj
+            added += 1
+
+        return added != 0
+
+    def _read_packaged_integrations(self) -> None:
+        for filename in os.listdir(self.app_base / Path(IntegrationLoader.__PACKAGED_INTEGRATIONS)):
+            filepath = Path(os.path.join(self.app_base, IntegrationLoader.__PACKAGED_INTEGRATIONS, filename)).absolute()
+
+            if not os.path.isfile(str(filepath)) or not filename.endswith(".py"):
+                continue
+                
+            module = filename[:-3] # Skip ".py"
+            self._load_single_integration(module, filepath)
+
+    def get_packaged_or_try_load(self, name: str) -> Optional[BaseIntegration]:
+        integration = self.integration_map.get(name, None)
+        if integration is not None:
+            return integration
+
+        file_name = name
+        if not name.endswith(".py"):
+            file_name += ".py"
+
+        module_path = self.testbed_package_base / Path(name)
+        if not self._load_single_integration(name, module_path, True):
+            logger.critical(f"IntegrationLoader: Unable to load Integration '{name}' from testbed package.")
+            return None
+        
+        return self.integration_map.get(name)
+
+
 class IntegrationHelper(Dismantable):
-    def __init__(self, integrations: List[Integration]) -> None:
+    def __init__(self, integrations: List[Integration], 
+                 testbed_package_base: str, app_base: str) -> None:
+        self.loader = IntegrationLoader(testbed_package_base, app_base)
         self.integrations = integrations
 
         self.mapped_integrations = {
@@ -34,36 +128,32 @@ class IntegrationHelper(Dismantable):
         }
 
         for integration in integrations:
-            integration_impl: BaseIntegration = None
-            integration_status = IntegrationStatusContainer()
-
-            match integration.mode:
-                case IntegrationMode.AWAIT:
-                    integration_impl = AwaitIntegration(integration.name,
-                                                        integration.settings, 
-                                                        integration_status, 
-                                                        integration.environment)
-                case IntegrationMode.STARTSTOP:
-                    integration_impl = StartStopIntegration(integration.name,
-                                                            integration.settings, 
-                                                            integration_status, 
-                                                            integration.environment)
-                case IntegrationMode.NS3_EMULATION:
-                    integration_impl = NS3Integration(integration.name,
-                                                      integration.settings,
-                                                      integration_status,
-                                                      integration.environment)
-                case _:
-                    raise Exception(f"Unknown integration mode supplied: {integration.mode}")
+            integration_obj = self.loader.get_packaged_or_try_load(integration.type)
+            if integration_obj is None:
+                raise Exception(f"Integration '{integration.name}' of type '{integration.type}' could not be loaded.")
             
-            if not integration_impl.is_integration_ready():
-                raise Exception(f"Integration {integration.name} cannot be started!")
+            integration_status = IntegrationStatusContainer()
+            integration_impl: BaseIntegration = integration_obj(integration.name,
+                                                                integration_status,
+                                                                integration.environment)
+            
+            status, message = integration_impl.set_and_validate_config(integration.settings)
+            if not status:
+                if message is not None:
+                    raise Exception(f"Unable to validate config for Integration '{integration.name}@{integration.type}': {message}")
+                else:
+                    raise Exception(f"Unable to validate config for Integration '{integration.name}@{integration.type}': Unspecified error.")
+            elif message is not None:
+                logger.debug(f"Message during successful config validation for Integration '{integration.name}@{integration.type}': {message}")
             
             self.mapped_integrations[integration.invoke_after].append(IntegrationExecutionWrapper(
                         integration, 
                         integration_impl, 
                         integration_status))
-
+        
+        scheduled = ", ".join(map(lambda x: f"Stage {x[0].name}: {len(x[1])}", self.mapped_integrations.items()))
+        logger.debug(f"Integrations loaded: {len(self.loader.integration_map)}; Scheduled for exceution: {scheduled}")
+            
     def __del__(self) -> None:
         self.force_shutdown()
 

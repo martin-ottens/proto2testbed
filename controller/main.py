@@ -6,7 +6,6 @@ import os
 import signal
 import random
 import string
-import socket
 
 from loguru import logger
 from pathlib import Path
@@ -67,6 +66,7 @@ if __name__ == "__main__":
     parameters.skip_integration = args.skip_integration
     parameters.skip_substitution = args.skip_substitution
     parameters.log_verbose = args.verbose
+    parameters.app_base_path = Path(__file__).parent.resolve()
 
     if parameters.interact != PauseAfterSteps.DISABLE and not os.isatty(sys.stdout.fileno()):
         logger.error("TTY does not allow user interaction, disabling 'interact' parameter")

@@ -1,25 +1,45 @@
 import time
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from pathlib import Path
 from multiprocessing import Process
+from dataclasses import dataclass
 
-from utils.settings import IntegrationSettings, StartStopIntegrationSettings
-from integrations.base_integration import BaseIntegration, IntegrationStatusContainer
+from utils.settings import IntegrationSettings
+from base_integration import BaseIntegration, IntegrationStatusContainer
+
+
+@dataclass
+class StartStopIntegrationSettings(IntegrationSettings):
+    start_script: str
+    stop_script: str
+    wait_for_exit: int = 5
+    start_delay: int = -1
+
 
 class StartStopIntegration(BaseIntegration):
-    def __init__(self, name: str, settings: IntegrationSettings, status_container: IntegrationStatusContainer, environment: Optional[Dict[str, str]] = None) -> None:
-        super().__init__(name, settings, status_container, environment)
-        if not isinstance(settings, StartStopIntegrationSettings):
-            raise Exception("Received invalid settings type!")
-        
-        self.settings: StartStopIntegrationSettings = settings
-        self.start_script: Path = self.get_and_check_script(settings.start_script)
-        self.stop_script: Path = self.get_and_check_script(settings.stop_script)
+    NAME = "startstop"
+
+    def __init__(self, name: str, status_container: IntegrationStatusContainer, 
+                 environment: Optional[Dict[str, str]] = None) -> None:
+        super().__init__(name, status_container, environment)
         self.start_process = None
 
-    def is_integration_ready(self) -> bool:
-        return self.start_script is not None and self.stop_script is not None
+    def set_and_validate_config(self, config: IntegrationSettings) -> Tuple[bool, Optional[str]]:
+        try:
+            self.settings = StartStopIntegrationSettings(**config)
+            self.start_script: Path = self.get_and_check_script(self.settings.start_script)
+            self.stop_script: Path = self.get_and_check_script(self.settings.stop_script)
+
+            if self.start_script is None:
+                return False, f"Unable to validate start script '{self.settings.start_script}'"
+
+            if self.stop_script is None:
+                return False, f"Unable to validate stop script '{self.settings.stop_script}'"
+
+            return True, None
+        except Exception as ex:
+            return False, f"Config validation failed: {ex}"
 
     def is_integration_blocking(self) -> bool:
         return self.settings.start_delay == -1

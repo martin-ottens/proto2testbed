@@ -19,7 +19,7 @@
     ],
     "integrations": [
         {
-            "mode": "ns3-emulation",
+            "type": "ns3-emulation",
             "name": "run-ns3",
             "invoke_after": "startup",
             "wait_after_invoke": 3,

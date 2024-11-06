@@ -20,7 +20,7 @@
     "integrations": [
         {
             "name": "prepare interfaces",
-            "mode": "startstop",
+            "type": "startstop",
             "invoke_after": "network",
             "environment": {
                 "INTERFACE_A": "eno2",
@@ -34,7 +34,7 @@
         },
         {
             "name": "exp0 link to 100mbits",
-            "mode": "startstop",
+            "type": "startstop",
             "invoke_after": "init",
             "wait_after_invoke": 0,
             "environment": {
@@ -48,7 +48,7 @@
         },
         {
             "name": "exp1 link to 100mbits",
-            "mode": "startstop",
+            "type": "startstop",
             "invoke_after": "init",
             "wait_after_invoke": 0,
             "environment": {

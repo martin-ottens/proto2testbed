@@ -1,24 +1,39 @@
 import time
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from pathlib import Path
 from multiprocessing import Process
+from dataclasses import dataclass
 
-from utils.settings import IntegrationSettings, AwaitIntegrationSettings
-from integrations.base_integration import BaseIntegration, IntegrationStatusContainer
+from utils.settings import IntegrationSettings
+from base_integration import BaseIntegration, IntegrationStatusContainer
+
+
+@dataclass
+class AwaitIntegrationSettings(IntegrationSettings):
+    start_script: str
+    wait_for_exit: int
+    start_delay: int = 0
+
 
 class AwaitIntegration(BaseIntegration):
-    def __init__(self, name: str, settings: IntegrationSettings, status_container: IntegrationStatusContainer, environment: Optional[Dict[str, str]] = None) -> None:
-        super().__init__(name, settings, status_container, environment)
-        if not isinstance(settings, AwaitIntegrationSettings):
-            raise Exception("Received invalid settings type!")
-        
-        self.settings: AwaitIntegrationSettings = settings
-        self.start_script: Path = self.get_and_check_script(settings.start_script)
+    NAME = "await"
+
+    def __init__(self, name: str, status_container: IntegrationStatusContainer, 
+                 environment: Optional[Dict[str, str]] = None) -> None:
+        super().__init__(name, status_container, environment)
         self.process = None
 
-    def is_integration_ready(self) -> bool:
-        return self.start_script is not None
+    def set_and_validate_config(self, config: IntegrationSettings) -> Tuple[bool, Optional[str]]:
+        try:
+            self.settings = AwaitIntegrationSettings(**config)
+            self.start_script: Path = self.get_and_check_script(self.settings.start_script)
+            if self.start_script is None:
+                return False, f"Unable to validate start script {self.settings.start_script}"
+            else:
+                return True, None
+        except Exception as ex:
+            return False, f"Config validation failed: {ex}"
 
     def is_integration_blocking(self) -> bool:
         return False

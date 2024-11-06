@@ -1,6 +1,6 @@
 {
     "settings": {
-        "management_network": "172.16.99.0/24",
+        "management_network": "auto",
         "diskimage_basepath": "/images/"
     },
     "networks": [
@@ -12,7 +12,7 @@
     "integrations": [
         {
             "name": "await-integration",
-            "mode": "await",
+            "type": "await",
             "invoke_after": "startup",
             "settings": {
                 "start_script": "integration/oneshot.sh",
@@ -21,7 +21,7 @@
         },
         {
             "name": "start-stop-integration",
-            "mode": "startstop",
+            "type": "startstop",
             "invoke_after": "network",
             "wait_after_invoke": 2,
             "settings": {
@@ -35,7 +35,7 @@
     "instances": [
         {
             "name": "vma",
-            "diskimage": "debian-test.qcow2",
+            "diskimage": "debian.qcow2",
             "setup_script": "vma/setup.sh",
             "environment": {
                 "VARIABLE": "Hello from VM A Setup!"
@@ -82,7 +82,7 @@
         },
         {
             "name": "vmb",
-            "diskimage": "debian-test.qcow2",
+            "diskimage": "debian.qcow2",
             "setup_script": "vmb/setup.sh",
             "environment": {
                 "VARIABLE": "Hello from VM B Setup!"

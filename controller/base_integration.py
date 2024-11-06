@@ -6,7 +6,7 @@ import threading
 
 from pathlib import Path
 from abc import ABC, abstractmethod
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 from loguru import logger
 from multiprocessing import Process, Manager
 
@@ -52,13 +52,16 @@ class IntegrationStatusContainer():
         return self._flag
 
 class BaseIntegration(ABC):
-    def __init__(self, name: str, settings: IntegrationSettings, 
-                 status_container: IntegrationStatusContainer, 
+    API_VERSION = "1.0"
+    NAME = "##DONT_LOAD##"
+
+    def __init__(self, name: str, status_container: IntegrationStatusContainer, 
                  environment: Optional[Dict[str, str]] = None) -> None:
         self.name = name
         self.environment = environment
         self.status = status_container
         self.base_path = Path(SettingsWrapper.cli_paramaters.config)
+        self.settings = None
 
     def kill_process_with_child(self, process: Process):
         try:
@@ -111,7 +114,7 @@ class BaseIntegration(ABC):
             self.status.set_error(f"Error during execution: {ex}")
 
     @abstractmethod
-    def is_integration_ready(self) -> bool:
+    def set_and_validate_config(self, config: IntegrationSettings) -> Tuple[bool, Optional[str]]:
         pass
 
     @abstractmethod

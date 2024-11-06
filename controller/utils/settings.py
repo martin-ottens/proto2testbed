@@ -2,6 +2,7 @@ from typing import List, Dict, Optional, Any
 from enum import Enum
 from abc import ABC
 from dataclasses import dataclass
+from pathlib import Path
 
 from common.application_configs import ApplicationConfig
 from utils.continue_mode import PauseAfterSteps
@@ -20,36 +21,6 @@ class TestbedNetwork():
 
 class IntegrationSettings(ABC):
     pass
-
-@dataclass
-class AwaitIntegrationSettings(IntegrationSettings):
-    start_script: str
-    wait_for_exit: int
-    start_delay: int = 0
-
-@dataclass
-class StartStopIntegrationSettings(IntegrationSettings):
-    start_script: str
-    stop_script: str
-    wait_for_exit: int = 5
-    start_delay: int = -1
-
-@dataclass
-class NS3IntegrationSettings(IntegrationSettings):
-    basepath: str
-    program: str
-    interfaces: List[str]
-    wait: bool = False
-    fail_on_exist: bool = False
-    args: Optional[Dict[str, str]] = None
-
-class IntegrationMode(Enum):
-    AWAIT = "await"
-    STARTSTOP = "startstop"
-    NS3_EMULATION = "ns3-emulation"
-
-    def __str__(self):
-        return str(self.value)
     
 class InvokeIntegrationAfter(Enum):
     STARTUP = "startup"
@@ -60,26 +31,16 @@ class InvokeIntegrationAfter(Enum):
         return str(self.value)
     
 class Integration():
-    def __init__(self, name: str, mode: str, environment: Optional[Dict[str, str]] = None,
+    def __init__(self, name: str, type: str, environment: Optional[Dict[str, str]] = None,
                  invoke_after: str = str(InvokeIntegrationAfter.STARTUP), wait_after_invoke: int = 0,
                  settings: Optional[Any] = None) -> None:
 
         self.name = name
-        self.mode: IntegrationMode = IntegrationMode(mode)
+        self.type = type
         self.environment = environment
         self.invoke_after: InvokeIntegrationAfter = InvokeIntegrationAfter(invoke_after)
         self.wait_after_invoke = wait_after_invoke
-        self.settings: IntegrationSettings
-
-        match self.mode:
-            case IntegrationMode.AWAIT:
-                self.settings = AwaitIntegrationSettings(**settings)
-            case IntegrationMode.STARTSTOP:
-                self.settings = StartStopIntegrationSettings(**settings)
-            case IntegrationMode.NS3_EMULATION:
-                self.settings = NS3IntegrationSettings(**settings)
-            case _:
-                raise Exception(f"Unkown integration mode {mode}")
+        self.settings: IntegrationSettings = settings
 
 class TestbedInstance():
     def __init__(self, name: str, diskimage: str, setup_script: str = None, 
@@ -138,6 +99,7 @@ class CLIParameters():
     preserve: Optional[str] = None
     log_verbose: int = 0
     unique_run_name: str = None
+    app_base_path: Path = None
 
 
 class SettingsWrapper():

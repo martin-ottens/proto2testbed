@@ -1,24 +1,39 @@
 import json
 
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Tuple
 from multiprocessing import Process
 from loguru import logger
+from dataclasses import dataclass
 
-from utils.settings import IntegrationSettings, NS3IntegrationSettings
+from utils.settings import IntegrationSettings
 from utils.system_commands import invoke_subprocess
-from integrations.base_integration import BaseIntegration, IntegrationStatusContainer
+from base_integration import BaseIntegration, IntegrationStatusContainer
+
+
+@dataclass
+class NS3IntegrationSettings(IntegrationSettings):
+    basepath: str
+    program: str
+    interfaces: List[str]
+    wait: bool = False
+    fail_on_exist: bool = False
+    args: Optional[Dict[str, str]] = None
+
 
 class NS3Integration(BaseIntegration):
-    def __init__(self, name: str, settings: IntegrationSettings, status_container: IntegrationStatusContainer, environment: Optional[Dict[str, str]] = None) -> None:
-        super().__init__(name, settings, status_container, environment)
-        if not isinstance(settings, NS3IntegrationSettings):
-            raise Exception("Received invalid settings type!")
-        
-        self.settings: NS3IntegrationSettings = settings
+    NAME = "ns3-emulation"
+
+    def __init__(self, name: str, status_container: IntegrationStatusContainer, 
+                 environment: Optional[Dict[str, str]] = None) -> None:
+        super().__init__(name, status_container, environment)
         self.process = None
 
-    def is_integration_ready(self) -> bool:
-        return True
+    def set_and_validate_config(self, config: IntegrationSettings) -> Tuple[bool, Optional[str]]:
+        try:
+            self.settings = NS3IntegrationSettings(**config)
+            return True, None
+        except Exception as ex:
+            return False, f"Config validation failed: {ex}"
 
     def is_integration_blocking(self) -> bool:
         return False
@@ -27,6 +42,7 @@ class NS3Integration(BaseIntegration):
         return 300 if at_shutdown else 0
 
     def start(self) -> bool:
+        # TODO: Generate interfaces random with "random" option!
         # 0. Search for existing interfaces
         sub_process = invoke_subprocess(["/usr/sbin/ip", "--json", "--details", "link", "show"])
         if sub_process.returncode != 0:

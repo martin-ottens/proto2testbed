@@ -11,7 +11,6 @@ from management_client import ManagementClient
 from base_application import BaseApplication
 from common.application_configs import ApplicationConfig
 from application_controller import ApplicationController
-from application_interface import ApplicationInterface
 from common.instance_manager_message import InstanceMessageType
 
 
@@ -67,7 +66,8 @@ class ApplicationManager():
             
         return True
     
-    def _load_single_app(self, module_name: str, path: Path, loaded_by_package: bool = False) -> bool:
+    def _load_single_app(self, module_name: str, path: Path, 
+                         loaded_by_package: bool = False) -> bool:
         try:
             spec = importlib.util.spec_from_file_location(module_name, path)
             module = importlib.util.module_from_spec(spec)
@@ -93,9 +93,9 @@ class ApplicationManager():
         return added != 0
 
 
-    def _read_packaged_apps(self):
+    def _read_packaged_apps(self) -> None:
         for filename in os.listdir(self.app_base / Path(ApplicationManager.__PACKAGED_APPS)):
-            filepath = Path(os.path.join(self.app_base / ApplicationManager.__PACKAGED_APPS, filename)).absolute()
+            filepath = Path(os.path.join(self.app_base, ApplicationManager.__PACKAGED_APPS, filename)).absolute()
 
             if not os.path.isfile(str(filepath)) or not filename.endswith(".py"):
                 continue

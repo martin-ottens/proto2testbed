@@ -40,7 +40,9 @@ class Controller(Dismantable):
         try:
             SettingsWrapper.testbed_config = load_config(self.config_path, 
                                                          SettingsWrapper.cli_paramaters.skip_substitution)
-            self.integration_helper = IntegrationHelper(SettingsWrapper.testbed_config.integrations)
+            self.integration_helper = IntegrationHelper(SettingsWrapper.testbed_config.integrations,
+                                                        SettingsWrapper.cli_paramaters.config,
+                                                        SettingsWrapper.cli_paramaters.app_base_path)
         except Exception as ex:
             logger.opt(exception=ex).critical("Internal error loading config!")
             raise Exception("Internal config loading error!")
