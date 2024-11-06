@@ -26,8 +26,8 @@ if __name__ == "__main__":
     parser.add_argument("--interact", "-i", choices=[p.name for p in PauseAfterSteps], 
                         required=False, default=PauseAfterSteps.DISABLE.name, type=str,
                         help="Interact with Conctroller after step is completed")
-    parser.add_argument("-v", "--verbose", action="store_true", required=False, default=False,
-                        help="Print TRACE log messages")
+    parser.add_argument("-v", "--verbose", action="count", required=False, default=0,
+                        help="-v: Print DEBUG log messages, -vv: Print TRACE log messages")
     parser.add_argument("-q", "--quiet", action="store_true", required=False, default=False,
                         help="Only print INFO, ERROR, SUCCESS or CRITICAL log messages")
     parser.add_argument("--sudo", action="store_true", required=False, default=False,
@@ -66,7 +66,6 @@ if __name__ == "__main__":
     parameters.influx_path = args.influxdb
     parameters.skip_integration = args.skip_integration
     parameters.skip_substitution = args.skip_substitution
-    parameters.log_quiet = args.quiet
     parameters.log_verbose = args.verbose
 
     if parameters.interact != PauseAfterSteps.DISABLE and not os.isatty(sys.stdout.fileno()):

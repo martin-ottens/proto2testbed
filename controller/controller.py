@@ -304,9 +304,7 @@ class Controller(Dismantable):
             return True
         
     def main(self) -> bool:
-        self.cli = CLI(SettingsWrapper.cli_paramaters.log_quiet, 
-                       SettingsWrapper.cli_paramaters.log_verbose, 
-                       self.state_manager)
+        self.cli = CLI(SettingsWrapper.cli_paramaters.log_verbose, self.state_manager)
         self.cli.start()
         self.dismantables.insert(0, self.cli)
 

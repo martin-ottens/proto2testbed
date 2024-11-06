@@ -27,17 +27,18 @@ class CLI(Dismantable):
     def _enable_logging(self):
         logger.level(name="CLI", no=45, color="<magenta>")
         logger.remove()
-        if self.log_quiet:
+        if self.log_verbose == 0:
             logger.add(sys.stdout, level="INFO", 
                        format=CLI._CLEAN_LOG_FORMAT,
                        filter=CLI._filter_logging)
-        elif self.log_verbose:
-            logger.add(sys.stdout, level="TRACE", 
-                       filter=CLI._filter_logging)
-        else:
+        elif self.log_verbose == 1:
             logger.add(sys.stdout, level="DEBUG", 
                        filter=CLI._filter_logging, 
                        format=CLI._CLEAN_LOG_FORMAT)
+        else:
+            logger.add(sys.stdout, level="TRACE", 
+                       filter=CLI._filter_logging)
+
 
     def _attach_to_tty(self, socket_path: str):
         process = pexpect.spawn("/usr/bin/socat", [f"UNIX-CONNECT:{socket_path}", "STDIO,raw,echo=0"], 
@@ -227,10 +228,9 @@ class CLI(Dismantable):
                 logger.log("CLI", f"Unknown command '{command}' or error running it, use 'help' to show available commands.")
 
 
-    def __init__(self, log_quiet: bool, log_verbose: bool, manager: MachineStateManager):
+    def __init__(self, log_verbose: int, manager: MachineStateManager):
         CLI.instance = self
         self.manager = manager
-        self.log_quiet = log_quiet
         self.log_verbose = log_verbose
         self.enable_interaction = Event()
         self.enable_output = Event()
