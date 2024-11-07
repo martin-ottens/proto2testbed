@@ -19,7 +19,7 @@ if __name__ == "__main__":
     parser.add_argument("--clean", action="store_true", required=False, default=False,
                         help="Clean network interfaces before startup (Beware of concurrent testbeds!)")
     parser.add_argument("--interact", "-i", choices=[p.name for p in PauseAfterSteps], 
-                        required=False, default=PauseAfterSteps.DISABLE.name, type=str,
+                        required=False, default=PauseAfterSteps.DISABLE.name, type=str.upper,
                         help="Interact with Conctroller after step is completed")
     parser.add_argument("-v", "--verbose", action="count", required=False, default=0,
                         help="-v: Print DEBUG log messages, -vv: Print TRACE log messages")
