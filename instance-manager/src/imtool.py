@@ -34,12 +34,10 @@ def main():
     payload = {"type": args.command}
     match args.command:
         case "preserve":
-            try:
-                if not Path(args.path).exists():
-                    raise Exception("Path does not exist")
-            except Exception as ex:
-                print(f"Invalid Path '{args.path}': {ex}", file=sys.stderr)
+            if not Path(args.path).exists():
+                print(f"Error: Invalid Path '{args.path}': No such file or direcory.", file=sys.stderr)
                 sys.exit(1)
+                
             payload["path"] = str(Path(args.path).resolve())
         case "status":
             pass
@@ -53,7 +51,7 @@ def main():
             if args.tag:
                 for tag in args.tag:
                     if not re.match(r"^[a-zA-Z]+:[\S]+$", tag):
-                        print(f"Invalid tag: {tag}", file=sys.stderr)
+                        print(f"Invalid tag: '{tag}' (Required format: <TAG>:<VALUE>)", file=sys.stderr)
                         sys.exit(1)
                 name, value = tag.split(":")
                 tags[name] = value
@@ -62,17 +60,17 @@ def main():
             points = {}
             for point in args.points:
                 if not re.match(r"^[A-Za-z0-9]+:(-?\d+(\.\d+)?|-?\.\d+)$", point):
-                    print(f"Invalid point: {point}", file=sys.stderr)
+                    print(f"Invalid data point: '{point}' (Required format: <NAME>:<VALUE>, VALUE = int or float)", file=sys.stderr)
                     sys.exit(1)
                 name, value = point.split(":")
                 fval = float(value)
                 if fval.is_integer():
-                    points[name] = int(value)
+                    points[name] = int(fval)
                 else:
                     points[name] = fval
             payload["points"] = points
         case _:
-            print(f"Invalid subcommand '{args.command}'", file=sys.stderr)
+            print(f"Invalid subcommand '{args.command}', add -h for an help.", file=sys.stderr)
             sys.exit(1)
 
     try:
