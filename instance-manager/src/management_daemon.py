@@ -9,6 +9,7 @@ from typing import List, Optional
 from preserve_handler import PreserveHandler
 from management_client import ManagementClient, DownstreamMassage
 from common.instance_manager_message import InstanceMessageType
+from global_state import GlobalState
 
 class IMClientThread(Thread):
     client_id: int = 0
@@ -189,9 +190,9 @@ class IMClientThread(Thread):
         self.shut_down.set()
 
 class IMDaemonServer():
-    def __init__(self, manager: ManagementClient, socket_path: str, preserver: PreserveHandler):
+    def __init__(self, manager: ManagementClient, preserver: PreserveHandler):
         self.manager = manager
-        self.socket_path = socket_path
+        self.socket_path = GlobalState.im_daemon_socket_path
         self.preserver = preserver
         self.shut_down = Event()
         self.client_threads: List[IMClientThread] = []

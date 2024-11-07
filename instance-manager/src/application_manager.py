@@ -12,20 +12,19 @@ from base_application import BaseApplication
 from common.application_configs import ApplicationConfig
 from application_controller import ApplicationController
 from common.instance_manager_message import InstanceMessageType
+from global_state import GlobalState
 
 
 class ApplicationManager():
     __COMPATIBLE_API_VERSION = "1.0"
     __PACKAGED_APPS = "applications/"
 
-    def __init__(self, main, manager: ManagementClient, 
-                 testbed_package_base: str, app_base: str, 
-                 instance_name: str) -> None:
+    def __init__(self, main, manager: ManagementClient, instance_name: str) -> None:
         self.main = main
         self.manager = manager
         self.instance_name = instance_name
-        self.app_base = Path(app_base)
-        self.testbed_package_base = Path(testbed_package_base)
+        self.app_base = GlobalState.start_exec_path
+        self.testbed_package_base = GlobalState.testbed_package_path
         self.app_map: Dict[str, Any] = {}
         self.app_exec: List[ApplicationController] = None
         self.barrier = None
@@ -104,7 +103,7 @@ class ApplicationManager():
             self._load_single_app(module, filepath)
 
 
-    def install_apps(self, apps: Optional[List[ApplicationConfig]], socket_path: str) -> bool:
+    def install_apps(self, apps: Optional[List[ApplicationConfig]]) -> bool:
         self.app_exec = []
 
         if apps is None:

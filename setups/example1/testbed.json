@@ -70,7 +70,7 @@
                     "delay": 30,
                     "runtime": 60,
                     "settings": {
-                        "command": "/tmp/application.sh",
+                        "command": "router/application.sh",
                         "ignore_timeout": true,
                         "environment": {
                             "INTERFACE": "enp0s3",

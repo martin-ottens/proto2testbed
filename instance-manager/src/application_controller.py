@@ -8,13 +8,11 @@ from threading import Event, Thread, Barrier
 
 from common.application_configs import ApplicationConfig
 from common.instance_manager_message import InstanceMessageType
-
 from management_client import ManagementClient, DownstreamMassage
 from application_interface import ApplicationInterface
-
 from base_application import BaseApplication
+from global_state import GlobalState
 
-IM_SOCKET_PATH = "/tmp/im.sock"
 
 class ApplicationController(Thread):
             
@@ -48,7 +46,7 @@ class ApplicationController(Thread):
 
         try:
             try:
-                interface = ApplicationInterface(self.config.name, IM_SOCKET_PATH)
+                interface = ApplicationInterface(self.config.name, GlobalState.im_daemon_socket_path)
                 interface.connect()
                 self.app.attach_interface(interface)
             except Exception as ex:

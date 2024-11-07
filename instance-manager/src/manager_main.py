@@ -13,6 +13,7 @@ from preserve_handler import PreserveHandler
 from management_daemon import IMDaemonServer
 from management_client import ManagementClient, DownstreamMassage, get_hostname
 from application_manager import ApplicationManager
+from global_state import GlobalState
 
 from common.instance_manager_message import *
 
@@ -39,11 +40,10 @@ class InstanceManager():
     def __init__(self):
         self.instance_name = get_hostname()
         self.manager = ManagementClient(self.instance_name)
-        self.preserver = PreserveHandler(self.manager, EXCHANGE_MOUNT, EXCHANGE_P9_DEV)
-        self.daemon = IMDaemonServer(self.manager, IM_SOCKET_PATH, self.preserver)
+        self.preserver = PreserveHandler(self.manager, EXCHANGE_P9_DEV)
+        self.daemon = IMDaemonServer(self.manager, self.preserver)
         self.state = IMState.STARTED
         self.application_manager: Optional[ApplicationManager] = None
-        self.start_exec_path = os.getcwd()
 
     def message_to_controller(self, type: InstanceMessageType, payload = None):
         self.manager.send_to_server(DownstreamMassage(type, payload))
@@ -58,16 +58,16 @@ class InstanceManager():
 
         print(f"Got 'initialize' instructions from Management Server", file=sys.stderr, flush=True)
 
-        data["environment"]["TESTBED_PACKAGE"] = TESTBED_PACKAGE_MOUNT
+        data["environment"]["TESTBED_PACKAGE"] = GlobalState.testbed_package_path
 
         init_message = InitializeMessageUpstream(**data)
 
         # 2. Mount the testbed package from host via virtio p9 (if not already done)
-        if not os.path.ismount(TESTBED_PACKAGE_MOUNT):
-            os.mkdir(TESTBED_PACKAGE_MOUNT, mode=0o777)
+        if not os.path.ismount(GlobalState.testbed_package_path):
+            os.mkdir(GlobalState.testbed_package_path, mode=0o777)
             proc = None
             try:
-                proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", TESTBED_PACKAGE_P9_DEV, TESTBED_PACKAGE_MOUNT])
+                proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", TESTBED_PACKAGE_P9_DEV, GlobalState.testbed_package_path])
             except Exception as ex:
                 self.message_to_controller(InstanceMessageType.FAILED, f"Unable to mount testbed package!")
 
@@ -79,7 +79,7 @@ class InstanceManager():
         # 3. Execute the setup script from mounted testbed package
         if init_message.script is not None:
             print(f"Running setup script {init_message.script}", file=sys.stderr, flush=True)
-            os.chdir(TESTBED_PACKAGE_MOUNT)
+            os.chdir(GlobalState.testbed_package_path)
 
             if init_message.environment is not None:
                 for key, value in init_message.environment.items():
@@ -114,13 +114,9 @@ class InstanceManager():
             print(f"Purging previous installed application_manager")
             del self.application_manager
         
-        self.application_manager = ApplicationManager(self, 
-                                                      self.manager,
-                                                      TESTBED_PACKAGE_MOUNT, 
-                                                      self.start_exec_path, 
-                                                      self.instance_name)
+        self.application_manager = ApplicationManager(self, self.manager, self.instance_name)
 
-        return self.application_manager.install_apps(applications.applications, IM_SOCKET_PATH)
+        return self.application_manager.install_apps(applications.applications)
 
     def run_apps(self) -> bool:
         if self.application_manager is None:
@@ -299,5 +295,10 @@ class InstanceManager():
 
 
 if __name__ == "__main__":
+    GlobalState.exchange_mount_path = Path(EXCHANGE_MOUNT)
+    GlobalState.im_daemon_socket_path = Path(IM_SOCKET_PATH)
+    GlobalState.testbed_package_path = Path(TESTBED_PACKAGE_MOUNT)
+    GlobalState.start_exec_path = Path(os.getcwd())
+    
     im = InstanceManager()
     im.run()

@@ -8,11 +8,12 @@ from pathlib import Path
 
 from management_client import ManagementClient, DownstreamMassage
 from common.instance_manager_message import InstanceMessageType
+from global_state import GlobalState
 
 class PreserveHandler():
-    def __init__(self, manager: ManagementClient, exchange_mount: str, exchange_p9_dev: str):
+    def __init__(self, manager: ManagementClient, exchange_p9_dev: str):
         self.manager = manager
-        self.exchange_mount = exchange_mount
+        self.exchange_mount = GlobalState.exchange_mount_path
         self.exchange_p9_dev = exchange_p9_dev
         self.files: List[str] = []
         pass
