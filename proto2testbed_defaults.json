@@ -1,3 +1,4 @@
 {
-    "influx_database": "testbed"
+    "influx_database": "testbed",
+    "management_network": "172.16.0.0/12"
 }
