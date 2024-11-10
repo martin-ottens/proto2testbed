@@ -24,7 +24,7 @@ class RunProgramApplication(BaseApplication):
         try:
             self.settings = RunProgramApplicationConfig(**config)
 
-            parts = self.settings.command.split("", maxsplit=1)
+            parts = self.settings.command.split(" ", maxsplit=1)
             self.relative_command = Path(parts[0])
             self.command = Path(parts[0])
             self.args = parts[1] if len(parts) >= 2 else ""
