@@ -295,10 +295,10 @@ class InstanceManager():
 
 
 if __name__ == "__main__":
-    GlobalState.exchange_mount_path = Path(EXCHANGE_MOUNT)
-    GlobalState.im_daemon_socket_path = Path(IM_SOCKET_PATH)
-    GlobalState.testbed_package_path = Path(TESTBED_PACKAGE_MOUNT)
-    GlobalState.start_exec_path = Path(os.getcwd())
+    GlobalState.exchange_mount_path = EXCHANGE_MOUNT
+    GlobalState.im_daemon_socket_path = IM_SOCKET_PATH
+    GlobalState.testbed_package_path = TESTBED_PACKAGE_MOUNT
+    GlobalState.start_exec_path = str(os.getcwd())
     
     im = InstanceManager()
     im.run()

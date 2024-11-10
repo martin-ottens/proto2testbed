@@ -23,8 +23,8 @@ class ApplicationManager():
         self.main = main
         self.manager = manager
         self.instance_name = instance_name
-        self.app_base = GlobalState.start_exec_path
-        self.testbed_package_base = GlobalState.testbed_package_path
+        self.app_base = Path(GlobalState.start_exec_path)
+        self.testbed_package_base = Path(GlobalState.testbed_package_path)
         self.app_map: Dict[str, Any] = {}
         self.app_exec: List[ApplicationController] = None
         self.barrier = None
