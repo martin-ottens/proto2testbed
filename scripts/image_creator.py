@@ -6,6 +6,7 @@ import os
 import sys
 import time
 import signal
+import shutil
 
 from typing import Optional, List
 from pathlib import Path
@@ -32,10 +33,10 @@ COMMANDS = {
 }
 
 
-def create_qemu_command(image: str, deb_path: str, 
+def create_qemu_command(image: Path, deb_path: str, 
                         disable_kvm: bool = False, dry_run: bool = False) -> str:
     return QEMU_COMMAND_TEMPLATE.format(
-        image=image,
+        image=str(image),
         mount=deb_path,
         kvm=('-enable-kvm -cpu host' if not disable_kvm else ''),
         dry=('-snapshot' if dry_run else '')
@@ -131,27 +132,29 @@ def main(command: str, deb_file: str, extra: Optional[List[str]],
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="Serial QEMU Image Preparation Tool", 
                                      description="Install instance-manager.deb on a QEMU image and run additional commands")
-    parser.add_argument("IMAGE", type=str, help="Installation QEMU image")
-    parser.add_argument("PACKAGE", type=str, help="Path to instance-manager Debian package")
+    parser.add_argument("--input", "-i", required=True, type=str, 
+                        help="Image Input path (will be modified when -o is omitted)")
+    parser.add_argument("--package", "-p", required=True, type=str,
+                        help="Path to the Instance Manager Debian Package installed during preparation")
+    parser.add_argument("--output", "-o", required=False, type=str, default=None,
+                        help="Output path for the modified image")
     parser.add_argument("--extra", "-e", type=str, required=False, default=None,
                         help="Extra commands to execute on VM during installation")
     parser.add_argument("--no_kvm", action="store_true", required=False, default=False,
                         help="Disable KVM virtualization")
-    parser.add_argument("--debug", "-d", action="store_true", required=False, default=False,
+    parser.add_argument("--debug", action="store_true", required=False, default=False,
                         help="Forward QEMU stdout and stderr")
-    parser.add_argument("--dry_run", "-0", action="store_true", required=False, default=False,
+    parser.add_argument("--dry_run", action="store_true", required=False, default=False,
                         help="Do not make any changes to the base image")
-    parser.add_argument("--timeout", "-t", required=False, default=PEXPECT_TIMEOUT, type=int,
+    parser.add_argument("--timeout", required=False, default=PEXPECT_TIMEOUT, type=int,
                         help="Base timeout for all commands")
     args = parser.parse_args()
 
     logger.remove()
     logger.add(sys.stdout, level="DEBUG", format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>")
 
-    logger.info(f"Preparing QEMU image {args.IMAGE}")
-
     if args.extra is not None:
-        logger.info(f"Running extra preparation commands from file {args.extra}")
+        logger.info(f"Running extra preparation commands from file '{args.extra}'")
         try:
             with open(args.extra, "r") as handle:
                 extra_commands = handle.readlines()
@@ -165,12 +168,38 @@ if __name__ == "__main__":
     if args.dry_run:
         logger.warning("Dry run enabled, no persistent modifications to the image will be made")
 
-    resolve_path = os.path.realpath(Path(args.PACKAGE), strict=True)
+    resolve_path = os.path.realpath(Path(args.package), strict=True)
+
+    if not Path(resolve_path).exists():
+        logger.critical(f"Instance Manager Package '{args.package}' could not be found.")
+        sys.exit(1)
+
     resolve_path_parts = os.path.split(resolve_path)
     deb_path = resolve_path_parts[0]
     deb_file = resolve_path_parts[1]
 
-    command = create_qemu_command(args.IMAGE, deb_path, args.no_kvm, args.dry_run)
+    input_path = Path(args.input)
+
+    if not input_path.exists():
+        logger.critical(f"Imput Image '{args.input}' does not exist.")
+        sys.exit(1)
+
+    mod_path = input_path
+    if args.output is not None:
+        output_path = Path(args.output)
+        mod_path = output_path
+        logger.info(f"Copying Input Image '{input_path}' to '{output_path}'")
+        try:
+            shutil.copyfile(input_path, output_path)
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Unable to copy image file.")
+            sys.exit(1)
+        logger.success(f"Image copied to '{output_path}', this image will be modified.")
+    else:
+        logger.info(f"Preparing Input Image '{input_path}' in place.")
+
+    logger.info(f"Preparing QEMU Image '{mod_path}'")
+    command = create_qemu_command(mod_path, deb_path, args.no_kvm, args.dry_run)
     try:
         if not main(command, deb_file, extra_commands, args.debug, args.timeout):
             logger.error("At least one extra command failed, image may be faulty.")
