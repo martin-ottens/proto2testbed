@@ -38,6 +38,10 @@ class Controller(Dismantable):
         self.pause_after: PauseAfterSteps = SettingsWrapper.cli_paramaters.interact
 
         try:
+            self.cli = CLI(SettingsWrapper.cli_paramaters.log_verbose, self.state_manager)
+            self.cli.start()
+            self.dismantables.insert(0, self.cli)
+
             SettingsWrapper.testbed_config = load_config(self.config_path, 
                                                          SettingsWrapper.cli_paramaters.skip_substitution)
             self.integration_helper = IntegrationHelper(SettingsWrapper.cli_paramaters.config,
@@ -321,9 +325,6 @@ class Controller(Dismantable):
             return True
         
     def main(self) -> bool:
-        self.cli = CLI(SettingsWrapper.cli_paramaters.log_verbose, self.state_manager)
-        self.cli.start()
-        self.dismantables.insert(0, self.cli)
         self.integration_helper.apply_configured_integrations(SettingsWrapper.testbed_config.integrations)
         self.dismantables.insert(0, self.integration_helper)
 

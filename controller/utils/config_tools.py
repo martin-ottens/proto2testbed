@@ -28,18 +28,23 @@ def load_config(config_path: Path, skip_substitution: bool = False) -> TestbedCo
             logger.warning(f"Config '{config_path}' contains placeholders, but substitution is disabled")
             logger.warning(f"Found placeholders: {', '.join(list(map(lambda x: f'{{{{{x}}}}}', placeholders)))}")
     else:
+        total_replaced = 0
         missing_replacements = []
         for placeholder in placeholders:
             replacement = os.environ.get(placeholder, None)
             if replacement is None:
                 missing_replacements.append(f"{{{{{placeholder}}}}}")
                 continue
-
-            config_str = config_str.replace(f"{{{{{placeholder}}}}}", replacement)
+            
+            pattern = rf'{{{{\s*{re.escape(placeholder)}\s*}}}}'
+            config_str = re.sub(pattern, replacement, config_str)
             logger.debug(f"Replaced {{{{{placeholder}}}}} with value '{replacement}'")
+            total_replaced += 1
         
         if len(missing_replacements) != 0:
             raise Exception(f"Unable to get environment variables for placeholders {', '.join(missing_replacements)}: Variables not set.")
+        else:
+            logger.info(f"Replaced {total_replaced} placeholder variables in config.")
 
     try:
         config =  json.loads(config_str)
