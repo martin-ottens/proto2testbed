@@ -2,8 +2,9 @@ import sys
 import readline # Not unused, when imported, used by input()
 import termios
 import pexpect
+import os
 
-from threading import Thread, Event
+from threading import Thread, Event, Lock
 from loguru import logger
 from typing import Optional, List
 from pathlib import Path
@@ -12,6 +13,7 @@ from utils.interfaces import Dismantable
 from utils.continue_mode import *
 from state_manager import MachineStateManager
 from utils.settings import SettingsWrapper
+
 
 class CLI(Dismantable):
     _CLEAN_LOG_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>"
@@ -201,6 +203,11 @@ class CLI(Dismantable):
                 clear_stdin()
             try:
                 cli_input = input("> ")
+                if self.kill_input.is_set():
+                    logger.log("CLI", "Input was interrupted by external shutdown request.")
+                    self.continue_event.set()
+                    return
+
                 if not self.enable_interaction.is_set():
                     self.enable_interaction.wait()
                     clear_stdin()
@@ -216,6 +223,9 @@ class CLI(Dismantable):
                 args = args.split(" ")
 
             command = command.lower()
+
+            if command == "":
+                continue
             
             status = False
             try:
@@ -235,6 +245,9 @@ class CLI(Dismantable):
         self.enable_interaction = Event()
         self.enable_output = Event()
         self.continue_event = None
+        self.signal_lock = Lock()
+        self.kill_input = Event()
+        self.kill_input.clear()
 
         self.enable_interaction.clear()
         self.enable_output.set()
@@ -267,6 +280,14 @@ class CLI(Dismantable):
     def start(self):
         self.thread = Thread(target=self._run, daemon=True)
         self.thread.start()
+
+    def unblock_input(self):
+        self.kill_input.set()
+
+        if self.enable_interaction.is_set():
+            self.toggle_interaction(False)
+        
+        self.continue_event.set()
 
     def stop(self):
         pass

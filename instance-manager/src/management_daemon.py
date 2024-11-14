@@ -101,6 +101,11 @@ class IMClientThread(Thread):
         
         self.manager.send_data_point(measurement, points, tags)
         return self._respond_to_client(True)
+    
+    def _handle_shutdown(self, _) -> bool:
+        message: DownstreamMassage = DownstreamMassage(InstanceMessageType.SHUTDOWN, None)
+        self.manager.send_to_server(message)
+        return self._respond_to_client(True)
 
     def _process_one_message(self, data) -> bool:
         json_data = json.loads(data)
@@ -118,6 +123,8 @@ class IMClientThread(Thread):
                 return self._handle_log(json_data)
             case "data":
                 return self._handle_data(json_data)
+            case "shutdown":
+                return self._handle_shutdown(json_data)
             case _:
                 return self._respond_to_client(False, f"Invalid 'type' {json_data['type']}")
 

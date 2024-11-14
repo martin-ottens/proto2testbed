@@ -8,7 +8,7 @@ from enum import Enum
 from pathlib import Path
 from loguru import logger
 from typing import Tuple, Optional, List
-from threading import Lock, Semaphore
+from threading import Lock, Semaphore, Event
 
 from utils.system_commands import invoke_subprocess
 from helper.file_copy_helper import FileCopyHelper
@@ -32,6 +32,7 @@ class WaitResult(Enum):
     FAILED = 1
     TIMEOUT = 2
     INTERRUPTED = 3
+    SHUTDOWN = 4
 
 class MachineState():
     __INTERCHANGE_BASE_PATH = "/tmp/ptb-i-"
@@ -186,6 +187,8 @@ class MachineStateManager():
 
         self.waiting_for_state: MachineState | None = None
         self.state_change_semaphore: Semaphore | None = None
+        self.has_shutdown_signal = Event()
+        self.has_shutdown_signal.clear()
 
     def enable_file_preservation(self, preservation_path: Optional[Path]):
         self.file_preservation = preservation_path
@@ -232,6 +235,14 @@ class MachineStateManager():
     def all_machines_connected(self) -> bool:
         return all(x.connection is not None for x in self.map.values())
     
+    def apply_shutdown_signal(self):
+        with self.state_change_lock:
+            self.has_shutdown_signal.set()
+
+            if self.state_change_semaphore is not None:
+                self.state_change_semaphore.release(n=len(self.map))
+            
+    
     def notify_state_change(self, new_state: AgentManagementState):
         with self.state_change_lock:
             if self.state_change_semaphore is not None:
@@ -269,6 +280,10 @@ class MachineStateManager():
 
             if not waited:
                 return WaitResult.TIMEOUT
+            
+            if self.has_shutdown_signal.is_set():
+                self.has_shutdown_signal.clear()
+                return WaitResult.SHUTDOWN
 
             if sum(map(lambda x: x.get_state() == expected_state, self.map.values())) == len(self.map):
                 return WaitResult.OK

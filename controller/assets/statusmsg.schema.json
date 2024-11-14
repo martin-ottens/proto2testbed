@@ -24,7 +24,8 @@
                 "apps_failed",
                 "failed",
                 "finished",
-                "copied_file"
+                "copied_file",
+                "shutdown"
             ]
         },
         "message": {

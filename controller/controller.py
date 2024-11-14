@@ -36,6 +36,7 @@ class Controller(Dismantable):
         self.base_path = Path(SettingsWrapper.cli_paramaters.config)
         self.config_path = self.base_path / "testbed.json"
         self.pause_after: PauseAfterSteps = SettingsWrapper.cli_paramaters.interact
+        self.interact_finished_event: Optional[Event] = None
 
         try:
             self.cli = CLI(SettingsWrapper.cli_paramaters.log_verbose, self.state_manager)
@@ -247,7 +248,7 @@ class Controller(Dismantable):
             instance.prepare_interchange_dir()
         
         try:
-            magamenet_server = ManagementServer(self.state_manager, 
+            magamenet_server = ManagementServer(self, self.state_manager, 
                                                 SettingsWrapper.testbed_config.settings.startup_init_timeout, 
                                                 self.influx_db,
                                                 init_instances_instant)
@@ -278,22 +279,28 @@ class Controller(Dismantable):
 
         result: WaitResult = self.state_manager.wait_for_machines_to_become_state(AgentManagementState.FILES_PRESERVED,
                                                                                   timeout=30000)
-        if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
+        if result in [WaitResult.FAILED, WaitResult.TIMEOUT]:
             logger.critical("Instances have reported failed during file preservation or a timeout occured!")
+        elif result == WaitResult.SHUTDOWN:
+            logger.critical("Testbed was shut down due to an external request.")
+
+    def stop_interaction(self):
+        if self.event is not None:
+            self.cli.unblock_input()
 
     def start_interaction(self, at_step: PauseAfterSteps) -> bool:
-        event = Event()
+        self.event = Event()
         contine_mode = CLIContinue(at_step)
-        event.clear()
+        self.event.clear()
 
         if SettingsWrapper.cli_paramaters.interact is not PauseAfterSteps.DISABLE:
-            self.cli.start_cli(event, contine_mode)
+            self.cli.start_cli(self.event, contine_mode)
             logger.success(f"Testbed paused after stage {self.pause_after.name}, Interactive mode enabled (CRTL+C to exit).")
         else:
             logger.success(f"Testbed paused after stage {self.pause_after.name} (CRTL+C to exit).")
        
         try: 
-            status = event.wait()
+            status = self.event.wait()
         except KeyboardInterrupt:
             status = False
 
@@ -320,6 +327,13 @@ class Controller(Dismantable):
             return False
         elif result == WaitResult.INTERRUPTED:
             logger.critical(f"Action '{stage}' was interrupted!")
+            return False
+        elif result == WaitResult.SHUTDOWN:
+            if self.interact_finished_event is not None:
+                self.interact_finished_event.set()
+                self.cli.stop_cli()
+            logger.warning("Shutting down testbed due to command from Instance!")
+            self.send_finish_message()
             return False
         else:
             return True

@@ -22,6 +22,7 @@ class InstanceMessageType(Enum):
     APPS_DONE = "apps_done"
     FINISHED = "finished"
     COPIED_FILE = "copied_file"
+    SHUTDOWN = "shutdown"
     UNKNOWN = "unknown"
 
     def __str__(self):
