@@ -249,10 +249,8 @@ class InstanceManager():
                         self.message_to_controller(InstanceMessageType.MSG_ERROR, "Instance is not ready for app installation.")
                         continue
 
-                    if self.install_apps(data):
-                        self.state = IMState.APPS_READY
-                    else:
-                        self.state = IMState.FAILED
+                    self.install_apps(data)
+                    self.state = IMState.APPS_READY
                     continue
                 case RunApplicationsMessageUpstream.status_name:
                     if self.state != IMState.APPS_READY:

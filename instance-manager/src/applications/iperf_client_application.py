@@ -70,8 +70,10 @@ class IperfClientApplication(BaseApplication):
         command.append("--interval")
         command.append(str(self.settings.report_interval))
 
+        # --connect-timeout expects ms
         command.append("--connect-timeout")
-        command.append(str(max(IperfClientApplication.__STATIC_DELAY_BEFORE_START, IperfClientApplication.__CONNECT_TIMEOUT_MULTIPLIER * runtime)))
+        command.append(str(max(IperfClientApplication.__STATIC_DELAY_BEFORE_START, 
+                               IperfClientApplication.__CONNECT_TIMEOUT_MULTIPLIER * runtime) * 1000))
 
         command.append("--port")
         command.append(str(self.settings.port))

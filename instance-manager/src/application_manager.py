@@ -192,7 +192,7 @@ class ApplicationManager():
             print(f"Execution of Applications finished, {failed} failed.", file=sys.stderr, flush=True)
             self.main.message_to_controller(InstanceMessageType.APPS_FAILED, 
                                         f"{failed} Applications(s) failed.")
-            return False
+            return True
         else:
             print(f"Execution of Applications successfully completed.", file=sys.stderr, flush=True)
             self.main.message_to_controller(InstanceMessageType.APPS_DONE)
