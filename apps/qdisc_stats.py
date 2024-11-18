@@ -51,19 +51,41 @@ class QdiscStatsApplication(BaseApplication):
         except Exception as ex:
             return False, f"Config validation failed: {ex}"
         
+    def __interpret_number(self, input: str):
+        units = {
+            "k": 1_000,
+            "K": 1_000,
+            "M": 1_000_000,
+            "G": 1_000_000_000,
+            "T": 1_000_000_000_000,
+            "b": 1,
+            "B": 8,
+            "p": 1
+        }
+
+        if input[-1].isalpha():
+            number_part = float(input[:-1])
+
+            if input[-1] in units:
+                return int(number_part * units[input[-1]])
+            else:
+                raise Exception(f"Unsupported Unit: {input[-1]}")
+        else:
+            return int(input)
+        
     def __parse_single_stat(self, input: str):
         result = {}
 
         # Sent %i bytes %s pkt
         _, sent_bytes, _, sent_packets, _, remain = input.split(" ", maxsplit=5)
-        result["sent_bytes"] = int(sent_bytes)
-        result["sent_packets"] = int(sent_packets)
+        result["sent_bytes"] = self.__interpret_number(sent_bytes)
+        result["sent_packets"] = self.__interpret_number(sent_packets)
 
         # (dropped %i, overlimits %i requeues %i)
         _, dropped_dirty, _, overlimits, _, requeues_dirty, remain = remain.split(" ", maxsplit=6)
-        result["dropped"] = int(dropped_dirty.replace(",", ""))
-        result["overlimits"] = int(overlimits)
-        result["sent_requeues"] = int(requeues_dirty.replace(")", ""))
+        result["dropped"] = self.__interpret_number(dropped_dirty.replace(",", ""))
+        result["overlimits"] = self.__interpret_number(overlimits)
+        result["sent_requeues"] = self.__interpret_number(requeues_dirty.replace(")", ""))
 
         # backlog %ib %ip requeues %i <remainder>
         parts = remain.split(" ", maxsplit=5)
@@ -71,9 +93,9 @@ class QdiscStatsApplication(BaseApplication):
             _, backlog_b_dirty, backlog_p_dirty, _, requeues = parts
         else:
             _, backlog_b_dirty, backlog_p_dirty, _, requeues, _ = parts
-        result["backlog_bytes"] = int(backlog_b_dirty[:-1])
-        result["backlog_packets"] = int(backlog_p_dirty[:-1])
-        result["backlog_requeues"] = int(requeues)
+        result["backlog_bytes"] = self.__interpret_number(backlog_b_dirty[:-1])
+        result["backlog_packets"] = self.__interpret_number(backlog_p_dirty[:-1])
+        result["backlog_requeues"] = self.__interpret_number(requeues)
 
         return result
     
@@ -125,7 +147,7 @@ class QdiscStatsApplication(BaseApplication):
             self.interface.data_point("qdisc-stats", stats, {
                 "dev": result["dev"],
                 "qdisc": result["qdisc"],
-                "handle": result["handle"]
+                "handle": str(result["handle"])
             })
         
         for dev in self.settings.netem_if:
@@ -146,3 +168,5 @@ class QdiscStatsApplication(BaseApplication):
             
             self.__get_one_datapoint(proc.stdout.decode('utf-8'))
             time.sleep(self.settings.interval)
+        
+        return True
