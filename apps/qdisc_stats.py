@@ -158,7 +158,6 @@ class QdiscStatsApplication(BaseApplication):
             if not len(list(filter(lambda x: x["qdisc"] == "tbf" and x["dev"] == dev, results))):
                 raise Exception(f"Interface '{dev}' not found for qdisc tbf.")
 
-
     def start(self, runtime: int) -> bool:
         end_at = time.time() + runtime
         while end_at > time.time():
