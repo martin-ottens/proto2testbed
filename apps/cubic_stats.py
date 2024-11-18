@@ -70,12 +70,9 @@ class CubicStatsApplication(BaseApplication):
         else:
             return int(input)
 
-    
-
     def __parse_output(self, input: str):
         results = []
         context = None
-        # ss -tipH
         for line in input.split("\n"):
             if line.strip() == "":
                 continue
@@ -96,8 +93,8 @@ class CubicStatsApplication(BaseApplication):
                         "prog": prog,
                         "fd": int(fd)
                     },
-                    "recv_q": recv_q,
-                    "send_q": send_q,
+                    "recv_q": int(recv_q),
+                    "send_q": int(send_q),
                     "send_scale": 0,
                     "recv_scale": 0,
                     "rto": 0,
@@ -147,20 +144,26 @@ class CubicStatsApplication(BaseApplication):
                     context["pmtu"] = int(pmtu)
                 elif segment.startswith("bytes_retrans"):
                     _, retrans = segment.split(":", maxsplit=1)
-                    context["bytes_retrans"] = self.interpret_bits(retrans)
+                    context["bytes_retrans"] = self.__interpret_bits(retrans)
                 elif segment.startswith("bytes_acked"):
                     _, acked = segment.split(":", maxsplit=1)
-                    context["bytes_acked"] = self.interpret_bits(acked)
+                    context["bytes_acked"] = self.__interpret_bits(acked)
                 elif segment.startswith("unacked"):
                     _, unacked = segment.split(":", maxsplit=1)
-                    context["unacked"] = self.interpret_bits(unacked)
+                    context["unacked"] = self.__interpret_bits(unacked)
             
                 index += 1
-            
-        return context
+        
+        if context is not None:
+            results.append(context)
+
+        return results
     
     def __get_one_datapoint(self, input: str):
         contexts = self.__parse_output(input)
+
+        if len(contexts) == 0:
+            return
 
         if self.settings.iperf_mode:
             control_fd = min(map(lambda x: x["_"]["fd"], contexts))
@@ -180,13 +183,13 @@ class CubicStatsApplication(BaseApplication):
             
             self.interface.data_point("cubic-stats", context, {
                 "prog": prog,
-                "fd": fd
+                "fd": str(fd)
             })
 
     def start(self, runtime: int) -> bool:
         end_at = time.time() + runtime
         while end_at > time.time():
-            proc = subprocess.run(["/usr/bin/ss", "-tipH"], capture_output=True, shell=False)
+            proc = subprocess.run(["/usr/bin/ss", "-tipH", "state", "established"], capture_output=True, shell=False)
             if proc.returncode != 0:
                 raise Exception(f"Unable to run 'ss' command: {proc.stderr.decode('utf-8')}")
             

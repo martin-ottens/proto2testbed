@@ -3,7 +3,7 @@ import importlib.util
 import inspect
 import sys
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 from threading import Barrier
 
@@ -39,45 +39,49 @@ class ApplicationManager():
             for app_controller in self.app_exec:
                 del app_controller
 
-    def _check_valid_app(self, cls, loaded_file) -> bool:
+    def _check_valid_app(self, cls, loaded_file) -> Tuple[bool, Optional[str]]:
         if not issubclass(cls, BaseApplication) or cls.__name__ == "BaseApplication":
-            return False
+            return False, None
         
         if not hasattr(cls, "API_VERSION"):
             print(f"AppLoader: File '{loaded_file}' has no API_VERSION", file=sys.stdout, flush=True)
-            return False
+            return False, "API_VERSION missing"
         
         if not hasattr(cls, "NAME"):
             print(f"AppLoader: File '{loaded_file}' has no NAME", file=sys.stdout, flush=True)
-            return False
+            return False, "NAME missing"
         
         if cls.API_VERSION != ApplicationManager.__COMPATIBLE_API_VERSION:
             print(f"AppLoader: File '{loaded_file}' has API_VERSION {cls.API_VERSION}, but {ApplicationManager.__COMPATIBLE_API_VERSION} required.", file=sys.stdout, flush=True)
-            return False
+            return False, "Incomatible API version."
         
         if cls.NAME == BaseApplication.NAME:
-            return False
+            return False, None
         
         for method in ["set_and_validate_config", "start"]:
             if not hasattr(cls, method) or not callable(getattr(cls, method)):
                 print(f"AppLoader: File '{loaded_file}' is missing method '{method}'", file=sys.stdout, flush=True)
-                return False
+                return False, "Method(s) are missing"
             
-        return True
+        return True, None
     
     def _load_single_app(self, module_name: str, path: Path, 
-                         loaded_by_package: bool = False) -> bool:
+                         loaded_by_package: bool = False) -> Tuple[bool, Optional[str]]:
         try:
             spec = importlib.util.spec_from_file_location(module_name, path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
         except Exception as ex:
-            print(ex)
-            return False
+            print(f"Unable to load file {path}: {ex}", flush=True, file=sys.stderr)
+            return False, "Python file not loadable: {ex}"
 
         added = 0
+        last_message = None
         for _, obj in inspect.getmembers(module, inspect.isclass):
-            if not self._check_valid_app(obj, path):
+            status, message = self._check_valid_app(obj, path)
+            if not status:
+                if message is not None:
+                    last_message = message
                 continue
 
             class_name = obj.NAME
@@ -89,7 +93,10 @@ class ApplicationManager():
             self.app_map[class_name] = obj
             added += 1
         
-        return added != 0
+        if added != 0:
+            return True, None
+        else:
+            return False, last_message
 
 
     def _read_packaged_apps(self) -> None:
@@ -119,10 +126,15 @@ class ApplicationManager():
                     app_file += ".py"
 
                 module_path = self.testbed_package_base / Path(app_file)
-
-                if not self._load_single_app(config.application, module_path, True):
-                    self.main.message_to_controller(InstanceMessageType.FAILED, 
-                                                    f"Unable to install app '{config.name}@{config.application}': Not found.")
+                
+                status, message = self._load_single_app(config.application, module_path, True)
+                if not status:
+                    if message is not None:
+                        self.main.message_to_controller(InstanceMessageType.FAILED, 
+                                                        f"Unable to install app '{config.name}@{config.application}': {message}")
+                    else:
+                        self.main.message_to_controller(InstanceMessageType.FAILED, 
+                                                        f"Unable to install app '{config.name}@{config.application}': Not found.")
                     return False
                 self.main.message_to_controller(InstanceMessageType.MSG_DEBUG, 
                                                 f"Loaded App '{config.application}' from testbed package.")
