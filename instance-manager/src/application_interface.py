@@ -25,27 +25,40 @@ class ApplicationInterface():
     def __init__(self, app_name: str, socket_path: str):
         self.app_name = app_name
         self.socket_path = socket_path
-        self.is_connected: bool = False
 
-    def connect(self):
-        if self.is_connected:
-            return
-        
+    def connect(self):        
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.socket.settimeout(1)
         self.socket.connect(self.socket_path)
-        self.is_connected = True
+
+    def __is_connected(self) -> bool:
+        try:
+            data = self.socket.recv(8, socket.MSG_DONTWAIT | socket.MSG_PEEK)
+            return len(data) != 0
+        except BlockingIOError:
+            return True
+        except Exception:
+            return False
 
     def disconnect(self):
-        if not self.is_connected:
+        if self.socket is None:
             return
         
         self.socket.close()
         self.is_connected = False
 
     def _send_to_daemon(self, payload) -> bool:
-        if "type" not in payload:
+        if not self.__is_connected():
+            try:
+                self.connect()
+            except Exception as ex:
+                print(f"Unable to reopen connection Instance Manager Daemon: {ex}", file=sys.stderr, flush=True)
+                return False
+
+        if not isinstance(payload, dict) or "type" not in payload:
             return False
+        else:
+            payload["app"] = self.app_name
         
         try:
             self.socket.sendall(json.dumps(payload).encode("utf-8") + b'\n')

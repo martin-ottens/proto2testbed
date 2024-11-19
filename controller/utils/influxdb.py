@@ -2,6 +2,8 @@ import os
 import json
 import threading
 import queue
+import base64
+import hashlib
 
 from typing import Optional, Any
 from loguru import logger
@@ -144,6 +146,12 @@ class InfluxDBAdapter(Dismantable):
         
         try:
             point[0]["tags"]["experiment"] = self.series_name
+
+            hashstr = ""
+            for tag_value in point[0]["tags"].values():
+                hashstr += str(tag_value)
+            hash = hashlib.sha1(hashstr)
+            point[0]["tags"]["hash"] = base64.urlsafe_b64encode(hash.digest()[:16])
         except Exception as ex:
             logger.warning("InfluxDBAdapter: Unable to add experiment tag to data point, skipping insert.")
             return False

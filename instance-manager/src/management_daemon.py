@@ -88,7 +88,7 @@ class IMClientThread(Thread):
         if not isinstance(data["tags"], dict):
             return self._respond_to_client(False, "'tags' is not a dict of strings")
         
-        if not all((isinstance(key, str) and isinstance(value, str)) for key, value in data["tags"].items()):
+        if not all((isinstance(key, str) and isinstance(value, (str, int))) for key, value in data["tags"].items()):
             return self._respond_to_client(False, "'tags' contains invalid keys or values")
         tags = data["tags"]
         
@@ -112,21 +112,32 @@ class IMClientThread(Thread):
         if "type" not in json_data:
             return self._respond_to_client(False, "Field 'type' not in message")
         
-        print(f"Daemon Thread: Client {self.id} issued command: {json_data['type']}", file=sys.stderr, flush=True)
+        connected_app = json_data.get("app", None)
+        
+        print(f"Daemon Thread: Client {self.id} ({connected_app}) issued command: {json_data['type']}", file=sys.stderr, flush=True)
 
+        status = None
         match json_data["type"]:
             case "status":
-                return self._respond_to_client(True)
+                status = self._respond_to_client(True)
             case "preserve":
-                return self._handle_preserve(json_data)
+                status = self._handle_preserve(json_data)
             case "log":
-                return self._handle_log(json_data)
+                status = self._handle_log(json_data)
             case "data":
-                return self._handle_data(json_data)
+                status = self._handle_data(json_data)
             case "shutdown":
-                return self._handle_shutdown(json_data)
+                status = self._handle_shutdown(json_data)
             case _:
-                return self._respond_to_client(False, f"Invalid 'type' {json_data['type']}")
+                status = self._respond_to_client(False, f"Invalid 'type' {json_data['type']}")
+
+        if connected_app is not None and status is False:
+            print(f"Daemon Thread: Client {self.id} ({connected_app}) got error during command '{json_data['type']}'")
+            message: DownstreamMassage = DownstreamMassage(InstanceMessageType.MSG_ERROR, f"App {connected_app}: Command '{json_data['type']}' failed.")
+            self.manager.send_to_server(message)
+            return True # Keep connection alive
+        else:
+            return status
 
     def _check_if_valid_json(self, str) -> bool:
         try:
