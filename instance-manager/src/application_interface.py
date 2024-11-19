@@ -38,7 +38,7 @@ class ApplicationInterface():
         except BlockingIOError:
             return True
         except Exception:
-            return False
+            return True
 
     def disconnect(self):
         if self.socket is None:
@@ -50,6 +50,7 @@ class ApplicationInterface():
     def _send_to_daemon(self, payload) -> bool:
         if not self.__is_connected():
             try:
+                print("Reopening previously closed connection to Instance Manager Daemon", file=sys.stderr, flush=True)
                 self.connect()
             except Exception as ex:
                 print(f"Unable to reopen connection Instance Manager Daemon: {ex}", file=sys.stderr, flush=True)
@@ -65,8 +66,9 @@ class ApplicationInterface():
             result = self.socket.recv(4096)
             result_obj = json.loads(result)
             status = result_obj["status"]
-            if status != "ok" and "message" in result_obj:
-                print(f"Application Interface: Error from Instance Manager Daemon: {result_obj['message']}", file=sys.stderr, flush=True)
+            if status != "ok":
+                result_message = result_obj.get("message", None)
+                print(f"Application Interface: Error from Instance Manager Daemon: {result_message}", file=sys.stderr, flush=True)
 
             return status == "ok"
         except Exception as ex:

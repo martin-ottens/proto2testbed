@@ -150,9 +150,9 @@ class InfluxDBAdapter(Dismantable):
             hashstr = ""
             for tag_value in point[0]["tags"].values():
                 hashstr += str(tag_value)
-            hash = hashlib.sha1(hashstr)
-            point[0]["tags"]["hash"] = base64.urlsafe_b64encode(hash.digest()[:16])
-        except Exception as ex:
+            hash = hashlib.sha256(hashstr.encode("utf-8"))
+            point[0]["tags"]["hash"] = base64.urlsafe_b64encode(hash.digest())[0:16]
+        except Exception:
             logger.warning("InfluxDBAdapter: Unable to add experiment tag to data point, skipping insert.")
             return False
 

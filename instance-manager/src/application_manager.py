@@ -88,7 +88,7 @@ class ApplicationManager():
             print(f"AppLoader: Loaded '{class_name}' from file '{path}'", file=sys.stdout, flush=True)
             if loaded_by_package:
                 self.app_map[module_name] = obj
-                return True
+                return True, None
 
             self.app_map[class_name] = obj
             added += 1
