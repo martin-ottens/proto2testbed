@@ -73,7 +73,7 @@ class ApplicationManager():
             spec.loader.exec_module(module)
         except Exception as ex:
             print(f"Unable to load file {path}: {ex}", flush=True, file=sys.stderr)
-            return False, "Python file not loadable: {ex}"
+            return False, f"Python file not loadable: {ex}"
 
         added = 0
         last_message = None

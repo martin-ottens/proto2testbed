@@ -42,7 +42,7 @@ class PreserveHandler():
             message = DownstreamMassage(InstanceMessageType.FAILED, 
                                         f"Mounting of exchange directory failed with code ({proc.returncode})\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {proc.stderr.decode('utf-8')}")
             self.manager.send_to_server(message)
-            raise Exception(f"Unable to mount exchange directory: {proc.stderr}")
+            raise Exception(f"Unable to mount exchange directory: {proc.stderr.decode('utf-8')}")
 
     def preserve(self) -> bool:
         if len(self.files) == 0:

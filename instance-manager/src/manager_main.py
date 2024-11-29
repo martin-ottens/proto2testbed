@@ -95,7 +95,7 @@ class InstanceManager():
                 if proc is not None and proc.returncode != 0:
                     self.message_to_controller(InstanceMessageType.FAILED, 
                                                     f"Setup script failed ({proc.returncode})\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {proc.stderr.decode('utf-8')}")
-                    raise Exception(f"Unable to run setup_script': {proc.stderr}")
+                    raise Exception(f"Unable to run setup_script': {proc.stderr.decode('utf-8')}")
                 
                 print(f"Execution of setup script {init_message.script} completed", file=sys.stderr, flush=True)
             else:
