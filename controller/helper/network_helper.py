@@ -105,7 +105,7 @@ class NetworkBridge(Dismantable):
     def __del__(self):
         self.stop_bridge()
 
-    def dismantle(self):
+    def dismantle(self, force: bool = False):
         self.stop_bridge()
 
     def get_name(self) -> str:

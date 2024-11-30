@@ -134,15 +134,15 @@ class InstanceHelper(Dismantable):
             self.qemu_command = None
             raise ex
 
-    def _destory_instance(self):
-        self.stop_instance()
+    def destory_instance(self, force: bool = False):
+        self.stop_instance(force)
         self.tempdir.cleanup()
 
     def __del__(self):
-        self._destory_instance()
+        self.destory_instance(True)
     
-    def dismantle(self) -> None:
-        self._destory_instance()
+    def dismantle(self, force: bool = False) -> None:
+        self.destory_instance(force)
 
     def dismantle_parallel(self) -> bool:
         return True
@@ -170,16 +170,24 @@ class InstanceHelper(Dismantable):
         logger.info(f"Instance '{self.instance.name}': Instance was started!")
         return True
 
-    def stop_instance(self) -> bool:
+    def stop_instance(self, force: bool = False) -> bool:
         if self.qemu_handle is None:
             return False
 
         logger.debug(f"Instance '{self.instance.name}': Stopping instance ...")
         try:
             self.qemu_handle.sendline("system_powerdown")
-            self.qemu_handle.expect(pexpect.EOF, timeout=30)
+            if not force:
+                self.qemu_handle.expect(pexpect.EOF, timeout=30)
         except pexpect.TIMEOUT as ex:
-            raise Exception(f"Unable to stop VM {self.instance.name}, timeout occured:") from ex
+            if force and not self.qemu_command.terminated:
+                logger.info(f"Instance '{self.instance.name}': Force terminating instance ...")
+                self.qemu_handle.terminate()
+                if not self.qemu_handle.terminated:
+                    raise Exception(f"Unable to terminate Instance '{self.instance.name}'")
+            else:
+                self.qemu_handle.terminate()
+                raise Exception(f"Unable to stop Instance {self.instance.name}, timeout occured:") from ex
         finally:
             self.qemu_handle = None
 

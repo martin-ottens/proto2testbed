@@ -420,8 +420,11 @@ class IntegrationHelper(Dismantable):
             except Exception as ex:
                  logger.opt(exception=ex).critical(f"Integration: Unable to forcefully shutdown integration '{integration.obj.name}'")
 
-    def dismantle(self) -> None:
-        self.graceful_shutdown()
+    def dismantle(self, force: bool = False) -> None:
+        if force:
+            self.force_shutdown()
+        else:
+            self.graceful_shutdown()
 
     def get_name(self) -> str:
         return "IntegrationHelper"

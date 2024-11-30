@@ -189,6 +189,8 @@ class MachineStateManager():
         self.state_change_semaphore: Semaphore | None = None
         self.has_shutdown_signal = Event()
         self.has_shutdown_signal.clear()
+        self.external_interrupt_signal = Event()
+        self.external_interrupt_signal.clear()
 
     def enable_file_preservation(self, preservation_path: Optional[Path]):
         self.file_preservation = preservation_path
@@ -210,6 +212,10 @@ class MachineStateManager():
         self.map.pop(name).disconnect()
 
     def remove_all(self):
+        if self.state_change_semaphore is not None and len(self.map) != 0:
+            self.external_interrupt_signal.set()
+            self.state_change_semaphore.release(n=len(self.map))
+
         for machine in self.map.values():
             machine.remove_interchange_dir(self.file_preservation)
             machine.disconnect()
@@ -269,14 +275,18 @@ class MachineStateManager():
                     continue
 
                 waited = self.state_change_semaphore.acquire(timeout=(wait_until - this_run_time))
-            except InterruptedError:
+            except Exception as ex:
+                logger.opt(exception=ex).debug("Exception during wait_for_machines_to_become_state")
                 self.waiting_for_state = None
                 self.state_change_semaphore = None
                 return WaitResult.INTERRUPTED
-        
+
         with self.state_change_lock:
             self.waiting_for_state = None
             self.state_change_semaphore = None
+
+            if self.external_interrupt_signal.is_set():
+                return WaitResult.INTERRUPTED
 
             if not waited:
                 return WaitResult.TIMEOUT

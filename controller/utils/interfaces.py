@@ -7,7 +7,7 @@ class NamedInstance(ABC):
 
 class Dismantable(NamedInstance):
     @abstractmethod
-    def dismantle(self) -> None:
+    def dismantle(self, force: bool = False) -> None:
         pass
 
     def dismantle_parallel(self) -> bool:

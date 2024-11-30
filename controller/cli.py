@@ -295,5 +295,5 @@ class CLI(Dismantable):
     def get_name(self) -> str:
         return "CLI Handler"
 
-    def dismantle(self) -> None:
+    def dismantle(self, force: bool = False) -> None:
         self.stop()

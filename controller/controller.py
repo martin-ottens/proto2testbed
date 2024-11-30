@@ -38,6 +38,9 @@ class Controller(Dismantable):
         self.pause_after: PauseAfterSteps = SettingsWrapper.cli_paramaters.interact
         self.interact_finished_event: Optional[Event] = None
 
+        self.interrupted_event = Event()
+        self.interrupted_event.clear()
+
         try:
             self.cli = CLI(SettingsWrapper.cli_paramaters.log_verbose, self.state_manager)
             self.cli.start()
@@ -51,7 +54,7 @@ class Controller(Dismantable):
             logger.opt(exception=ex).critical("Internal error loading config!")
             raise Exception("Internal config loading error!")
     
-    def _destory(self, spawn_threads: bool = True) -> None:
+    def _destory(self, spawn_threads: bool = True, force: bool = False) -> None:
         self.setup_env = None
         self.networks = None
         self.state_manager.remove_all()
@@ -64,9 +67,9 @@ class Controller(Dismantable):
             dismantable = self.dismantables.pop(0)
             try:
                 if not spawn_threads or not dismantable.dismantle_parallel():
-                    dismantable.dismantle()
+                    dismantable.dismantle(force)
                 else:
-                    thread = Thread(target=dismantable.dismantle, daemon=True)
+                    thread = Thread(target=dismantable.dismantle, daemon=True, args=(force, ))
                     thread.start()
                     async_dismantle.append(thread)
             except Exception as ex:
@@ -76,10 +79,10 @@ class Controller(Dismantable):
             thread.join()
 
     def __del__(self):
-        self._destory(spawn_threads=False)
+        self._destory(spawn_threads=False, force=True)
 
-    def dismantle(self) -> None:
-        self._destory()
+    def dismantle(self, force: bool = False) -> None:
+        self._destory(spawn_threads=(not force), force=force)
     
     def get_name(self) -> str:
         return f"Controller"
@@ -302,6 +305,7 @@ class Controller(Dismantable):
         try: 
             status = self.event.wait()
         except KeyboardInterrupt:
+            self.interrupted_event.set()
             status = False
 
         if SettingsWrapper.cli_paramaters.interact is not PauseAfterSteps.DISABLE:
@@ -326,6 +330,7 @@ class Controller(Dismantable):
                 self.send_finish_message()
             return False
         elif result == WaitResult.INTERRUPTED:
+            self.interrupted_event.set()
             logger.critical(f"Action '{stage}' was interrupted!")
             return False
         elif result == WaitResult.SHUTDOWN:

@@ -187,5 +187,5 @@ class InfluxDBAdapter(Dismantable):
     def get_name(self) -> str:
         return "InfluxDBAdapter"
 
-    def dismantle(self) -> None:
+    def dismantle(self, force: bool = False) -> None:
         self.stop()

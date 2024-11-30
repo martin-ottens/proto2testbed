@@ -298,7 +298,7 @@ class ManagementServer(Dismantable):
 
         self.is_started = False
 
-    def dismantle(self) -> None:
+    def dismantle(self, force: bool = False) -> None:
         self.stop()
 
     def get_name(self) -> str:

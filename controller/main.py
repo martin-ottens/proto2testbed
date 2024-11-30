@@ -123,13 +123,18 @@ if __name__ == "__main__":
             except Exception as ex:
                 logger.opt(exception=ex).critical("Uncaught Controller Exception")
                 status = False
+            except KeyboardInterrupt:
+                logger.error("Caught keyboard interrupt at top level, forcing shutdown ...")
+                controller.interrupted_event.set()
+                status = False
             finally:
                 def void_signal_handler(signo, _):
                     logger.warning(f"Signal {signal.Signals(signo).name} was inhibited during testbed shutdown.")
 
-                signal.signal(signal.SIGINT, void_signal_handler)
-                signal.signal(signal.SIGTERM, void_signal_handler)
-                controller.dismantle()
+                #signal.signal(signal.SIGINT, void_signal_handler)
+                #signal.signal(signal.SIGTERM, void_signal_handler)
+                was_interrupted = controller.interrupted_event.is_set()
+                controller.dismantle(force=was_interrupted)
     except Exception as ex:
         logger.opt(exception=ex).critical(f"Another instance of '{script_name}' is still running.")
         sys.exit(1)
