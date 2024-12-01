@@ -35,7 +35,28 @@ class WaitResult(Enum):
     SHUTDOWN = 4
 
 class MachineState():
-    __INTERCHANGE_BASE_PATH = "/tmp/ptb-i-"
+    INTERCHANGE_BASE_PATH = "/tmp/ptb-i-"
+
+    @staticmethod
+    def clean_interchange_paths():
+        base_dir = os.path.dirname(MachineState.INTERCHANGE_BASE_PATH)
+        prefix = os.path.basename(MachineState.INTERCHANGE_BASE_PATH)
+
+        done = 0
+        for item in os.listdir(base_dir):
+            try:
+                item_path = os.path.join(base_dir, item)
+            
+            
+                if os.path.isdir(item_path) and item.startswith(prefix):
+                    shutil.rmtree(item_path)
+                    logger.success(f"Deleted interchange directory '{item}'.")
+                    done += 1
+            except Exception as ex:
+                logger.opt(exception=ex).error(f"Error deleting interchange direcory '{item}'")
+        
+        if done == 0:
+            logger.info("No residual interchange directories found, all clean.")
 
     def __init__(self, name: str, script_file: str, 
                  setup_env: Optional[dict[str, str]], manager,):
@@ -91,7 +112,7 @@ class MachineState():
         self.manager.notify_state_change(new_state)
 
     def prepare_interchange_dir(self) -> None:
-        self.interchange_dir = Path(MachineState.__INTERCHANGE_BASE_PATH + self.uuid + "/")
+        self.interchange_dir = Path(MachineState.INTERCHANGE_BASE_PATH + self.uuid + "/")
 
         if self.interchange_dir.exists():
             raise Exception(f"Error during setup of interchange directory: {self.interchange_dir} already exists!")

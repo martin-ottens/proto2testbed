@@ -14,15 +14,57 @@ from utils.system_commands import invoke_subprocess
 from utils.settings import SettingsWrapper
 
 class NetworkBridge(Dismantable):
+
     @staticmethod
-    def check_interfaces_available(interfaces: List[str]):
+    def get_running_interfaces() -> List[str]:
         process = invoke_subprocess(["/usr/sbin/ip", "--brief", "--json", "link", "show"])
         if process.returncode != 0:
             raise Exception(f"Unable to fetch interfaces: {process.stderr}")
         
-        json_interfaces = list(map(lambda x: x["ifname"], json.loads(process.stdout.decode("utf-8"))))
+        return list(map(lambda x: x["ifname"], json.loads(process.stdout.decode("utf-8"))))
 
-        return all(x in json_interfaces for x in interfaces)
+    @staticmethod
+    def clean_all_bridges():
+        done = 0
+        for interface in NetworkBridge.get_running_interfaces():
+            if interface.startswith(NetworkMappingHelper.BRIDGE_PREFIX):
+                process = invoke_subprocess(["/usr/sbin/ip", "link", "set", "down", "dev", interface], 
+                                            needs_root=True)
+                if process.returncode != 0:
+                    logger.error(f"Unable to set bridge '{interface}' down: {process.stderr.decode('utf-8')}")
+                    continue
+
+                process = invoke_subprocess(["/usr/sbin/brctl", "delbr", interface], 
+                                            needs_root=True)
+                if process.returncode != 0:
+                    logger.error(f"Unable to delete bridge '{interface}': {process.stderr.decode('utf-8')}")
+                    continue
+
+                logger.success(f"Deleted bridge '{interface}'.")
+                done += 1
+            elif interface.startswith(NetworkMappingHelper.TAP_PREFIX):
+                process = invoke_subprocess(["/usr/sbin/ip", "link", "set", "down", "dev", interface], 
+                                            needs_root=True)
+                if process.returncode != 0:
+                    logger.error(f"Unable to set tap device '{interface}' down: {process.stderr.decode('utf-8')}")
+                    continue
+
+                process = invoke_subprocess(["/usr/sbin/ip", "link", "del", "dev", interface], 
+                                            needs_root=True)
+                if process.returncode != 0:
+                    logger.error(f"Unable to delete tap device '{interface}': {process.stderr.decode('utf-8')}")
+                    continue
+
+                logger.success(f"Deleted tap device '{interface}'.")
+                done += 1
+        
+        if done == 0:
+            logger.info("No residual interfaces found, all clean.")
+
+
+    @staticmethod
+    def check_interfaces_available(interfaces: List[str]):
+        return all(x in NetworkBridge.get_running_interfaces() for x in interfaces)
     
     @staticmethod
     def generate_auto_management_network(seed: str) -> Optional[ipaddress.IPv4Network]:
@@ -66,7 +108,7 @@ class NetworkBridge(Dismantable):
 
         return True
         
-    def __init__(self, name: str, display_name: str, clean: bool = False):
+    def __init__(self, name: str, display_name: str):
         self.name = name
         self.display_name = display_name
         self.dismantle_action = []
@@ -76,17 +118,6 @@ class NetworkBridge(Dismantable):
             raise Exception(f"Bridge interface name '{self.name}' is too long!")
         
         is_running =  NetworkBridge.check_interfaces_available([name])
-
-        if is_running and clean:
-            logger.warning(f"Bridge {self.name} exists, --clean is set, so deleting bridge.")
-            
-            if not self._run_command(["/usr/sbin/ip", "link", "set", "down", "dev", self.name]):
-                raise Exception(f"Unable to bring bridge {self.name} down")
-
-            if not self._run_command(["/usr/sbin/brctl", "delbr", self.name]):
-                raise Exception(f"Deletion of bridge {self.name} failed")
-            
-            is_running = False
 
         if is_running:
             logger.warning(f"Bridge {self.name} exists, skipping creation (Concurrent testbeds?)")
@@ -234,6 +265,9 @@ class BridgeMapping():
 
 
 class NetworkMappingHelper():
+    TAP_PREFIX = "ptb-t-"
+    BRIDGE_PREFIX = "ptb-b-"
+
     def __init__(self) -> None:
         self.bridge_map: Dict[str, BridgeMapping] = {}
 
@@ -242,7 +276,7 @@ class NetworkMappingHelper():
     
     def generate_tap_name(self) -> str:
         while True:
-            choice = "ptb-t-" + self._generate_name()
+            choice = NetworkMappingHelper.TAP_PREFIX + self._generate_name()
             if NetworkBridge.check_interfaces_available([choice]):
                 continue
             
@@ -253,7 +287,7 @@ class NetworkMappingHelper():
             raise Exception(f"Bridge {config_name} already mapped.")
 
         while True:
-            choice = "ptb-b-" + self._generate_name()
+            choice = NetworkMappingHelper.BRIDGE_PREFIX + self._generate_name()
             if NetworkBridge.check_interfaces_available([choice]):
                 continue
             

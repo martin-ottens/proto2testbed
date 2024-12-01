@@ -111,8 +111,7 @@ class Controller(Dismantable):
         try:
             mgmt_bridge_mapping = self.network_mapping.add_bridge_mapping("br-mgmt")
             mgmt_bridge = NetworkBridge(mgmt_bridge_mapping.dev_name, 
-                                        mgmt_bridge_mapping.name, 
-                                        SettingsWrapper.cli_paramaters.clean)
+                                        mgmt_bridge_mapping.name)
             mgmt_bridge_mapping.bridge = mgmt_bridge
             self.dismantables.insert(0, mgmt_bridge)
             self.mgmt_gateway = self.mgmt_ips.pop(0)
@@ -139,8 +138,7 @@ class Controller(Dismantable):
             try:
                 bridge_mapping = self.network_mapping.add_bridge_mapping(network.name)
                 bridge = NetworkBridge(bridge_mapping.dev_name,
-                                       bridge_mapping.name, 
-                                       SettingsWrapper.cli_paramaters.clean)
+                                       bridge_mapping.name)
                 bridge_mapping.bridge = bridge
                 self.dismantables.insert(0, bridge)
                 for pyhsical_port in network.host_ports:

@@ -15,9 +15,9 @@ if __name__ == "__main__":
     from utils.continue_mode import PauseAfterSteps
 
     parser = argparse.ArgumentParser(prog=os.environ.get("CALLER_SCRIPT", sys.argv[0]), description="Proto²Testbed Controller")
-    parser.add_argument("TESTBED_CONFIG", type=str, help="Path to testbed package")
+    parser.add_argument("TESTBED_CONFIG", nargs='?', type=str, help="Path to testbed package")
     parser.add_argument("--clean", action="store_true", required=False, default=False,
-                        help="Clean network interfaces before startup (Beware of concurrent testbeds!)")
+                        help="Clean network interfaces and files.")
     parser.add_argument("--interact", "-i", choices=[p.name for p in PauseAfterSteps], 
                         required=False, default=PauseAfterSteps.DISABLE.name, type=str.upper,
                         help="Interact with Conctroller after step is completed")
@@ -44,10 +44,19 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
 
+    # Some lazy loading from there for better CLI reactivity
     from cli import CLI
     from utils.settings import CLIParameters
 
     CLI.setup_early_logging()
+
+    if args.clean:
+        from utils.cleanup import delete_residual_parts
+        sys.exit(delete_residual_parts())
+    
+    if args.TESTBED_CONFIG is None:
+        parser.error("Argument TESTBED_CONFIG is required.")
+        sys.exit(1)
 
     parameters = CLIParameters()
     if os.path.isabs(args.TESTBED_CONFIG):

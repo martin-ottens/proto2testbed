@@ -117,7 +117,6 @@ class CLIParameters():
     interact: PauseAfterSteps = PauseAfterSteps.DISABLE
     sudo_mode: bool = False
     disable_kvm: bool = False
-    clean: bool = False
     experiment: Optional[str] = None
     dont_use_influx: Optional[bool] = False
     influx_path: Optional[str] = None
