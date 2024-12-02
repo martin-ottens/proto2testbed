@@ -7,7 +7,7 @@ from typing import List
 from threading import Event, Thread
 
 from helper.network_helper import NetworkBridge, NetworkMappingHelper
-from helper.instance_helper import InstanceHelper
+from helper.instance_helper import InstanceHelper, InstanceManagementSettings
 from helper.integration_helper import IntegrationHelper
 from utils.interfaces import Dismantable
 from utils.config_tools import load_config, load_vm_initialization, check_preserve_dir
@@ -166,9 +166,9 @@ class Controller(Dismantable):
                 if if_bridge_mapping is None:
                     logger.critical(f"Unable to map network '{if_bridge}' for Instance '{instance.name}': Not mapped.")
                     return False
-                extra_interfaces[if_int_name] = if_bridge_mapping.bridge
+                extra_interfaces[if_int_name] = if_bridge_mapping
                 wait_for_interfaces.append(if_int_name)
-                machine.add_interface(if_bridge_mapping)
+                machine.add_interface_mapping(if_bridge_mapping)
 
             try:
                 diskimage_path = Path(instance.diskimage)
@@ -181,17 +181,20 @@ class Controller(Dismantable):
                 
                 management_settings = None
                 if self.has_mgmt_network:
-                    management_settings = {
-                            "interface": self.network_mapping.generate_tap_name(),
-                            "ip": ipaddress.IPv4Interface(f"{self.mgmt_ips.pop(0)}/{self.mgmt_netmask}"),
-                            "gateway": str(self.mgmt_gateway)
-                    }
-                    machine.set_mgmt_ip(management_settings["ip"])
+                    mgmt_bridge_mapping = self.network_mapping.get_bridge_mapping("br-mgmt")
+                    management_settings = InstanceManagementSettings(
+                        bridge_mapping=mgmt_bridge_mapping,
+                        tap_dev_name=self.network_mapping.generate_tap_name(),
+                        ip_interface=ipaddress.IPv4Interface(f"{self.mgmt_ips.pop(0)}/{self.mgmt_netmask}"),
+                        gateway=str(self.mgmt_gateway),
+                    )
+                    machine.set_mgmt_ip(management_settings.ip_interface)
+                    machine.add_interface_mapping(mgmt_bridge_mapping)
 
                 wrapper = InstanceHelper(instance=self.state_manager.get_machine(instance.name),
                                     management=management_settings,
                                     testbed_package_path=self.base_path,
-                                    extra_interfaces=extra_interfaces.keys(),
+                                    extra_interfaces=list(extra_interfaces.items()),
                                     image=str(diskimage_path),
                                     cores=instance.cores,
                                     memory=instance.memory,
@@ -201,11 +204,9 @@ class Controller(Dismantable):
                 wrapper.start_instance()
 
                 if self.has_mgmt_network:
-                    mgmt_bridge_mapping = self.network_mapping.get_bridge_mapping("br-mgmt")
-                    mgmt_if_int_name = management_settings["interface"]
-                    extra_interfaces[mgmt_if_int_name] = mgmt_bridge_mapping.bridge
+                    mgmt_if_int_name = management_settings.tap_dev_name
+                    extra_interfaces[mgmt_if_int_name] = management_settings.bridge_mapping
                     wait_for_interfaces.append(mgmt_if_int_name)
-                    machine.add_interface(mgmt_bridge_mapping)
 
                 instances[instance.name] = (wrapper, extra_interfaces, )
             except Exception as ex:
@@ -229,7 +230,7 @@ class Controller(Dismantable):
             for name, instance in instances.items():
                 wrapper, extra_interfaces = instance
                 for interface, bridge in extra_interfaces.items():
-                    bridge.add_device(interface)
+                    bridge.bridge.add_device(interface)
                 if self.has_mgmt_network:
                     logger.info(f"{name} ({wrapper.ip_address}, {self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(list(map(lambda x: str(x), extra_interfaces.values())))}")
                 else:

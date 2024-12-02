@@ -9,6 +9,7 @@ from pathlib import Path
 from loguru import logger
 from typing import Tuple, Optional, List
 from threading import Lock, Semaphore, Event
+from dataclasses import dataclass
 
 from utils.system_commands import invoke_subprocess
 from helper.file_copy_helper import FileCopyHelper
@@ -33,6 +34,12 @@ class WaitResult(Enum):
     TIMEOUT = 2
     INTERRUPTED = 3
     SHUTDOWN = 4
+
+@dataclass
+class InterfaceMapping():
+    bridge: BridgeMapping
+    tap: str = None
+    mac: str = None
 
 class MachineState():
     INTERCHANGE_BASE_PATH = "/tmp/ptb-i-"
@@ -74,7 +81,7 @@ class MachineState():
         self._state: AgentManagementState = AgentManagementState.UNKNOWN
         self.connection = None
         self.interchange_ready = False
-        self.interfaces_hostside: List[BridgeMapping] = []
+        self.interfaces: List[InterfaceMapping] = []
         self.preserve_files: List[str] = []
         self.apps = Optional[List[ApplicationConfig]]
         self.mgmt_ip_addr: Optional[str] = None
@@ -86,8 +93,21 @@ class MachineState():
     def add_preserve_file(self, file: str):
         self.preserve_files.append(file)
 
-    def add_interface(self, interface: BridgeMapping):
-        self.interfaces_hostside.append(interface)
+    def add_interface_mapping(self, interface: BridgeMapping):
+        self.interfaces.append(InterfaceMapping(interface))
+
+    def link_tap_to_bridge(self, bridge: str, tap: str, mac: str):
+        mapping = None
+        for interface in self.interfaces:
+            if interface.bridge.dev_name == bridge:
+                mapping = interface
+                break
+        
+        if mapping is None:
+            raise Exception(f"Unable to find interface mapping for '{bridge}'")
+        
+        mapping.tap = tap
+        mapping.mac = mac
     
     def set_mgmt_ip(self, ip_addr: str):
         self.mgmt_ip_addr = ip_addr

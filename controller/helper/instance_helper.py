@@ -3,16 +3,27 @@ import hashlib
 import tempfile
 import os
 import sys
+import ipaddress
 
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from loguru import logger
-from typing import List, Dict
+from typing import Dict, Optional
+from dataclasses import dataclass
 
 from utils.interfaces import Dismantable
 from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_relative_to, get_DNS_resolver
 from state_manager import MachineState
 from utils.settings import SettingsWrapper
+from helper.network_helper import BridgeMapping
+
+@dataclass
+class InstanceManagementSettings():
+    bridge_mapping: BridgeMapping
+    tap_dev_name: str
+    ip_interface: ipaddress.IPv4Interface
+    gateway: str
+
 
 class InstanceHelper(Dismantable):
     __QEMU_NIC_TEMPLATE     = "-nic tap,model={model},ifname={tapname},mac={mac} "
@@ -41,8 +52,8 @@ class InstanceHelper(Dismantable):
                                    -joliet \
                                    -rock {input}"""
 
-    def __init__(self, instance: MachineState, management: Dict[str, str],
-                 extra_interfaces: List[str], image: str, testbed_package_path: str,
+    def __init__(self, instance: MachineState, management: Optional[InstanceManagementSettings],
+                 extra_interfaces: Dict[str, BridgeMapping], image: str, testbed_package_path: str,
                  cores: int = 2, memory: int = 1024, debug: bool = False, 
                  disable_kvm: bool = False, netmodel: str = "virtio") -> None:
         self.instance = instance
@@ -51,10 +62,7 @@ class InstanceHelper(Dismantable):
         self.testbed_package_path = testbed_package_path
 
         if management is not None:
-            if not all(key in management for key in ["interface", "ip", "gateway"]):
-                raise Exception(f"Error during creation, management config is not correct!")
-
-            self.ip_address = management["ip"].ip
+            self.ip_address = management.ip_interface.ip
 
         if len(extra_interfaces) > 4:
             raise Exception(f"Error during creation, 4 interfaces are allowed, but {len(extra_interfaces)} were added!")
@@ -90,9 +98,9 @@ class InstanceHelper(Dismantable):
 
             if management is not None:
                 network_config = j2_env.get_template("network-config.j2").render(
-                    mgmt_address=str(management["ip"].ip),
-                    mgmt_server=str(management["gateway"]),
-                    mgmt_netmask=management["ip"].with_prefixlen.split("/")[1]
+                    mgmt_address=str(management.ip_interface.ip),
+                    mgmt_server=str(management.gateway),
+                    mgmt_netmask=management.ip_interface.with_prefixlen.split("/")[1]
                 )
                 with open(init_files / "network-config", mode="w", encoding="utf-8") as handle:
                     handle.write(network_config)
@@ -110,10 +118,16 @@ class InstanceHelper(Dismantable):
             
             interfaces = ""
             if management is not None:
-                interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management["interface"], mac=(base_mac + "0"))
+                mac = (base_mac + "0")
+                print(management.tap_dev_name)
+                instance.link_tap_to_bridge(management.bridge_mapping.dev_name, management.tap_dev_name, mac)
+                interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management.tap_dev_name, mac=mac)
 
-            for index, name in enumerate(extra_interfaces):
-                interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=name, mac=(base_mac + str(index + 1)))
+            for index, (tap_name, bridge_mapping) in enumerate(extra_interfaces):
+                mac = (base_mac + str(index + 1))
+                print(tap_name)
+                instance.link_tap_to_bridge(bridge_mapping.dev_name, tap_name, mac)
+                interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=tap_name, mac=mac)
 
             # Prepare qemu command
             self.qemu_command = InstanceHelper.__QEMU_COMMAND_TEMPLATE.format(
