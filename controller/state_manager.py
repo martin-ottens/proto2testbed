@@ -18,7 +18,7 @@ from helper.network_helper import BridgeMapping
 from common.application_configs import ApplicationConfig
 from utils.interfaces import Dismantable
 from common.interfaces import DataclassJSONEncoder
-from utils.settings import SettingsWrapper
+from utils.settings import CommonSetings
 
 
 class AgentManagementState(Enum):
@@ -266,10 +266,10 @@ class MachineState():
         state = MachineStateFile(
             instance=self.name,
             uuid=self.uuid,
-            executor=SettingsWrapper.executor,
-            cmdline=SettingsWrapper.cmdline,
-            experiment=SettingsWrapper.experiment,
-            main_pid=SettingsWrapper.main_pid,
+            executor=CommonSetings.executor,
+            cmdline=CommonSetings.cmdline,
+            experiment=CommonSetings.experiment,
+            main_pid=CommonSetings.main_pid,
             mgmt_ip=str(self.mgmt_ip_addr),
             interfaces=interfaces
         )

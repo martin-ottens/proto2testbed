@@ -12,7 +12,7 @@ from pathlib import Path
 from utils.interfaces import Dismantable
 from utils.continue_mode import *
 from state_manager import MachineStateManager
-from utils.settings import SettingsWrapper
+from utils.settings import TestbedSettingsWrapper
 
 
 class CLI(Dismantable):
@@ -154,7 +154,7 @@ class CLI(Dismantable):
                     logger.log("CLI", f"Unable to get Instance with name '{machine}'")
                     return True
                 
-                if SettingsWrapper.cli_paramaters.preserve is None:
+                if TestbedSettingsWrapper.cli_paramaters.preserve is None:
                     logger.log("CLI", f"File preservation is not enabled in this testbed run.")
                     return True
                 

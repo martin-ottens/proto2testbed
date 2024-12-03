@@ -227,7 +227,7 @@ class IntegrationHelper(Dismantable):
         if fire_integrations is None or len(fire_integrations) == 0:
             return None
         
-        if SettingsWrapper.cli_paramaters.skip_integration:
+        if TestbedSettingsWrapper.cli_paramaters.skip_integration:
             for integration in fire_integrations:
                 logger.warning(f"Integration: Start of '{integration.obj.name}' integration at stage {str(stage).upper()} skipped.")
             return None

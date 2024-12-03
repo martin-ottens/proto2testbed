@@ -95,10 +95,11 @@ class TestbedConfig():
 
 
 class DefaultConfigs():
-    def __init__(self, path: str):
+    def __init__(self, path: str) -> None:
         self.defaults = {}
         if not os.path.exists(path):
             logger.debug(f"No default config in path '{path}'")
+            return
         
         with open(path, "r") as handle:
             self.defaults = json.load(handle)
@@ -112,27 +113,32 @@ class DefaultConfigs():
 
 
 @dataclass
-class CLIParameters():
+class RunCLIParameters():
     config: Optional[str] = None
     interact: PauseAfterSteps = PauseAfterSteps.DISABLE
-    sudo_mode: bool = False
     disable_kvm: bool = False
-    experiment: Optional[str] = None
     dont_use_influx: Optional[bool] = False
-    influx_path: Optional[str] = None
     skip_integration: bool = False
     skip_substitution: bool = False
     preserve: Optional[str] = None
-    log_verbose: int = 0
-    app_base_path: Path = None
 
-
-class SettingsWrapper():
-    cli_paramaters: Optional[CLIParameters] = None
-    testbed_config: Optional[TestbedConfig] = None
-    default_configs: Optional[DefaultConfigs] = None
-    experiment: Optional[str] = None
+class CommonSetings():
     executor: Optional[int] = None
     cmdline: Optional[str] = None
     main_pid: Optional[int] = None
     unique_run_name: Optional[str] = None
+    app_base_path: Optional[Path] = None
+
+    log_verbose: Optional[int] = None
+    sudo_mode: Optional[bool] = None
+    experiment: Optional[str] = None
+    experiment_generated: bool = False
+    influx_path: Optional[str] = None
+
+    default_configs: Optional[DefaultConfigs] = None
+
+
+class TestbedSettingsWrapper():
+    cli_paramaters: Optional[RunCLIParameters] = None
+    testbed_config: Optional[TestbedConfig] = None
+    

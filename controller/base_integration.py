@@ -12,7 +12,7 @@ from multiprocessing import Process, Manager
 
 from utils.settings import IntegrationSettings
 from utils.system_commands import invoke_subprocess
-from utils.settings import SettingsWrapper
+from utils.settings import TestbedSettingsWrapper
 
 class IntegrationStatusContainer():
     def __init__(self) -> None:
@@ -60,7 +60,7 @@ class BaseIntegration(ABC):
         self.name = name
         self.environment = environment
         self.status = status_container
-        self.base_path = Path(SettingsWrapper.cli_paramaters.config)
+        self.base_path = Path(TestbedSettingsWrapper.cli_paramaters.config)
         self.settings = None
 
     def kill_process_with_child(self, process: Process):
