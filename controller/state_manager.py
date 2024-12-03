@@ -3,6 +3,7 @@ import random
 import string
 import os
 import shutil
+import json
 
 from enum import Enum
 from pathlib import Path
@@ -15,6 +16,10 @@ from utils.system_commands import invoke_subprocess
 from helper.file_copy_helper import FileCopyHelper
 from helper.network_helper import BridgeMapping
 from common.application_configs import ApplicationConfig
+from utils.interfaces import Dismantable
+from common.interfaces import DataclassJSONEncoder
+from utils.settings import SettingsWrapper
+
 
 class AgentManagementState(Enum):
     UNKNOWN = 0
@@ -28,6 +33,7 @@ class AgentManagementState(Enum):
     DISCONNECTED = 8
     FAILED = 99
 
+
 class WaitResult(Enum):
     OK = 0
     FAILED = 1
@@ -35,14 +41,39 @@ class WaitResult(Enum):
     INTERRUPTED = 3
     SHUTDOWN = 4
 
+
 @dataclass
 class InterfaceMapping():
     bridge: BridgeMapping
+    index: int
     tap: str = None
     mac: str = None
 
+
+@dataclass
+class MachineStateFileInterfaceMapping():
+    bridge_dev: str
+    bridge_name: str
+    tap_index: int
+    tap_dev: str
+    tap_mac: str
+
+
+@dataclass
+class MachineStateFile():
+    instance: str
+    executor: int
+    cmdline: str
+    experiment: str
+    main_pid: int
+    uuid: str
+    mgmt_ip: Optional[str]
+    interfaces: List[MachineStateFileInterfaceMapping]
+
+
 class MachineState():
     INTERCHANGE_BASE_PATH = "/tmp/ptb-i-"
+    MACHINE_STATE_FILE = "state.json"
 
     @staticmethod
     def clean_interchange_paths():
@@ -93,8 +124,8 @@ class MachineState():
     def add_preserve_file(self, file: str):
         self.preserve_files.append(file)
 
-    def add_interface_mapping(self, interface: BridgeMapping):
-        self.interfaces.append(InterfaceMapping(interface))
+    def add_interface_mapping(self, interface: BridgeMapping, index: int):
+        self.interfaces.append(InterfaceMapping(interface, index))
 
     def link_tap_to_bridge(self, bridge: str, tap: str, mac: str):
         mapping = None
@@ -220,7 +251,37 @@ class MachineState():
         self.connection = None
         self.set_state(AgentManagementState.DISCONNECTED)
 
-class MachineStateManager():
+    def dump_state(self) -> None:
+        interfaces: List[MachineStateFileInterfaceMapping] = []
+
+        for interface in self.interfaces:
+            interfaces.insert(interface.index, MachineStateFileInterfaceMapping(
+                bridge_dev=interface.bridge.dev_name,
+                bridge_name=interface.bridge.name,
+                tap_index=interface.index,
+                tap_dev=interface.tap,
+                tap_mac=interface.mac
+            ))
+
+        state = MachineStateFile(
+            instance=self.name,
+            uuid=self.uuid,
+            executor=SettingsWrapper.executor,
+            cmdline=SettingsWrapper.cmdline,
+            experiment=SettingsWrapper.experiment,
+            main_pid=SettingsWrapper.main_pid,
+            mgmt_ip=str(self.mgmt_ip_addr),
+            interfaces=interfaces
+        )
+
+        target = self.interchange_dir / MachineState.MACHINE_STATE_FILE
+        with open(target, "w") as handle:
+            json.dump(state, handle, cls=DataclassJSONEncoder, indent=4)
+
+        logger.trace(f"Dumped state of instance {self.name} to file {target}.")
+
+
+class MachineStateManager(Dismantable):
     def __init__(self):
         self.map: dict[str, MachineState] = {}
         self.state_change_lock: Lock = Lock()
@@ -246,6 +307,13 @@ class MachineStateManager():
         
         self.map[name] = MachineState(name, script_file, setup_env, self)
         self.map[name].set_setup_env_entry("INSTANCE_NAME", name)
+
+    def dump_states(self) -> None:
+        for instance in self.map.values():
+            try:
+                instance.dump_state()
+            except Exception as ex:
+                logger.opt(exception=ex).error(f"Unable to dump state of instance {instance.name}.")
     
     def remove_machine(self, name: str):
         if not name in self.map:
@@ -340,3 +408,12 @@ class MachineStateManager():
                 return WaitResult.OK
             else:
                 return WaitResult.FAILED
+            
+    def get_name(self) -> str:
+        return "MachineStateManager"
+    
+    def dismantle(self, force = False) -> None:
+        self.remove_all()
+    
+    def dismantle_parallel(self) -> bool:
+        return True

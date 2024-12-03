@@ -30,6 +30,7 @@ class Controller(Dismantable):
 
         self.dismantables: List[Dismantable] = []
         self.state_manager: MachineStateManager = MachineStateManager()
+        self.dismantables.insert(0, self.state_manager)
         self.has_mgmt_network = False
         self.network_mapping: Optional[NetworkMappingHelper] = None 
 
@@ -57,7 +58,6 @@ class Controller(Dismantable):
     def _destory(self, spawn_threads: bool = True, force: bool = False) -> None:
         self.setup_env = None
         self.networks = None
-        self.state_manager.remove_all()
 
         if self.dismantables is None:
             return
@@ -160,7 +160,7 @@ class Controller(Dismantable):
             machine = self.state_manager.get_machine(instance.name)
             extra_interfaces = {}
 
-            for if_bridge in instance.networks:
+            for index, if_bridge in enumerate(instance.networks):
                 if_int_name = self.network_mapping.generate_tap_name()
                 if_bridge_mapping = self.network_mapping.get_bridge_mapping(if_bridge)
                 if if_bridge_mapping is None:
@@ -168,7 +168,8 @@ class Controller(Dismantable):
                     return False
                 extra_interfaces[if_int_name] = if_bridge_mapping
                 wait_for_interfaces.append(if_int_name)
-                machine.add_interface_mapping(if_bridge_mapping)
+                machine.add_interface_mapping(if_bridge_mapping, 
+                                              index + 1 if self.has_mgmt_network else index)
 
             try:
                 diskimage_path = Path(instance.diskimage)
@@ -189,7 +190,7 @@ class Controller(Dismantable):
                         gateway=str(self.mgmt_gateway),
                     )
                     machine.set_mgmt_ip(management_settings.ip_interface)
-                    machine.add_interface_mapping(mgmt_bridge_mapping)
+                    machine.add_interface_mapping(mgmt_bridge_mapping, 0)
 
                 wrapper = InstanceHelper(instance=self.state_manager.get_machine(instance.name),
                                     management=management_settings,
@@ -242,6 +243,8 @@ class Controller(Dismantable):
         for instance in self.state_manager.get_all_machines():
             if not instance.update_mgmt_socket_permission():
                 logger.warning(f"Unable to set socket permissions for {instance.name}")
+
+        self.state_manager.dump_states()
 
         return True
     

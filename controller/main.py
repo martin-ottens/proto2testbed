@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
     SettingsWrapper.executor = original_uid
     SettingsWrapper.main_pid = os.getpid()
-    SettingsWrapper.cmdline = psutil.Process(SettingsWrapper.main_pid).cmdline()
+    SettingsWrapper.cmdline = " ".join(psutil.Process(SettingsWrapper.main_pid).cmdline())
     SettingsWrapper.unique_run_name = f"{''.join(SettingsWrapper.experiment.split())}-{str(original_uid)}"
 
     if args.preserve is not None:
