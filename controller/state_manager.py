@@ -15,10 +15,12 @@ from dataclasses import dataclass
 from utils.system_commands import invoke_subprocess
 from helper.file_copy_helper import FileCopyHelper
 from helper.network_helper import BridgeMapping
+from helper.state_file_helper import MachineStateFile, MachineStateFileInterfaceMapping
 from common.application_configs import ApplicationConfig
 from utils.interfaces import Dismantable
 from common.interfaces import DataclassJSONEncoder
 from utils.settings import CommonSetings
+from constants import INTERCHANGE_BASE_PATH, MACHINE_STATE_FILE
 
 
 class AgentManagementState(Enum):
@@ -50,35 +52,11 @@ class InterfaceMapping():
     mac: str = None
 
 
-@dataclass
-class MachineStateFileInterfaceMapping():
-    bridge_dev: str
-    bridge_name: str
-    tap_index: int
-    tap_dev: str
-    tap_mac: str
-
-
-@dataclass
-class MachineStateFile():
-    instance: str
-    executor: int
-    cmdline: str
-    experiment: str
-    main_pid: int
-    uuid: str
-    mgmt_ip: Optional[str]
-    interfaces: List[MachineStateFileInterfaceMapping]
-
-
 class MachineState():
-    INTERCHANGE_BASE_PATH = "/tmp/ptb-i-"
-    MACHINE_STATE_FILE = "state.json"
-
     @staticmethod
     def clean_interchange_paths():
-        base_dir = os.path.dirname(MachineState.INTERCHANGE_BASE_PATH)
-        prefix = os.path.basename(MachineState.INTERCHANGE_BASE_PATH)
+        base_dir = os.path.dirname(INTERCHANGE_BASE_PATH)
+        prefix = os.path.basename(INTERCHANGE_BASE_PATH)
 
         done = 0
         for item in os.listdir(base_dir):
@@ -163,7 +141,7 @@ class MachineState():
         self.manager.notify_state_change(new_state)
 
     def prepare_interchange_dir(self) -> None:
-        self.interchange_dir = Path(MachineState.INTERCHANGE_BASE_PATH + self.uuid + "/")
+        self.interchange_dir = Path(INTERCHANGE_BASE_PATH + self.uuid + "/")
 
         if self.interchange_dir.exists():
             raise Exception(f"Error during setup of interchange directory: {self.interchange_dir} already exists!")
@@ -266,7 +244,7 @@ class MachineState():
         state = MachineStateFile(
             instance=self.name,
             uuid=self.uuid,
-            executor=CommonSetings.executor,
+            executor=int(CommonSetings.executor),
             cmdline=CommonSetings.cmdline,
             experiment=CommonSetings.experiment,
             main_pid=CommonSetings.main_pid,
@@ -274,7 +252,7 @@ class MachineState():
             interfaces=interfaces
         )
 
-        target = self.interchange_dir / MachineState.MACHINE_STATE_FILE
+        target = self.interchange_dir / MACHINE_STATE_FILE
         with open(target, "w") as handle:
             json.dump(state, handle, cls=DataclassJSONEncoder, indent=4)
 

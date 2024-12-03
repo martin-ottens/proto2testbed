@@ -78,7 +78,7 @@ def main():
         CommonSetings.experiment = "".join(random.choices(string.ascii_letters + string.digits, k=8))
         CommonSetings.experiment_generated = True
 
-    CommonSetings.executor = original_uid
+    CommonSetings.executor = int(original_uid)
     CommonSetings.main_pid = os.getpid()
     CommonSetings.cmdline = " ".join(psutil.Process(CommonSetings.main_pid).cmdline())
     CommonSetings.unique_run_name = f"{''.join(CommonSetings.experiment.split())}-{str(original_uid)}-{args.mode}"
@@ -100,7 +100,6 @@ def main():
             logger.critical("Unable to start: You need to be root!")
             sys.exit(1)
 
-    
     try:
         sys.exit(executor.invoke(args))
     except Exception as ex:

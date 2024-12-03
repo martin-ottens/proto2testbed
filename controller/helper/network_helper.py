@@ -12,6 +12,7 @@ from loguru import logger
 from utils.interfaces import Dismantable
 from utils.system_commands import invoke_subprocess
 from utils.settings import CommonSetings
+from constants import TAP_PREFIX, BRIDGE_PREFIX
 
 class NetworkBridge(Dismantable):
 
@@ -27,7 +28,7 @@ class NetworkBridge(Dismantable):
     def clean_all_bridges():
         done = 0
         for interface in NetworkBridge.get_running_interfaces():
-            if interface.startswith(NetworkMappingHelper.BRIDGE_PREFIX):
+            if interface.startswith(BRIDGE_PREFIX):
                 process = invoke_subprocess(["/usr/sbin/ip", "link", "set", "down", "dev", interface], 
                                             needs_root=True)
                 if process.returncode != 0:
@@ -42,7 +43,7 @@ class NetworkBridge(Dismantable):
 
                 logger.success(f"Deleted bridge '{interface}'.")
                 done += 1
-            elif interface.startswith(NetworkMappingHelper.TAP_PREFIX):
+            elif interface.startswith(TAP_PREFIX):
                 process = invoke_subprocess(["/usr/sbin/ip", "link", "set", "down", "dev", interface], 
                                             needs_root=True)
                 if process.returncode != 0:
@@ -265,9 +266,6 @@ class BridgeMapping():
 
 
 class NetworkMappingHelper():
-    TAP_PREFIX = "ptb-t-"
-    BRIDGE_PREFIX = "ptb-b-"
-
     def __init__(self) -> None:
         self.bridge_map: Dict[str, BridgeMapping] = {}
 
@@ -276,7 +274,7 @@ class NetworkMappingHelper():
     
     def generate_tap_name(self) -> str:
         while True:
-            choice = NetworkMappingHelper.TAP_PREFIX + self._generate_name()
+            choice = TAP_PREFIX + self._generate_name()
             if NetworkBridge.check_interfaces_available([choice]):
                 continue
             
@@ -287,7 +285,7 @@ class NetworkMappingHelper():
             raise Exception(f"Bridge {config_name} already mapped.")
 
         while True:
-            choice = NetworkMappingHelper.BRIDGE_PREFIX + self._generate_name()
+            choice = BRIDGE_PREFIX + self._generate_name()
             if NetworkBridge.check_interfaces_available([choice]):
                 continue
             
