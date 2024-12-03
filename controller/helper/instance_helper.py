@@ -113,19 +113,17 @@ class InstanceHelper(Dismantable):
                 raise Exception(f"Unbale to run genisoimage: {process.stderr.decode('utf-8')}")
             
             # Generate pseudo unique interface macs
-            hash_hex = hashlib.sha256((SettingsWrapper.cli_paramaters.unique_run_name + instance.name).encode()).hexdigest()
+            hash_hex = hashlib.sha256((SettingsWrapper.unique_run_name + instance.name).encode()).hexdigest()
             base_mac = hash_hex[1:2] + 'e:' + hash_hex[2:4] + ':' + hash_hex[4:6] + ':' + hash_hex[6:8] + ':' + hash_hex[8:10] + ':' + hash_hex[10:11]
             
             interfaces = ""
             if management is not None:
                 mac = (base_mac + "0")
-                print(management.tap_dev_name)
                 instance.link_tap_to_bridge(management.bridge_mapping.dev_name, management.tap_dev_name, mac)
                 interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management.tap_dev_name, mac=mac)
 
             for index, (tap_name, bridge_mapping) in enumerate(extra_interfaces):
                 mac = (base_mac + str(index + 1))
-                print(tap_name)
                 instance.link_tap_to_bridge(bridge_mapping.dev_name, tap_name, mac)
                 interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=tap_name, mac=mac)
 

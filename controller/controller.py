@@ -347,7 +347,7 @@ class Controller(Dismantable):
         self.dismantables.insert(0, self.integration_helper)
 
         try:
-            self.influx_db = InfluxDBAdapter(SettingsWrapper.cli_paramaters.experiment, 
+            self.influx_db = InfluxDBAdapter(SettingsWrapper.experiment, 
                                              SettingsWrapper.cli_paramaters.dont_use_influx, 
                                              SettingsWrapper.cli_paramaters.influx_path)
             self.influx_db.start()

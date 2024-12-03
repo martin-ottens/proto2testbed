@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     # Some lazy loading from there for better CLI reactivity
     from cli import CLI
-    from utils.settings import CLIParameters
+    from utils.settings import CLIParameters, SettingsWrapper
 
     CLI.setup_early_logging()
 
@@ -68,28 +68,34 @@ if __name__ == "__main__":
     parameters.sudo_mode = args.sudo
     parameters.disable_kvm = args.no_kvm
     parameters.clean = args.clean
-    parameters.experiment = args.experiment
     parameters.dont_use_influx = args.dont_store
     parameters.influx_path = args.influxdb
     parameters.skip_integration = args.skip_integration
     parameters.skip_substitution = args.skip_substitution
     parameters.log_verbose = args.verbose
     parameters.app_base_path = Path(__file__).parent.resolve()
+    SettingsWrapper.cli_paramaters = parameters
 
     if parameters.interact != PauseAfterSteps.DISABLE and not os.isatty(sys.stdout.fileno()):
         logger.error("TTY does not allow user interaction, disabling 'interact' parameter")
         parameters.interact = PauseAfterSteps.DISABLE
 
-    if parameters.experiment is None:
-        parameters.experiment = "".join(random.choices(string.ascii_letters + string.digits, k=8))
+    SettingsWrapper.experiment = args.experiment
+    if SettingsWrapper.experiment is None:
+        SettingsWrapper.experiment = "".join(random.choices(string.ascii_letters + string.digits, k=8))
         if not parameters.dont_use_influx:
-            logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {parameters.experiment}")
+            logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {SettingsWrapper.experiment}")
 
     original_uid = os.environ.get("SUDO_UID", None)
     if original_uid is None:
         original_uid = os.getuid()
 
-    parameters.unique_run_name = f"{''.join(parameters.experiment.split())}-{str(original_uid)}"
+    import psutil
+
+    SettingsWrapper.executor = original_uid
+    SettingsWrapper.main_pid = os.getpid()
+    SettingsWrapper.cmdline = psutil.Process(SettingsWrapper.main_pid).cmdline()
+    SettingsWrapper.unique_run_name = f"{''.join(SettingsWrapper.experiment.split())}-{str(original_uid)}"
 
     if args.preserve is not None:
         try:
@@ -102,48 +108,41 @@ if __name__ == "__main__":
     else:
         parameters.preserve = None
 
-    from utils.settings import CLIParameters, SettingsWrapper
-    from utils.config_tools import DefaultConfigs
-
-    SettingsWrapper.cli_paramaters = parameters
-
     if not args.sudo and os.geteuid() != 0:
         logger.critical("Unable to start: You need to be root!")
         sys.exit(1)
 
+    from utils.config_tools import DefaultConfigs
     SettingsWrapper.default_configs = DefaultConfigs("/etc/proto2testbed/proto2testbed_defaults.json")
 
     script_name = sys.argv[0]
 
     from controller import Controller
-    from utils.pidfile import PidFile
 
     try:
-        with PidFile(f"/tmp/ptb-{parameters.unique_run_name}.pid", name=script_name):
+        try:
+            controller = Controller()
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Error during config initialization")
+            sys.exit(1)
 
-            try:
-                controller = Controller()
-            except Exception as ex:
-                logger.opt(exception=ex).critical("Error during config initialization")
-                sys.exit(1)
+        try:
+            status = controller.main()
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Uncaught Controller Exception")
+            status = False
+        except KeyboardInterrupt:
+            logger.error("Caught keyboard interrupt at top level, forcing shutdown ...")
+            controller.interrupted_event.set()
+            status = False
+        finally:
+            def void_signal_handler(signo, _):
+                logger.warning(f"Signal {signal.Signals(signo).name} was inhibited during testbed shutdown.")
 
-            try:
-                status = controller.main()
-            except Exception as ex:
-                logger.opt(exception=ex).critical("Uncaught Controller Exception")
-                status = False
-            except KeyboardInterrupt:
-                logger.error("Caught keyboard interrupt at top level, forcing shutdown ...")
-                controller.interrupted_event.set()
-                status = False
-            finally:
-                def void_signal_handler(signo, _):
-                    logger.warning(f"Signal {signal.Signals(signo).name} was inhibited during testbed shutdown.")
-
-                #signal.signal(signal.SIGINT, void_signal_handler)
-                #signal.signal(signal.SIGTERM, void_signal_handler)
-                was_interrupted = controller.interrupted_event.is_set()
-                controller.dismantle(force=was_interrupted)
+            signal.signal(signal.SIGINT, void_signal_handler)
+            signal.signal(signal.SIGTERM, void_signal_handler)
+            was_interrupted = controller.interrupted_event.is_set()
+            controller.dismantle(force=was_interrupted)
     except Exception as ex:
         logger.opt(exception=ex).critical(f"Another instance of '{script_name}' is still running.")
         sys.exit(1)

@@ -124,11 +124,15 @@ class CLIParameters():
     skip_substitution: bool = False
     preserve: Optional[str] = None
     log_verbose: int = 0
-    unique_run_name: str = None
     app_base_path: Path = None
 
 
 class SettingsWrapper():
-    cli_paramaters: CLIParameters = None
-    testbed_config: TestbedConfig = None
-    default_configs: DefaultConfigs = None
+    cli_paramaters: Optional[CLIParameters] = None
+    testbed_config: Optional[TestbedConfig] = None
+    default_configs: Optional[DefaultConfigs] = None
+    experiment: Optional[str] = None
+    executor: Optional[int] = None
+    cmdline: Optional[str] = None
+    main_pid: Optional[int] = None
+    unique_run_name: Optional[str] = None
