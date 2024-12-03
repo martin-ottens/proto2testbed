@@ -13,7 +13,7 @@ from influxdb import InfluxDBClient
 
 from utils.interfaces import Dismantable
 from utils.system_commands import get_asset_relative_to
-from utils.settings import CommonSetings
+from utils.settings import CommonSettings
 
 class InfluxDBAdapter(Dismantable):
     def _insert_thread(self):
@@ -85,7 +85,7 @@ class InfluxDBAdapter(Dismantable):
 
         if config_path is None:
             if not store_disabled and "INFLUXDB_DATABASE" not in os.environ.keys():
-                default_database = CommonSetings.default_configs.get_defaults("influx_database")
+                default_database = CommonSettings.default_configs.get_defaults("influx_database")
                 if default_database is None:
                     logger.critical("InfluxDBAdapter: INFLUXDB_DATABASE not set in environment. Set varaible or specify config.")
                     raise Exception("INFLUXDB_DATABASE not set in environment")

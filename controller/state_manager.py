@@ -19,7 +19,7 @@ from helper.state_file_helper import MachineStateFile, MachineStateFileInterface
 from common.application_configs import ApplicationConfig
 from utils.interfaces import Dismantable
 from common.interfaces import DataclassJSONEncoder
-from utils.settings import CommonSetings
+from utils.settings import CommonSettings
 from constants import INTERCHANGE_BASE_PATH, MACHINE_STATE_FILE
 
 
@@ -244,10 +244,10 @@ class MachineState():
         state = MachineStateFile(
             instance=self.name,
             uuid=self.uuid,
-            executor=int(CommonSetings.executor),
-            cmdline=CommonSetings.cmdline,
-            experiment=CommonSetings.experiment,
-            main_pid=CommonSetings.main_pid,
+            executor=int(CommonSettings.executor),
+            cmdline=CommonSettings.cmdline,
+            experiment=CommonSettings.experiment,
+            main_pid=CommonSettings.main_pid,
             mgmt_ip=str(self.mgmt_ip_addr),
             interfaces=interfaces
         )

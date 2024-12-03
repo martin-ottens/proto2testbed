@@ -11,7 +11,7 @@ from helper.instance_helper import InstanceHelper, InstanceManagementSettings
 from helper.integration_helper import IntegrationHelper
 from utils.interfaces import Dismantable
 from utils.config_tools import load_config, load_vm_initialization, check_preserve_dir
-from utils.settings import CommonSetings, TestbedSettingsWrapper
+from utils.settings import CommonSettings, TestbedSettingsWrapper
 from utils.settings import InvokeIntegrationAfter
 from utils.influxdb import InfluxDBAdapter
 from utils.continue_mode import *
@@ -43,14 +43,14 @@ class Controller(Dismantable):
         self.interrupted_event.clear()
 
         try:
-            self.cli = CLI(CommonSetings.log_verbose, self.state_manager)
+            self.cli = CLI(CommonSettings.log_verbose, self.state_manager)
             self.cli.start()
             self.dismantables.insert(0, self.cli)
 
             TestbedSettingsWrapper.testbed_config = load_config(self.config_path, 
                                                          TestbedSettingsWrapper.cli_paramaters.skip_substitution)
             self.integration_helper = IntegrationHelper(TestbedSettingsWrapper.cli_paramaters.config,
-                                                        CommonSetings.app_base_path)
+                                                        CommonSettings.app_base_path)
         except Exception as ex:
             logger.opt(exception=ex).critical("Internal error loading config!")
             raise Exception("Internal config loading error!")
@@ -350,9 +350,9 @@ class Controller(Dismantable):
         self.dismantables.insert(0, self.integration_helper)
 
         try:
-            self.influx_db = InfluxDBAdapter(CommonSetings.experiment, 
+            self.influx_db = InfluxDBAdapter(CommonSettings.experiment, 
                                              TestbedSettingsWrapper.cli_paramaters.dont_use_influx, 
-                                             CommonSetings.influx_path)
+                                             CommonSettings.influx_path)
             self.influx_db.start()
             self.dismantables.insert(0, self.influx_db)
         except Exception as ex:

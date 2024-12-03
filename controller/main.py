@@ -3,7 +3,6 @@
 import argparse
 import sys
 import os
-import signal
 import random
 import string
 import importlib.util
@@ -11,6 +10,7 @@ import inspect
 
 from loguru import logger
 from pathlib import Path
+from typing import Dict
 
 from executors.base_executor import BaseExecutor
 
@@ -33,6 +33,7 @@ def main():
     
     app_base_path = Path(__file__).parent.resolve()
     subcommands = {}
+    aliases: Dict[str, str] = {}
 
     executors_base_path = app_base_path / "executors"
     for filename in os.listdir(executors_base_path):
@@ -56,6 +57,10 @@ def main():
                                                                 help=obj.HELP,
                                                                 parents=[common_parser])
                     subcommands[obj.SUBCOMMAND] = obj(subcommand_parser)
+
+                    for alias in obj.ALIASES:
+                        aliases[alias] = obj.SUBCOMMAND
+
             except Exception as ex:
                 logger.opt(exception=ex).critical(f"Error loading command executor file '{filename}'")
                 sys.exit(1)
@@ -64,7 +69,7 @@ def main():
 
     # Some lazy loading from there for better CLI reactivity
     from cli import CLI
-    from utils.settings import CommonSetings
+    from utils.settings import CommonSettings
     import psutil
 
     CLI.setup_early_logging()
@@ -73,37 +78,41 @@ def main():
     if original_uid is None:
         original_uid = os.getuid()
 
-    CommonSetings.experiment = args.experiment
-    if CommonSetings.experiment is None:
-        CommonSetings.experiment = "".join(random.choices(string.ascii_letters + string.digits, k=8))
-        CommonSetings.experiment_generated = True
+    CommonSettings.experiment = args.experiment
+    if CommonSettings.experiment is None:
+        CommonSettings.experiment = "".join(random.choices(string.ascii_letters + string.digits, k=8))
+        CommonSettings.experiment_generated = True
 
-    CommonSetings.executor = int(original_uid)
-    CommonSetings.main_pid = os.getpid()
-    CommonSetings.cmdline = " ".join(psutil.Process(CommonSetings.main_pid).cmdline())
-    CommonSetings.unique_run_name = f"{''.join(CommonSetings.experiment.split())}-{str(original_uid)}-{args.mode}"
-    CommonSetings.app_base_path = app_base_path
-    CommonSetings.log_verbose = args.verbose
-    CommonSetings.sudo_mode = args.sudo
-    CommonSetings.influx_path = args.influxdb
+    CommonSettings.executor = int(original_uid)
+    CommonSettings.main_pid = os.getpid()
+    CommonSettings.cmdline = " ".join(psutil.Process(CommonSettings.main_pid).cmdline())
+    CommonSettings.unique_run_name = f"{''.join(CommonSettings.experiment.split())}-{str(original_uid)}-{args.mode}"
+    CommonSettings.app_base_path = app_base_path
+    CommonSettings.log_verbose = args.verbose
+    CommonSettings.sudo_mode = args.sudo
+    CommonSettings.influx_path = args.influxdb
 
     from utils.config_tools import DefaultConfigs
-    CommonSetings.default_configs = DefaultConfigs("/etc/proto2testbed/proto2testbed_defaults.json")
+    CommonSettings.default_configs = DefaultConfigs("/etc/proto2testbed/proto2testbed_defaults.json")
 
-    executor: BaseExecutor = subcommands.get(args.mode, None)
+    mode = args.mode
+    if mode in aliases.keys():
+        mode = aliases.get(mode)
+    executor: BaseExecutor = subcommands.get(mode, None)
+
     if executor is None:
-        logger.critical(f"Unable to get implementation for subcommand '{args.mode}'")
+        logger.critical(f"Unable to get implementation for subcommand '{mode}'")
         sys.exit(1)
 
     if executor.requires_priviledges():
-        if not CommonSetings.sudo_mode and os.geteuid() != 0:
+        if not CommonSettings.sudo_mode and os.geteuid() != 0:
             logger.critical("Unable to start: You need to be root!")
             sys.exit(1)
 
     try:
         sys.exit(executor.invoke(args))
     except Exception as ex:
-        logger.opt(exception=ex).critical(f"Error calling invoke of subcommand '{args.mode}'")
+        logger.opt(exception=ex).critical(f"Error calling invoke of subcommand '{mode}'")
         sys.exit(1)
 
 

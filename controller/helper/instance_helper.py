@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from utils.interfaces import Dismantable
 from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_relative_to, get_DNS_resolver
 from state_manager import MachineState
-from utils.settings import CommonSetings
+from utils.settings import CommonSettings
 from helper.network_helper import BridgeMapping
 
 @dataclass
@@ -113,7 +113,7 @@ class InstanceHelper(Dismantable):
                 raise Exception(f"Unbale to run genisoimage: {process.stderr.decode('utf-8')}")
             
             # Generate pseudo unique interface macs
-            hash_hex = hashlib.sha256((CommonSetings.unique_run_name + instance.name).encode()).hexdigest()
+            hash_hex = hashlib.sha256((CommonSettings.unique_run_name + instance.name).encode()).hexdigest()
             base_mac = hash_hex[1:2] + 'e:' + hash_hex[2:4] + ':' + hash_hex[4:6] + ':' + hash_hex[6:8] + ':' + hash_hex[8:10] + ':' + hash_hex[10:11]
             
             interfaces = ""

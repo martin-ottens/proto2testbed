@@ -122,7 +122,7 @@ class RunCLIParameters():
     skip_substitution: bool = False
     preserve: Optional[str] = None
 
-class CommonSetings():
+class CommonSettings():
     executor: Optional[int] = None
     cmdline: Optional[str] = None
     main_pid: Optional[int] = None

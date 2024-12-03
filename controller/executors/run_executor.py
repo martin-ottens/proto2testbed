@@ -6,7 +6,7 @@ from loguru import logger
 
 from executors.base_executor import BaseExecutor
 from utils.continue_mode import PauseAfterSteps
-from utils.settings import CommonSetings, RunCLIParameters, TestbedSettingsWrapper
+from utils.settings import CommonSettings, RunCLIParameters, TestbedSettingsWrapper
 
 class RunExecutor(BaseExecutor):
     SUBCOMMAND = "run"
@@ -46,8 +46,8 @@ class RunExecutor(BaseExecutor):
         parameters.skip_integration = args.skip_integration
         parameters.skip_substitution = args.skip_substitution
         
-        if CommonSetings.experiment_generated:
-            logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {CommonSetings.experiment}")
+        if CommonSettings.experiment_generated:
+            logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {CommonSettings.experiment}")
         
         if parameters.interact != PauseAfterSteps.DISABLE and not os.isatty(sys.stdout.fileno()):
             logger.error("TTY does not allow user interaction, disabling 'interact' parameter")
@@ -97,7 +97,7 @@ class RunExecutor(BaseExecutor):
             logger.success(f"Files preserved to '{parameters.preserve}' (if any)")
         
         if not parameters.dont_use_influx:
-            logger.success(f"Data series stored with experiment tag '{CommonSetings.experiment}' (if any)")
+            logger.success(f"Data series stored with experiment tag '{CommonSettings.experiment}' (if any)")
 
         if status:
             logger.success("Testbed was dismantled!")
