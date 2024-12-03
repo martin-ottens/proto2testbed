@@ -352,7 +352,7 @@ class Controller(Dismantable):
         try:
             self.influx_db = InfluxDBAdapter(CommonSetings.experiment, 
                                              TestbedSettingsWrapper.cli_paramaters.dont_use_influx, 
-                                             CommonSetings.cli_paramaters.influx_path)
+                                             CommonSetings.influx_path)
             self.influx_db.start()
             self.dismantables.insert(0, self.influx_db)
         except Exception as ex:
