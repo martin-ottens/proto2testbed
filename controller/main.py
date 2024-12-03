@@ -14,33 +14,59 @@ from pathlib import Path
 if __name__ == "__main__":
     from utils.continue_mode import PauseAfterSteps
 
-    parser = argparse.ArgumentParser(prog=os.environ.get("CALLER_SCRIPT", sys.argv[0]), description="Proto²Testbed Controller")
-    parser.add_argument("TESTBED_CONFIG", nargs='?', type=str, help="Path to testbed package")
-    parser.add_argument("--clean", action="store_true", required=False, default=False,
-                        help="Clean network interfaces and files.")
-    parser.add_argument("--interact", "-i", choices=[p.name for p in PauseAfterSteps], 
-                        required=False, default=PauseAfterSteps.DISABLE.name, type=str.upper,
-                        help="Interact with Conctroller after step is completed")
-    parser.add_argument("-v", "--verbose", action="count", required=False, default=0,
-                        help="-v: Print DEBUG log messages, -vv: Print TRACE log messages")
-    parser.add_argument("-q", "--quiet", action="store_true", required=False, default=False,
-                        help="Only print INFO, ERROR, SUCCESS or CRITICAL log messages")
-    parser.add_argument("--sudo", action="store_true", required=False, default=False,
-                        help="Prepend 'sudo' to all commands (non-interactive), root required otherwise")
-    parser.add_argument("--no_kvm", action="store_true", required=False, default=False,
-                        help="Disable KVM virtualization in QEMU")
-    parser.add_argument("-s", "--skip_integration", action="store_true", required=False, default=False,
-                        help="Skip the execution of integrations")
-    parser.add_argument( "-e", "--experiment", required=False, default=None, type=str, 
-                        help="Name of experiment series, auto generated if omitted")
-    parser.add_argument("-d", "--dont_store", required=False, default=False, action="store_true", 
-                        help="Dont store experiment results to InfluxDB on host")
-    parser.add_argument("--influxdb", required=False, default=None, type=str, 
-                        help="Path to InfluxDB config, use defaults/environment if omitted")
-    parser.add_argument("--skip_substitution", action="store_true", required=False, default=False, 
-                        help="Skip substitution of placeholders with environment variable values in config")
-    parser.add_argument("-p", "--preserve", type=str, help="Path for instance data preservation, disabled with omitted",
-                        required=False, default=None)
+    parser = argparse.ArgumentParser(prog=os.environ.get("CALLER_SCRIPT", sys.argv[0]), 
+                                     description="Proto²Testbed Controller")
+    
+    common_parser = argparse.ArgumentParser(add_help=False)
+    common_parser.add_argument("-v", "--verbose", action="count", required=False, default=0,
+                               help="-v: Print DEBUG log messages, -vv: Print TRACE log messages")
+    common_parser.add_argument("--sudo", action="store_true", required=False, default=False,
+                               help="Prepend 'sudo' to all commands (non-interactive), root required otherwise")
+    common_parser.add_argument( "-e", "--experiment", required=False, default=None, type=str, 
+                               help="Name of experiment series, auto generated if omitted")
+    common_parser.add_argument("--influxdb", required=False, default=None, type=str, 
+                               help="Path to InfluxDB config, use defaults/environment if omitted")
+
+    subparsers = parser.add_subparsers(title="subcommand", dest="mode", required=True,
+                                     description="Subcommand for Proto²Testbed Controller")
+    
+    # Command "run": Start a testbed run
+    run_parser = subparsers.add_parser("run", aliases=["r"], help="Execute a testbed Configuration",
+                                       parents=[common_parser])
+    run_parser.add_argument("TESTBED_CONFIG", type=str, help="Path to testbed package")
+    run_parser.add_argument("--clean", action="store_true", required=False, default=False,
+                            help="Clean network interfaces and files.")
+    run_parser.add_argument("--interact", "-i", choices=[p.name for p in PauseAfterSteps], 
+                            required=False, default=PauseAfterSteps.DISABLE.name, type=str.upper,
+                            help="Interact with Conctroller after step is completed")
+    run_parser.add_argument("--no_kvm", action="store_true", required=False, default=False,
+                            help="Disable KVM virtualization in QEMU")
+    run_parser.add_argument("-s", "--skip_integration", action="store_true", required=False, default=False,
+                            help="Skip the execution of integrations") 
+    run_parser.add_argument("-d", "--dont_store", required=False, default=False, action="store_true", 
+                            help="Dont store experiment results to InfluxDB on host")
+    run_parser.add_argument("--skip_substitution", action="store_true", required=False, default=False, 
+                            help="Skip substitution of placeholders with environment variable values in config")
+    run_parser.add_argument("-p", "--preserve", type=str, help="Path for instance data preservation, disabled with omitted",
+                            required=False, default=None)
+
+    # Command "clean": Remove dangling testbeds (-a = from all users)
+    clean_parser = subparsers.add_parser("clean", aliases=["c"], help="Clean danging testbeds (files, interfaces ...)",
+                                       parents=[common_parser])
+    clean_parser.add_argument("-a", "--all", required=False, default=False, action="store_true",
+                              help="Also clean testbeds from different users")
+
+    # Command "list": List running testbeds and instances (-a = from all users)
+    list_parser = subparsers.add_parser("list", aliases=["ls"], help="List running testbeds and instances",
+                                        parents=[common_parser])
+    list_parser.add_argument("-a", "--all", required=False, default=False, action="store_true",
+                             help="Show testbeds from all users")
+
+    # Command "attach": Attach to a running instance (-s = use ssh)
+    attach_parser = subparsers.add_parser("attach", aliases=["a"], help="Attach to the tty of an Instance",
+                                        parents=[common_parser])
+    attach_parser.add_argument("-s", "--ssh", required=False, default=False, action="store_true",
+                               help="Use SSH instead of serial connection (if available)")
     
     args = parser.parse_args()
 
