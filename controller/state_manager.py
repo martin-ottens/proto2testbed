@@ -20,7 +20,7 @@ from common.application_configs import ApplicationConfig
 from utils.interfaces import Dismantable
 from common.interfaces import DataclassJSONEncoder
 from utils.settings import CommonSettings
-from constants import INTERCHANGE_BASE_PATH, MACHINE_STATE_FILE
+from constants import *
 
 
 class AgentManagementState(Enum):
@@ -141,7 +141,7 @@ class MachineState():
         
         # Set 777 permission to allow socket access with --sudo option
         os.mkdir(self.interchange_dir, mode=0o777)
-        os.mkdir(self.interchange_dir / "mount/")
+        os.mkdir(self.interchange_dir / INSTANCE_INTERCHANGE_DIR_MOUNT)
         self.interchange_ready = True
 
     def remove_interchange_dir(self, file_preservation: Optional[Path]) -> None:
@@ -171,17 +171,17 @@ class MachineState():
     def get_mgmt_socket_path(self) -> None | Path:
         if not self.interchange_ready:
             return None
-        return self.interchange_dir / "mgmt.sock"
+        return self.interchange_dir / INSTANCE_MANAGEMENT_SOCKET_PATH
     
     def get_mgmt_tty_path(self) -> None | Path:
         if not self.interchange_ready:
             return None
-        return self.interchange_dir / "tty.sock"
+        return self.interchange_dir / INSTANCE_TTY_SOCKET_PATH
     
     def get_p9_data_path(self) -> None | Path:
         if not self.interchange_ready:
             return None
-        return self.interchange_dir / "mount/"
+        return self.interchange_dir / INSTANCE_INTERCHANGE_DIR_MOUNT
     
     def update_mgmt_socket_permission(self) -> bool:
         if not self.interchange_ready:

@@ -42,16 +42,24 @@ class CLI(Dismantable):
                        filter=CLI._filter_logging)
 
 
-    def _attach_to_tty(self, socket_path: str):
+    def attach_to_tty(self, socket_path: str):
         process = pexpect.spawn("/usr/bin/socat", [f"UNIX-CONNECT:{socket_path}", "STDIO,raw,echo=0"], 
                             timeout=None, encoding="utf-8", echo=False)
         process.send("\n")
         process.readline()
         process.interact()
         process.terminate()
-        print("\n")
         if process.isalive():
             logger.error("TTY attach scoat subprocess is still alive after termination!")
+
+    def attach_to_ssh(self, conn: str):
+        process = pexpect.spawn("/usr/bin/ssh", ["-o", "StrictHostKeyChecking=no", "-o", 
+                                                 "LogLevel=ERROR", "-o", "UserKnownHostsFile=/dev/null", conn])
+        process.interact()
+        process.terminate()
+        print("\n")
+        if process.isalive():
+            logger.error("SSH subprocess is still alive after termination!")
 
     def handle_command(self, base_command: str, args: Optional[List[str]]) -> bool:
         match base_command:
@@ -90,7 +98,7 @@ class CLI(Dismantable):
                     return True
                 logger.log("CLI", f"Attaching to Instance '{target}', CRTL + ] to disconnect.")
                 self.toggle_output(False)
-                self._attach_to_tty(socket_path)
+                self.attach_to_tty(socket_path)
                 self.toggle_output(True)
                 logger.log("CLI", f"Connection to serial TTY of Instance '{target}' closed.")
                 return True
