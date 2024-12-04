@@ -3,7 +3,7 @@ import json
 
 from loguru import logger
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from constants import INTERCHANGE_BASE_PATH, MACHINE_STATE_FILE
 from utils.settings import CommonSettings
@@ -77,6 +77,15 @@ class StateFileReader():
             except Exception as ex:
                 logger.opt(exception=ex).debug(f"Cannot load state file '{statefilepath}'")
                 self.files.append(StateFileEntry(None, statefilepath))
+    
+    @staticmethod
+    def get_name(uid: int) -> str:
+        import pwd
+        try:
+            ui = pwd.getpwuid(uid)
+            return ui.pw_name
+        except KeyError:
+            return str(uid)
 
     @staticmethod
     def is_process_running(state: MachineStateFile) -> bool:
@@ -92,34 +101,47 @@ class StateFileReader():
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return False
 
-    def get_states(self, owned_by_executor: bool = False, 
-                   experiment_tag: Optional[str] = None, 
-                   running: Optional[bool] = None) -> List[StateFileEntry]:
+    def get_states(self, filter_owned_by_executor: bool = False, 
+                   filter_experiment_tag: Optional[str] = None, 
+                   filter_running: Optional[bool] = None) -> List[StateFileEntry]:
         
         result: List[StateFileEntry] = []
         for state in self.files:
-            if state.contents is None and (running is not None and not running):
+            if state.contents is None and (filter_running is not None and not filter_running):
                 result.append(state)
 
-            if owned_by_executor and state.contents.executor != CommonSettings.executor:
+            if filter_owned_by_executor and state.contents.executor != CommonSettings.executor:
                 continue
 
-            if experiment_tag is not None and state.contents.experiment != CommonSettings.experiment:
+            if filter_experiment_tag is not None and state.contents.experiment != CommonSettings.experiment:
                 continue
 
-            if running is not None:
+            if filter_running is not None:
                 is_running = StateFileReader.is_process_running(state.contents)
-                if is_running and running:
+                if is_running and filter_running:
                     result.append(state)
-                elif not is_running and not running:
+                elif not is_running and not filter_running:
                     result.append(state)
             else:
                 result.append(state)
                 
         return result
 
-    def get_running_experiments(self, owned_by_executor: bool = False) -> List[str]:
-        all = self.get_states(owned_by_executor=owned_by_executor, running=True)
+    def get_other_experiments(self, experiment_tag: str) -> Dict[str, int]:
+        all = self.get_states(filter_owned_by_executor=False,
+                              filter_experiment_tag=experiment_tag,
+                              filter_running=True)
+        
+        result = {}
+        for entry in all:
+            ui = StateFileReader.get_name(entry.contents.executor)
+            if ui not in result.keys():
+                result[ui] = entry.contents.main_pid
+        
+        return result
+
+    def get_running_experiments(self, filter_owned_by_executor: bool = False) -> List[str]:
+        all = self.get_states(filter_owned_by_executor=filter_owned_by_executor, running=True)
 
         result: List[str] = []
         for item in all:

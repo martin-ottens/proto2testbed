@@ -67,6 +67,17 @@ class RunExecutor(BaseExecutor):
 
         TestbedSettingsWrapper.cli_paramaters = parameters
 
+        from helper.state_file_helper import StateFileReader
+        reader = StateFileReader()
+        all_experiments = reader.get_other_experiments(CommonSettings.experiment)
+
+        if len(all_experiments) != 0:
+            logger.critical(f"Other testbeds with same experiment tag are running:")
+            for user, pid in all_experiments.items():
+                logger.info(f"- User: {user}, PID: {pid}")
+            return 1
+
+
         from controller import Controller
         import signal
         try:

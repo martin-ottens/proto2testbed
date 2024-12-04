@@ -19,18 +19,10 @@ class ListExecutor(BaseExecutor):
         from cli import CLI
         from helper.state_file_helper import StateFileReader
 
-        def get_name(uid: int) -> str:
-            import pwd
-            try:
-                ui = pwd.getpwuid(uid)
-                return ui.pw_name
-            except KeyError:
-                return str(uid)
-            
         CLI(CommonSettings.log_verbose, None)
 
         statefile_reader = StateFileReader()
-        states = statefile_reader.get_states(owned_by_executor=(not args.all))
+        states = statefile_reader.get_states(filter_owned_by_executor=(not args.all))
 
         # (uid, experiment) -> [states]
         experiment_map = {}
@@ -66,7 +58,7 @@ class ListExecutor(BaseExecutor):
             uid, experiment = indexer
             prefix_experiment = "├─" if not is_last_experiment else "└─"
             running = StateFileReader.is_process_running(state[0])
-            logger.opt(ansi=True).info(f"{prefix_experiment} <u>Experiment: {experiment}, Owner: {get_name(uid)}, Status: {'<green>running</green>' if running else '<red>dangling</red>'} (PID {state[0].main_pid})</u>")
+            logger.opt(ansi=True).info(f"{prefix_experiment} <u>Experiment: {experiment}, Owner: {StateFileReader.get_name(uid)}, Status: {'<green>running</green>' if running else '<red>dangling</red>'} (PID {state[0].main_pid})</u>")
             prefix_networks = "│  ├─" if not is_last_experiment else "   ├─"
             logger.info(f"{prefix_networks} Networks ({len(network_map[indexer])}):")
             for network_index, network in enumerate(network_map[indexer].values(), start=1):
@@ -74,7 +66,7 @@ class ListExecutor(BaseExecutor):
                 prefix_network = "│  │ " if not is_last_experiment else "   │ "
                 prefix_network += " ├─" if not is_last_network else " └─"
                 logger.opt(ansi=True).info(f"{prefix_network} <blue>Bridge: {network.bridge_name}</blue> ({network.bridge_dev}) " 
-                            + (f"is attached to host ports: <yellow>{' '.join(network.host_ports)}</yellow>" if network.host_ports is not None and len(network.host_ports) != 0 else ""))
+                            + (f"─> host ports: <yellow>{' '.join(network.host_ports)}</yellow>" if network.host_ports is not None and len(network.host_ports) != 0 else ""))
 
             prefix_instances = "│  └─" if not is_last_experiment else "   └─"
             logger.info(f"{prefix_instances} Instances ({len(state)}):")
@@ -92,6 +84,6 @@ class ListExecutor(BaseExecutor):
                     prefix_interface += "   │ " if not is_last_instance else "     "
                     prefix_interface += " ├─" if not is_last_interface else " └─"
                     
-                    logger.opt(ansi=True).info(f"{prefix_interface} {interface.tap_index}: Interface {interface.tap_dev} ({interface.tap_mac}) conncted to bridge <blue>{interface.bridge_name}</blue>")
+                    logger.opt(ansi=True).info(f"{prefix_interface} {interface.tap_index}: Interface {interface.tap_dev} ({interface.tap_mac}) ─> bridge <blue>{interface.bridge_name}</blue>")
 
         return 0
