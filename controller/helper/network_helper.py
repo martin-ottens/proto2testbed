@@ -25,43 +25,39 @@ class NetworkBridge(Dismantable):
         return list(map(lambda x: x["ifname"], json.loads(process.stdout.decode("utf-8"))))
 
     @staticmethod
-    def clean_all_bridges():
-        done = 0
-        for interface in NetworkBridge.get_running_interfaces():
-            if interface.startswith(BRIDGE_PREFIX):
-                process = invoke_subprocess(["/usr/sbin/ip", "link", "set", "down", "dev", interface], 
-                                            needs_root=True)
-                if process.returncode != 0:
-                    logger.error(f"Unable to set bridge '{interface}' down: {process.stderr.decode('utf-8')}")
-                    continue
+    def cleanup_interface(if_name: str, fail_silent: bool = False) -> bool:
+        if if_name.startswith(BRIDGE_PREFIX):
+            process = invoke_subprocess(["/usr/sbin/ip", "link", "set", "down", "dev", if_name], 
+                                        needs_root=True)
+            if process.returncode != 0:
+                logger.error(f"Unable to set bridge '{if_name}' down: {process.stderr.decode('utf-8')}")
+                return False
 
-                process = invoke_subprocess(["/usr/sbin/brctl", "delbr", interface], 
-                                            needs_root=True)
-                if process.returncode != 0:
-                    logger.error(f"Unable to delete bridge '{interface}': {process.stderr.decode('utf-8')}")
-                    continue
+            process = invoke_subprocess(["/usr/sbin/brctl", "delbr", if_name], 
+                                        needs_root=True)
+            if process.returncode != 0:
+                logger.error(f"Unable to delete bridge '{if_name}': {process.stderr.decode('utf-8')}")
+                return False
 
-                logger.success(f"Deleted bridge '{interface}'.")
-                done += 1
-            elif interface.startswith(TAP_PREFIX):
-                process = invoke_subprocess(["/usr/sbin/ip", "link", "set", "down", "dev", interface], 
-                                            needs_root=True)
-                if process.returncode != 0:
-                    logger.error(f"Unable to set tap device '{interface}' down: {process.stderr.decode('utf-8')}")
-                    continue
+            return True
+        elif if_name.startswith(TAP_PREFIX):
+            process = invoke_subprocess(["/usr/sbin/ip", "link", "set", "down", "dev", if_name], 
+                                        needs_root=True)
+            if process.returncode != 0:
+                logger.error(f"Unable to set tap device '{if_name}' down: {process.stderr.decode('utf-8')}")
+                return False
 
-                process = invoke_subprocess(["/usr/sbin/ip", "link", "del", "dev", interface], 
-                                            needs_root=True)
-                if process.returncode != 0:
-                    logger.error(f"Unable to delete tap device '{interface}': {process.stderr.decode('utf-8')}")
-                    continue
+            process = invoke_subprocess(["/usr/sbin/ip", "link", "del", "dev", if_name], 
+                                        needs_root=True)
+            if process.returncode != 0:
+                logger.error(f"Unable to delete tap device '{if_name}': {process.stderr.decode('utf-8')}")
+                return False
 
-                logger.success(f"Deleted tap device '{interface}'.")
-                done += 1
-        
-        if done == 0:
-            logger.info("No residual interfaces found, all clean.")
+            return True
+        elif not fail_silent:
+            logger.error(f"Interface '{if_name}' is not managed by the testbed system. Unable to delete.")
 
+        return False
 
     @staticmethod
     def check_interfaces_available(interfaces: List[str]):

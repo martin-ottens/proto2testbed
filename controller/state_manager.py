@@ -54,25 +54,18 @@ class InterfaceMapping():
 
 class MachineState():
     @staticmethod
-    def clean_interchange_paths():
-        base_dir = os.path.dirname(INTERCHANGE_BASE_PATH)
+    def clean_interchange_dir(path: str) -> bool:
         prefix = os.path.basename(INTERCHANGE_BASE_PATH)
-
-        done = 0
-        for item in os.listdir(base_dir):
-            try:
-                item_path = os.path.join(base_dir, item)
-            
-            
-                if os.path.isdir(item_path) and item.startswith(prefix):
-                    shutil.rmtree(item_path)
-                    logger.success(f"Deleted interchange directory '{item}'.")
-                    done += 1
-            except Exception as ex:
-                logger.opt(exception=ex).error(f"Error deleting interchange direcory '{item}'")
-        
-        if done == 0:
-            logger.info("No residual interchange directories found, all clean.")
+        try:
+            if os.path.isdir(path) and path.startswith(prefix):
+                shutil.rmtree(path)
+                return True
+            else:
+                logger.debug(f"Skipping deletion of '{path}': Not a directory or invalid name.")
+                return False
+        except Exception as ex:
+            logger.opt(exception=ex).error(f"Error deleting interchange direcory '{path}'")
+            return False
 
     def __init__(self, name: str, script_file: str, 
                  setup_env: Optional[dict[str, str]], manager,):
