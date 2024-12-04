@@ -142,7 +142,7 @@ class Controller(Dismantable):
                 bridge_mapping.bridge = bridge
                 self.dismantables.insert(0, bridge)
                 for pyhsical_port in network.host_ports:
-                    bridge.add_device(pyhsical_port)
+                    bridge.add_device(pyhsical_port, is_host_port=True)
                 bridge.start_bridge()
             except Exception as ex:
                 logger.opt(exception=ex).critical(f"Unable to setup additional network {network.name}")

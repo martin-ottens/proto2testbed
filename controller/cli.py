@@ -238,9 +238,9 @@ class CLI(Dismantable):
                 logger.log("CLI", f"Unknown command '{command}' or error running it, use 'help' to show available commands.")
 
 
-    def __init__(self, log_verbose: int, manager: MachineStateManager):
+    def __init__(self, log_verbose: int, manager: MachineStateManager = None):
         CLI.instance = self
-        self.manager = manager
+        self.manager: Optional[MachineStateManager] = manager
         self.log_verbose = log_verbose
         self.enable_interaction = Event()
         self.enable_output = Event()
@@ -269,15 +269,24 @@ class CLI(Dismantable):
             self.enable_interaction.clear()
 
     def start_cli(self, event: Event, continue_mode: CLIContinue):
+        if self.manager is None:
+            return
+
         self.continue_event = event
         self.continue_mode = continue_mode
         self.toggle_interaction(True)
 
     def stop_cli(self):
+        if self.manager is None:
+            return
+        
         self.continue_event = None
         self.toggle_interaction(False)
 
     def start(self):
+        if self.manager is None:
+            return
+        
         self.thread = Thread(target=self._run, daemon=True)
         self.thread.start()
 

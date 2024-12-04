@@ -238,7 +238,8 @@ class MachineState():
                 bridge_name=interface.bridge.name,
                 tap_index=interface.index,
                 tap_dev=interface.tap,
-                tap_mac=interface.mac
+                tap_mac=interface.mac,
+                host_ports=interface.bridge.bridge.host_ports
             ))
 
         state = MachineStateFile(

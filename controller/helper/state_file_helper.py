@@ -15,6 +15,7 @@ class MachineStateFileInterfaceMapping():
     tap_index: int
     tap_dev: str
     tap_mac: str
+    host_ports: Optional[List[str]] = None
 
     def __lt__(self, other) -> bool:
         return self.tap_index < other.tap_index

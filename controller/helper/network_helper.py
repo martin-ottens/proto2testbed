@@ -114,6 +114,7 @@ class NetworkBridge(Dismantable):
         self.display_name = display_name
         self.dismantle_action = []
         self.ready = False
+        self.host_ports: List[str] = []
 
         if len(name) >= 16: # IFNAMSIZ = 16 including NULL termination
             raise Exception(f"Bridge interface name '{self.name}' is too long!")
@@ -163,7 +164,7 @@ class NetworkBridge(Dismantable):
         
         return status
 
-    def add_device(self, interface: str, undo: bool = False) -> bool:
+    def add_device(self, interface: str, undo: bool = False, is_host_port: bool = False) -> bool:
         logger.debug(f"Network '{self.name}' (for '{self.display_name}'): Adding interface {interface} to bridge.")
 
         process = invoke_subprocess(["/usr/sbin/ip", "--json", "link", "show"])
@@ -197,6 +198,10 @@ class NetworkBridge(Dismantable):
             logger.error(f"Unable to add {interface} to bridge {self.name}.")
         if undo:
             self.dismantle_action.insert(0, ["/usr/sbin/brctl", "delif", self.name, interface])
+
+        if is_host_port:
+            self.host_ports.append(interface)
+        
         return True
 
     def setup_local(self, ip: ipaddress.IPv4Interface, nat: ipaddress.IPv4Network) -> bool:

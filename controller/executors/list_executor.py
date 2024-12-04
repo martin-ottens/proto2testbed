@@ -2,6 +2,7 @@ import argparse
 
 from loguru import logger
 
+from utils.settings import CommonSettings
 from executors.base_executor import BaseExecutor
 
 class ListExecutor(BaseExecutor):
@@ -15,6 +16,7 @@ class ListExecutor(BaseExecutor):
                                     help="Show testbeds from all users")
 
     def invoke(self, args) -> int:
+        from cli import CLI
         from helper.state_file_helper import StateFileReader
 
         def get_name(uid: int) -> str:
@@ -24,12 +26,16 @@ class ListExecutor(BaseExecutor):
                 return ui.pw_name
             except KeyError:
                 return str(uid)
+            
+        CLI(CommonSettings.log_verbose, None)
 
         statefile_reader = StateFileReader()
         states = statefile_reader.get_states(owned_by_executor=(not args.all))
 
-        # experiment -> [states]
+        # (uid, experiment) -> [states]
         experiment_map = {}
+        # (uid, experiment) -> {name, interface}
+        network_map = {}
         total = 0
         for state in states:
             if state.contents is None:
@@ -38,37 +44,54 @@ class ListExecutor(BaseExecutor):
                 indexer = (state.contents.executor, state.contents.experiment)
                 if indexer not in experiment_map.keys():
                     experiment_map[indexer] = []
+
+                if indexer not in network_map.keys():
+                    network_map[indexer] = {}
                 
                 experiment_map[indexer].append(state.contents)
+                
+                for interface in state.contents.interfaces:
+                    if interface.bridge_name not in network_map[indexer].keys():
+                        network_map[indexer][interface.bridge_name] = interface
+
                 total += 1
         
         if total == 0:
             logger.warning("No experiments are running for that search criteria.")
             return 0
 
-        logger.info(f"Listing {total} experiments for {'whole system' if args.all else 'current user'}")
-
+        logger.success(f"Listing {len(experiment_map)} experiment(s) for {'whole system' if args.all else 'current user'}")
         for experiment_index, (indexer, state) in enumerate(experiment_map.items(), start=1):
             is_last_experiment = (experiment_index == len(experiment_map.keys()))
             uid, experiment = indexer
             prefix_experiment = "├─" if not is_last_experiment else "└─"
             running = StateFileReader.is_process_running(state[0])
-            logger.info(f"{prefix_experiment} Experiment: {experiment}, Owner: {get_name(uid)}, Status: {'running' if running else 'dangling'}")
+            logger.opt(ansi=True).info(f"{prefix_experiment} <u>Experiment: {experiment}, Owner: {get_name(uid)}, Status: {'<green>running</green>' if running else '<red>dangling</red>'} (PID {state[0].main_pid})</u>")
+            prefix_networks = "│  ├─" if not is_last_experiment else "   ├─"
+            logger.info(f"{prefix_networks} Networks ({len(network_map[indexer])}):")
+            for network_index, network in enumerate(network_map[indexer].values(), start=1):
+                is_last_network = (network_index == len(network_map[indexer]))
+                prefix_network = "│  │ " if not is_last_experiment else "   │ "
+                prefix_network += " ├─" if not is_last_network else " └─"
+                logger.opt(ansi=True).info(f"{prefix_network} <blue>Bridge: {network.bridge_name}</blue> ({network.bridge_dev}) " 
+                            + (f"is attached to host ports: <yellow>{' '.join(network.host_ports)}</yellow>" if network.host_ports is not None and len(network.host_ports) != 0 else ""))
+
+            prefix_instances = "│  └─" if not is_last_experiment else "   └─"
+            logger.info(f"{prefix_instances} Instances ({len(state)}):")
             for instance_index, instance in enumerate(state, start=1):
                 is_last_instance = (instance_index == len(state))
-                prefix_instance = " │ " if not is_last_experiment else "   "
-                prefix_instance += " ├─" if not is_last_instance else " └─"
+                prefix_instance = "│  " if not is_last_experiment else "   "
+                prefix_instance += "   ├─" if not is_last_instance else "   └─"
 
-                logger.info(f"{prefix_instance} Instance: {instance.instance} ({instance.uuid}) {'' if not instance.mgmt_ip else f'(IP: {instance.mgmt_ip})'}")
+                logger.opt(ansi=True).info(f"{prefix_instance} <green>Instance: {instance.instance}</green> ({instance.uuid}) {'' if not instance.mgmt_ip else f'(IP: {instance.mgmt_ip})'}")
 
                 sorted_if = sorted(instance.interfaces)
                 for interface_index, interface in enumerate(sorted_if, start=1):
                     is_last_interface = (interface_index == len(sorted_if))
-                    prefix_interface = " │ " if not is_last_experiment else "   "
-                    prefix_interface += " │ " if not is_last_instance else "   "
+                    prefix_interface = "│  " if not is_last_experiment else "   "
+                    prefix_interface += "   │ " if not is_last_instance else "     "
                     prefix_interface += " ├─" if not is_last_interface else " └─"
                     
-                    logger.info(f"{prefix_interface} {interface.tap_index}: Interface {interface.tap_dev} ({interface.tap_mac}) conncted to bridge {interface.bridge_name} ({interface.bridge_dev})")
+                    logger.opt(ansi=True).info(f"{prefix_interface} {interface.tap_index}: Interface {interface.tap_dev} ({interface.tap_mac}) conncted to bridge <blue>{interface.bridge_name}</blue>")
 
         return 0
-        
