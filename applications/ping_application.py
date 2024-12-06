@@ -2,7 +2,7 @@ import subprocess
 
 from typing import Tuple, Optional
 
-from base_application import BaseApplication
+from applications.base_application import BaseApplication
 from common.application_configs import ApplicationSettings
 
 

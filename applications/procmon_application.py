@@ -3,7 +3,7 @@ import time
 
 from typing import Dict, List, Optional, Tuple
 
-from base_application import BaseApplication
+from applications.base_application import BaseApplication
 from common.application_configs import ApplicationSettings
 
 

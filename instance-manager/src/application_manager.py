@@ -8,7 +8,7 @@ from pathlib import Path
 from threading import Barrier
 
 from management_client import ManagementClient
-from base_application import BaseApplication
+from applications.base_application import BaseApplication
 from common.application_configs import ApplicationConfig
 from application_controller import ApplicationController
 from common.instance_manager_message import InstanceMessageType

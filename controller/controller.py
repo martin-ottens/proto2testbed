@@ -91,7 +91,7 @@ class Controller(Dismantable):
         self.network_mapping = NetworkMappingHelper()
 
         if TestbedSettingsWrapper.testbed_config.settings.management_network.lower() == "auto":
-            self.mgmt_network = NetworkBridge.generate_auto_management_network(TestbedSettingsWrapper.cli_paramaters.unique_run_name)
+            self.mgmt_network = NetworkBridge.generate_auto_management_network(CommonSettings.unique_run_name)
             if self.mgmt_network is None:
                 logger.critical(f"Unable to generate a management subnet for 'auto' option.")
                 return False

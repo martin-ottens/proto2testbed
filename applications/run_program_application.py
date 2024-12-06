@@ -6,7 +6,6 @@ from typing import Optional, Dict, Tuple
 
 from base_application import BaseApplication
 from common.application_configs import ApplicationSettings
-from global_state import GlobalState
 
 
 class RunProgramApplicationConfig(ApplicationSettings):
@@ -31,7 +30,7 @@ class RunProgramApplication(BaseApplication):
 
             self.from_tbp = False
             if not self.command.is_absolute():
-                self.command = GlobalState.testbed_package_path / self.command
+                self.command = self.interface.get_global_state().testbed_package_path / self.command
                 self.from_tbp = True
 
             if not self.command.exists():

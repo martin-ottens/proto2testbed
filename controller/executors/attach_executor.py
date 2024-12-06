@@ -90,3 +90,4 @@ class AttachExecutor(BaseExecutor):
             logger.success(f"Use CRTL + ] to detach from instance.")
             logger.debug(f"Using UDS file for connection: {uds_path}")
             cli_handler.attach_to_tty(uds_path)
+            print("")

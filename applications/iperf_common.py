@@ -11,7 +11,8 @@ import re
 from typing import List
 from enum import Enum
 
-from application_interface import ApplicationInterface
+from applications.generic_application_interface import GenericApplicationInterface
+
 
 class IPerfMode(Enum):
     UNKONWN = 0,
@@ -55,7 +56,7 @@ def rate_to_bytes(bits: float, unit: str) -> int:
             raise Exception(f"Unknown data rate unit '{unit}'")
 
 
-def parse_line_tcp_client(interface: ApplicationInterface, time, stream, line):
+def parse_line_tcp_client(interface: GenericApplicationInterface, time, stream, line):
     if len(line) != 7:
         raise Exception(f"Invalid iperf3 log line received.")
     
@@ -72,7 +73,7 @@ def parse_line_tcp_client(interface: ApplicationInterface, time, stream, line):
 
 
 
-def parse_line_tcp_server(interface: ApplicationInterface, time, stream, line):
+def parse_line_tcp_server(interface: GenericApplicationInterface, time, stream, line):
     if len(line) != 4:
         raise Exception(f"Invalid iperf3 log line received.")
 
@@ -86,7 +87,7 @@ def parse_line_tcp_server(interface: ApplicationInterface, time, stream, line):
     interface.data_point("iperf-tcp-server", data)
 
 
-def parse_line_udp_client(interface: ApplicationInterface, time, stream, line):
+def parse_line_udp_client(interface: GenericApplicationInterface, time, stream, line):
     if len(line) != 5:
         raise Exception(f"Invalid iperf3 log line received.")
     
@@ -101,7 +102,7 @@ def parse_line_udp_client(interface: ApplicationInterface, time, stream, line):
     interface.data_point("iperf-udp-client", data)
 
 
-def parse_line_udp_server(interface: ApplicationInterface, time, stream, line):
+def parse_line_udp_server(interface: GenericApplicationInterface, time, stream, line):
     if len(line) != 8:
         raise Exception(f"Invalid iperf3 log line received.")
 
@@ -120,7 +121,7 @@ def parse_line_udp_server(interface: ApplicationInterface, time, stream, line):
     interface.data_point("iperf-udp-server", data)
 
 
-def run_iperf(cli: List[str], interface: ApplicationInterface) -> int:
+def run_iperf(cli: List[str], interface: GenericApplicationInterface) -> int:
     process = subprocess.Popen(cli, shell=False, 
                                stdout=subprocess.PIPE, 
                                stderr=subprocess.PIPE)

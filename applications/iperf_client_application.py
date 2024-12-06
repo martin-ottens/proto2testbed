@@ -2,7 +2,7 @@ import traceback
 
 from typing import Tuple, Optional
 
-from base_application import BaseApplication
+from applications.base_application import BaseApplication
 from applications.iperf_common import run_iperf
 from common.application_configs import ApplicationSettings
 

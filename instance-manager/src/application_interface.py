@@ -2,31 +2,17 @@ import json
 import socket
 import sys
 
-from enum import Enum
 from typing import Dict, Optional
 
-
-class LogMessageLevel(Enum):
-    INFO = "INFO"
-    SUCCESS = "SUCCESS"
-    ERROR = "ERROR"
-    DEBUG = "DEBUG"
-    WARNING = "WARNING"
-
-    def __str__(self):
-        return str(self.value)
-    
-    @staticmethod
-    def from_str(level: str):
-        return LogMessageLevel(level)
+from applications.generic_application_interface import LogMessageLevel, GenericApplicationInterface
+from global_state import GlobalState
 
 
-class ApplicationInterface():
+class ApplicationInterface(GenericApplicationInterface):
     def __init__(self, app_name: str, socket_path: str):
-        self.app_name = app_name
-        self.socket_path = socket_path
+        super().__init__(app_name, socket_path)
 
-    def connect(self):        
+    def connect(self):
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.socket.settimeout(1)
         self.socket.connect(self.socket_path)
@@ -107,5 +93,8 @@ class ApplicationInterface():
         }
 
         return self._send_to_daemon(payload)
+    
+    def get_global_state() -> GlobalState:
+        return GlobalState
 
 
