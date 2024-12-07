@@ -10,7 +10,7 @@ from common.application_configs import ApplicationConfig
 from common.instance_manager_message import InstanceMessageType
 from management_client import ManagementClient, DownstreamMassage
 from application_interface import ApplicationInterface
-from base_application import BaseApplication
+from applications.base_application import BaseApplication
 from global_state import GlobalState
 
 

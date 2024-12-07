@@ -45,6 +45,3 @@ class GenericApplicationInterface(ABC):
     def preserve_file(self, path: str) -> bool:
         pass
 
-    @abstractmethod
-    def get_global_state() -> Any:
-        pass

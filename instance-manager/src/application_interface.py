@@ -93,8 +93,3 @@ class ApplicationInterface(GenericApplicationInterface):
         }
 
         return self._send_to_daemon(payload)
-    
-    def get_global_state() -> GlobalState:
-        return GlobalState
-
-

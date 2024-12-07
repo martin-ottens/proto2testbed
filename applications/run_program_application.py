@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Dict, Tuple
 
-from base_application import BaseApplication
+from applications.base_application import BaseApplication
 from common.application_configs import ApplicationSettings
 
 
@@ -30,7 +30,9 @@ class RunProgramApplication(BaseApplication):
 
             self.from_tbp = False
             if not self.command.is_absolute():
-                self.command = self.interface.get_global_state().testbed_package_path / self.command
+                from global_state import GlobalState
+                
+                self.command = GlobalState.testbed_package_path / self.command
                 self.from_tbp = True
 
             if not self.command.exists():

@@ -12,24 +12,28 @@ from applications.base_application import BaseApplication
 from common.application_configs import ApplicationConfig
 from application_controller import ApplicationController
 from common.instance_manager_message import InstanceMessageType
+from common.application_loader import ApplicationLoader
 from global_state import GlobalState
 
 
 class ApplicationManager():
-    __COMPATIBLE_API_VERSION = "1.0"
-    __PACKAGED_APPS = "applications/"
-
     def __init__(self, main, manager: ManagementClient, instance_name: str) -> None:
         self.main = main
         self.manager = manager
         self.instance_name = instance_name
-        self.app_base = Path(GlobalState.start_exec_path)
-        self.testbed_package_base = Path(GlobalState.testbed_package_path)
-        self.app_map: Dict[str, Any] = {}
+        self.loader = ApplicationLoader(
+            Path(GlobalState.start_exec_path), 
+            Path(GlobalState.exchange_mount_path),
+            ["set_and_validate_config", "start"])
         self.app_exec: List[ApplicationController] = None
         self.barrier = None
 
-        self._read_packaged_apps()
+        try:
+            self.loader.read_packaged_apps()
+        except Exception as ex:
+            print(f"Unable to load packaged applications: {ex}", file=sys.stderr, flush=True)
+            self.main.message_to_controller(InstanceMessageType.FAILED, 
+                                            f"Failure during loading of packaged apps: {ex}")
 
     def __del__(self) -> None:
         self._destory_apps()
@@ -38,77 +42,6 @@ class ApplicationManager():
         if self.app_exec is not None:
             for app_controller in self.app_exec:
                 del app_controller
-
-    def _check_valid_app(self, cls, loaded_file) -> Tuple[bool, Optional[str]]:
-        if not issubclass(cls, BaseApplication) or cls.__name__ == "BaseApplication":
-            return False, None
-        
-        if not hasattr(cls, "API_VERSION"):
-            print(f"AppLoader: File '{loaded_file}' has no API_VERSION", file=sys.stdout, flush=True)
-            return False, "API_VERSION missing"
-        
-        if not hasattr(cls, "NAME"):
-            print(f"AppLoader: File '{loaded_file}' has no NAME", file=sys.stdout, flush=True)
-            return False, "NAME missing"
-        
-        if cls.API_VERSION != ApplicationManager.__COMPATIBLE_API_VERSION:
-            print(f"AppLoader: File '{loaded_file}' has API_VERSION {cls.API_VERSION}, but {ApplicationManager.__COMPATIBLE_API_VERSION} required.", file=sys.stdout, flush=True)
-            return False, "Incomatible API version."
-        
-        if cls.NAME == BaseApplication.NAME:
-            return False, None
-        
-        for method in ["set_and_validate_config", "start"]:
-            if not hasattr(cls, method) or not callable(getattr(cls, method)):
-                print(f"AppLoader: File '{loaded_file}' is missing method '{method}'", file=sys.stdout, flush=True)
-                return False, "Method(s) are missing"
-            
-        return True, None
-    
-    def _load_single_app(self, module_name: str, path: Path, 
-                         loaded_by_package: bool = False) -> Tuple[bool, Optional[str]]:
-        try:
-            spec = importlib.util.spec_from_file_location(module_name, path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-        except Exception as ex:
-            print(f"Unable to load file {path}: {ex}", flush=True, file=sys.stderr)
-            return False, f"Python file not loadable: {ex}"
-
-        added = 0
-        last_message = None
-        for _, obj in inspect.getmembers(module, inspect.isclass):
-            status, message = self._check_valid_app(obj, path)
-            if not status:
-                if message is not None:
-                    last_message = message
-                continue
-
-            class_name = obj.NAME
-            print(f"AppLoader: Loaded '{class_name}' from file '{path}'", file=sys.stdout, flush=True)
-            if loaded_by_package:
-                self.app_map[module_name] = obj
-                return True, None
-
-            self.app_map[class_name] = obj
-            added += 1
-        
-        if added != 0:
-            return True, None
-        else:
-            return False, last_message
-
-
-    def _read_packaged_apps(self) -> None:
-        for filename in os.listdir(self.app_base / Path(ApplicationManager.__PACKAGED_APPS)):
-            filepath = Path(os.path.join(self.app_base, ApplicationManager.__PACKAGED_APPS, filename)).absolute()
-
-            if not os.path.isfile(str(filepath)) or not filename.endswith(".py"):
-                continue
-
-            module = filename[:-3] # Skip "".py"
-            self._load_single_app(module, filepath)
-
 
     def install_apps(self, apps: Optional[List[ApplicationConfig]]) -> bool:
         self.app_exec = []
@@ -119,30 +52,25 @@ class ApplicationManager():
         self.barrier = Barrier(len(apps) + 1)
         
         for config in apps:
-            if config.application not in self.app_map.keys():
-                # Try to load from testbed package
-                app_file = config.application
-                if not app_file.endswith(".py"):
-                    app_file += ".py"
+            app_cls, message = self.loader.load_app(config.application, True)
 
-                module_path = self.testbed_package_base / Path(app_file)
+            if app_cls is None:
+                if message is not None:
+                    print(f"Unable to install app '{config.name}@{config.application}': {message}", file=sys.stderr, flush=True)
+                    self.main.message_to_controller(InstanceMessageType.FAILED, 
+                                                    f"Unable to install app '{config.name}@{config.application}': {message}")
+                else:
+                    print(f"Unable to install app '{config.name}@{config.application}': Not found.", file=sys.stderr, flush=True)
+                    self.main.message_to_controller(InstanceMessageType.FAILED, 
+                                                    f"Unable to install app '{config.name}@{config.application}': Not found.")
+                return False
                 
-                status, message = self._load_single_app(config.application, module_path, True)
-                if not status:
-                    if message is not None:
-                        self.main.message_to_controller(InstanceMessageType.FAILED, 
-                                                        f"Unable to install app '{config.name}@{config.application}': {message}")
-                    else:
-                        self.main.message_to_controller(InstanceMessageType.FAILED, 
-                                                        f"Unable to install app '{config.name}@{config.application}': Not found.")
-                    return False
-                self.main.message_to_controller(InstanceMessageType.MSG_DEBUG, 
-                                                f"Loaded App '{config.application}' from testbed package.")
-
-
-            app_instance: BaseApplication = self.app_map[config.application]()
+            print(f"Loaded App '{config.application}': {message}", file=sys.stderr, flush=True)
+            self.main.message_to_controller(InstanceMessageType.MSG_DEBUG, 
+                                            f"Loaded App '{config.application}': {message}")
 
             try:
+                app_instance: BaseApplication = app_cls()
                 status, message = app_instance.set_and_validate_config(config.settings)
 
                 if not status:
@@ -174,7 +102,7 @@ class ApplicationManager():
             self.app_exec.append(app_controller)
         
         self.main.message_to_controller(InstanceMessageType.MSG_DEBUG, 
-                                                        f"Apps loaded: {len(self.app_map)}, Scheduled to execute: {len(self.app_exec)}")
+                                                        f"Apps loaded: {self.loader.loaded_apps_size()}, Scheduled to execute: {len(self.app_exec)}")
         self.main.message_to_controller(InstanceMessageType.APPS_INSTALLED)
         return True
         
