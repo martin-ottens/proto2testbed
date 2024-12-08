@@ -81,7 +81,7 @@ class InfluxDBAdapter(Dismantable):
         self.series_name = series_name
 
         if config_path is None:
-            if not warn_on_no_database and "INFLUXDB_DATABASE" not in os.environ.keys():
+            if "INFLUXDB_DATABASE" not in os.environ.keys():
                 default_database = CommonSettings.default_configs.get_defaults("influx_database")
                 if default_database is None:
                     logger.critical("InfluxDBAdapter: INFLUXDB_DATABASE not set in environment. Set varaible or specify config.")
@@ -144,6 +144,7 @@ class InfluxDBAdapter(Dismantable):
                 self._reader.switch_database(self.database)
             except Exception as ex:
                 logger.opt(exception=ex).critical("Unable to create InfluxDB reader client")
+                self._reader = None
                 return None
         
         return self._reader

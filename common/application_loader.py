@@ -85,7 +85,6 @@ class ApplicationLoader():
             self._load_single_app(module, filepath)
 
     def load_app(self, application: str, reload: bool = False) -> Tuple[Optional[BaseApplication], str]:
-        print(self.app_map.keys(), flush=True)
         if application in self.app_map.keys():
             return self.app_map[application], "Loaded packaged application"
         

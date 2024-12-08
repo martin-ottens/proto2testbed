@@ -98,7 +98,7 @@ class DefaultConfigs():
     def __init__(self, path: str) -> None:
         self.defaults = {}
         if not os.path.exists(path):
-            logger.debug(f"No default config in path '{path}'")
+            logger.debug(f"No default config in path '{path}' (or not readable)")
             return
         
         with open(path, "r") as handle:

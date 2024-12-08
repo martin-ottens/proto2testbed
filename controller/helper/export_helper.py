@@ -1,6 +1,9 @@
+import os
+
 from typing import List, Optional, Callable, Any
 from loguru import logger
 from dataclasses import dataclass
+from pathlib import Path
 
 import dateutil.parser as dateparser
 
@@ -36,7 +39,7 @@ class ResultExportHelper:
             raise Exception("Unable to create InfluxDB data reader")
 
         self.loader = ApplicationLoader(CommonSettings.app_base_path, testbed_package_path, 
-                                        [""])
+                                        ["exports_data", "get_export_mapping"])
         self.loader.read_packaged_apps()
 
     
@@ -55,7 +58,7 @@ class ResultExportHelper:
     def _get_internal_subtypes(self, instance_name: str, app_config: ApplicationConfig) -> List[ExportSubtype]:
         result = []
 
-        database_entries = self.reader.get_list_database(tags={
+        database_entries = self.reader.get_list_series(tags={
             "experiment": CommonSettings.experiment,
             "application": app_config.name,
             "instance": instance_name
@@ -72,23 +75,95 @@ class ResultExportHelper:
                 continue
             
             type, option_str = parts
-            options = {k: v for k, v in map(lambda y: (y[0], y[1], ), map(lambda x: x.split("="), option_str))}
+            option_list = option_str.split(",")
+            options = {k: v for k, v in map(lambda y: (y[0], y[1], ), map(lambda x: x.split("="), option_list))}
             result.append(ExportSubtype(type, options))
         
         return result
+    
+    def _handle_application_series(self, subtypes: List[ExportSubtype], application: ApplicationConfig, 
+                                   app_instance: BaseApplication, instance_name: str,
+                                   export_callback: Callable[[SeriesContainer], bool]) -> bool:
+        for subtype in subtypes:
+            try:
+                data_mappings = app_instance.get_export_mapping(subtype)
+                if data_mappings is None or len(data_mappings) == 0:
+                    logger.warning(f"Application '{application.name}' of type '{application.application}' from instance '{instance_name}' does not define export outputs, even data exists.")
+                    continue
+            except Exception as ex:
+                logger.opt(exception=ex).error(f"Error getting export mappings for application '{application.name}' of type '{application.application}' from instance '{instance.name}'")
+                return False
+            
+            for series in data_mappings:
+                bind_params = {
+                    "experiment": CommonSettings.experiment,
+                    "instance": instance_name,
+                    "application": application.name
+                }
+                query_suffix = ""
+                
+                if series.additional_selectors is not None:
+                    for selector, value in series.additional_selectors.items():
+                        bind_params[selector] = value
+                        query_suffix += f" AND \"{selector}\" = ${selector}"
+                
+                query = f"SELECT \"{series.name}\" FROM \"{subtype.name}\" WHERE \"application\" = $application AND \"experiment\" = $experiment AND \"instance\" = $instance{query_suffix}"
+                
+                try:
+                    points = self.reader.query(query, bind_params=bind_params).get_points()
+                except Exception as ex:
+                    logger.opt(exception=ex).error(f"Unable to fetch series for '{series.name}' from '{subtype.name}'")
+                    return False
+                
+                if points is None:
+                    logger.warning(f"Query for '{series.name}' from '{subtype.name}' has not yield any results")
+                    continue
+                
+                data_points = []
+                for point in points:
+                    data_points.append((int(dateparser.parse(point["time"]).timestamp()), point[series.name]))
 
-    def _process_series(self, export_callback: Callable) -> bool:
+                if len(data_points) == 0:
+                    logger.warning(f"Query for '{series.name}' from '{subtype.name}' has not yield any results")
+                    continue
+
+                t_0 = min(map(lambda x: x[0], data_points))
+                x = []
+                y = []
+                for data_point in data_points:
+                    x.append(data_point[0] - t_0 + application.delay)
+                    y.append(data_point[1])
+                
+                series_container = SeriesContainer(
+                    instance=instance_name,
+                    app_config=application,
+                    export_mapping=series,
+                    type_name=subtype.name,
+                    x=x,
+                    y=y
+                )
+                try:
+                    export_callback(series_container)
+                except Exception as ex:
+                    logger.opt(exception=ex).error(f"Unable to run exporter for application '{application.application}', instance '{instance_name}', type '{subtype.name}'")
+                    return False
+
+        return True
+
+    def _process_series(self, export_callback: Callable[[SeriesContainer], bool]) -> bool:
         for instance in self.config.instances:
-            if instance.name in self.exclude_instances:
+            if self.exclude_instances is not None and instance.name in self.exclude_instances:
                 logger.debug(f"Skipping instance '{instance.name}': Name in exclude list.")
                 continue
 
-            if instance.applications is None or len(instance.applications) != 0:
+            if instance.applications is None or len(instance.applications) == 0:
                 logger.debug(f"Skipping instance '{instance.name}': No application configured.")
                 continue
 
+            logger.debug(f"Processing instance '{instance.name}'")
+
             for application in instance.applications:
-                if application.application in self.exclude_applications:
+                if self.exclude_applications is not None and application.application in self.exclude_applications:
                     logger.debug(f"Skipping application '{application.name}' of type '{application.application}' from instance '{instance.name}': Type in exclude list.")
                     continue
 
@@ -96,16 +171,17 @@ class ResultExportHelper:
                     logger.debug(f"Skipping application '{application.name}' of type '{application.application}' from instance '{instance.name}': Data store disabled.")
                     continue
 
-                logger.debug(f"Processing application '{application.name}' of type '{application.application}' from instance '{instance.name}'")
                 app_cls = self._map_to_application_class(application)
                 if app_cls is None:
                     return False
                 
                 app_instance: BaseApplication = app_cls()
                 if not app_instance.exports_data():
-                    logger.debug(f"Skipping application '{application.name}' of type '{application.application}': Does not export any data")
+                    logger.info(f"Skipping application '{application.name}' of type '{application.application}': Does not export any data")
                     continue
                 
+                logger.info(f"Processing application '{application.name}' of type '{application.application}' from instance '{instance.name}'")
+
                 subtypes = self._get_internal_subtypes(instance.name, application)
                 if len(subtypes) == 0:
                     continue
@@ -124,68 +200,63 @@ class ResultExportHelper:
                     logger.opt(exception=ex).error(f"Error passing the testbed config to application '{application.name}' of type '{application.application}' from instance '{instance.name}'")
                     return False
                 
-                for subtype in subtypes:
-                    try:
-                        data_mappings = app_instance.get_export_mapping(subtype)
-                        if data_mappings is None or len(data_mappings) == 0:
-                            logger.warning(f"Application '{application.name}' of type '{application.application}' from instance '{instance.name}' does not define export outputs, even data exists.")
-                            continue
-                    except Exception as ex:
-                        logger.opt(exception=ex).error(f"Error getting export mappings for application '{application.name}' of type '{application.application}' from instance '{instance.name}'")
-                        return False
-                    
-                    for series in data_mappings:
-                        bind_params = {
-                            "experiment": CommonSettings.experiment,
-                            "instance": instance.name,
-                            "application": application.name
-                        }
-                        query_suffix = ""
+                if not self._handle_application_series(
+                    subtypes=subtypes,
+                    application=application,
+                    app_instance=app_instance,
+                    instance_name=instance.name,
+                    export_callback=export_callback
+                ):
+                    logger.error(f"Unable to process application '{application.application}' for instance '{instance.name}'")
+                    continue
 
-                        for selector, value in series.additional_selectors.items():
-                            bind_params[selector] = value
-                            query_suffix += f" AND \"{selector}\" = ${selector}"
-                        
-                        query = f"SELECT \"{series.name}\" FROM \"{subtype.name}\" WHERE \"application\" = $application AND \"experiment\" = $experiment AND \"instance\" = $instance{query_suffix}"
-                        
-                        try:
-                            points = self.reader.query(query, bind_params=bind_params).get_points()
-                        except Exception as ex:
-                            logger.opt(exception=ex).error(f"Unable to fetch series for '{series.name}' from '{subtype.name}'")
-                            return False
-                        
-                        if points is None or len(points) == 0:
-                            logger.warning(f"Query for '{series.name}' from '{subtype.name}' has not yield any results")
-                            continue
-                        
-                        data_points = []
-                        for point in points:
-                            data_points.append((int(dateparser.parse(point["time"]).timestamp()), point[series.name]))
+        return True
 
-                        t_0 = min(map(lambda x: x[0], data_points))
-                        x = []
-                        y = []
-                        for data_point in data_points:
-                            x.append(data_point[0] - t_0 + application.delay)
-                            y.append(data_point[1])
-                        
-                        series_container = SeriesContainer(
-                            instance=instance.name,
-                            app_config=application,
-                            export_mapping=series,
-                            type_name=subtype.name,
-                            x=x,
-                            y=y
-                        )
-
-                        export_callback(series_container)
-
-        
     def output_to_plot(self, output_path: str, format: str = "pdf") -> bool:
-        def plot_export_callback(conatiner: SeriesContainer):
-            pass
         
-        self._process_series(plot_export_callback)
+        path = Path(output_path)
+        if not path.exists():
+            logger.critical(f"Output path '{path}' does not exist.")
+            return False
+
+        try:
+            import matplotlib.pyplot as plt
+            import matplotlib.ticker as ticker
+            import numpy as np
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Dependencies for plotting missing on this system")
+            return False
+
+        def plot_export_callback(container: SeriesContainer) -> bool:
+            _, ax = plt.subplots()
+            ax.plot(np.array(container.x), np.array(container.y))
+            plt.xlabel("Seconds", fontsize=7)
+            plt.ylabel(f"{container.export_mapping.name} {f'({container.export_mapping.type.value[0]})' if container.export_mapping.type.value[0] != '' else ''}", 
+                       fontsize=7)
+
+            ax.yaxis.set_major_formatter(ticker.FuncFormatter(container.export_mapping.type.value[1]))
+
+            title = f"Experiment: {CommonSettings.experiment}, Series: {container.app_config.name}@{container.instance}, "
+            title += f"Application: {container.export_mapping.name}@{container.app_config.application}"
+            if container.export_mapping.title_suffix is not None:
+                title += f" ({container.export_mapping.title_suffix})"
+
+            basepath = path / container.instance / container.app_config.name
+
+            if not basepath.exists():
+                logger.debug(f"Creating output path '{basepath}'")
+                os.makedirs(basepath, exist_ok=True)
+
+            filename = basepath / f"{container.app_config.application}_{container.export_mapping.name}.{format}"
+
+            plt.title(title, fontsize=7)
+            plt.tight_layout()
+            plt.savefig(filename)
+            plt.close()
+            logger.debug(f"Plot rendered to file: {filename}")#
+            logger.success(f"Rendered Plot: instance={container.instance}, application={container.app_config.application}, app_mame={container.app_config.name}, type={container.type_name}, series={container.export_mapping.name}")
+        
+        return self._process_series(plot_export_callback)
 
     def output_to_flatfile(self, output_path: str) -> bool:
         def flatfile_export_callback(container: SeriesContainer):

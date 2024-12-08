@@ -12,7 +12,6 @@ class ExportSubtype:
     options: Optional[Dict[str, str]] = None
 
 class ExportResultDataType(Enum):
-    @classmethod
     def format_datasize(x, pos):
         if x >= 1e9:
             return f'{x / 1e9:.1f} GB'
@@ -23,7 +22,6 @@ class ExportResultDataType(Enum):
         else:
             return f'{x:.1f} B'
     
-    @classmethod
     def format_datarate(x, pos):
         if x >= 1e9:
             return f'{x / 1e9:.1f} Gbps'
@@ -34,7 +32,6 @@ class ExportResultDataType(Enum):
         else:
             return f'{x:.1f} bps'
     
-    @classmethod
     def format_identity(x, pos):
         return str(x)
 
