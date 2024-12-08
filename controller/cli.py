@@ -172,8 +172,8 @@ class CLI(Dismantable):
             case "list" | "ls":
                 for machine in self.manager.get_all_machines():
                     line = f"- Instance '{machine.name}' ({machine.uuid}) | {machine.get_state().name}"
-                    if len(machine.interfaces_hostside) != 0:
-                        line += f" | Interfaces: {', '.join(list(map(lambda x: str(x), machine.interfaces_hostside)))}"
+                    if len(machine.interfaces) != 0:
+                        line += f" | Interfaces: {', '.join(list(map(lambda x: str(x.bridge.name), machine.interfaces)))}"
                     if machine.mgmt_ip_addr is not None:
                         line += f" | MGMT IP: {machine.mgmt_ip_addr}"
                     logger.log("CLI", line)
@@ -191,7 +191,7 @@ class CLI(Dismantable):
                 logger.opt(ansi=True).log("CLI", "--------- Proto²Testbed Interactive Mode Help ---------")
                 logger.opt(ansi=True).log("CLI", "  <u>c</u>ontinue (INIT|EXPERIMENT) -> Continue testbed (to next pause step)", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>a</u>ttach \<Instance>          -> Attach to TTY of an Instance", color=True)
-                logger.opt(ansi=True).log("CLI", "  <u>c</u>o<u>p</u>y (\<Instance>:)\<Path> (\<Instance>:)\Path -> Copy files from/to instance", color=True)
+                logger.opt(ansi=True).log("CLI", "  <u>c</u>o<u>p</u>y (\<Instance>:)\<Path> (\<Instance>:)\<Path> -> Copy files from/to instance", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>l</u>i<u>s</u>t                       -> List all Instances in testbed", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>p</u>reserve \<Instance>:\<Path> -> Mark file or directory for preservation", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>e</u>xit                       -> Terminate Testbed", color=True)
