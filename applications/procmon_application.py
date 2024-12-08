@@ -1,9 +1,8 @@
-import psutil
 import time
 
 from typing import Dict, List, Optional, Tuple
 
-from applications.base_application import BaseApplication
+from applications.base_application import *
 from common.application_configs import ApplicationSettings
 
 
@@ -27,6 +26,8 @@ class ProcmonApplication(BaseApplication):
             return False, f"Config validation failed: {ex}"
 
     def start(self, runtime: int) -> bool:
+        import psutil
+
         if self.settings is None:
             return False
 
@@ -166,3 +167,133 @@ class ProcmonApplication(BaseApplication):
             sleep_left -= self.settings.interval
             
         return tracking_error_flag == 0
+    
+    def get_export_mapping(self, subtype: ExportSubtype) -> Optional[List[ExportResultMapping]]:
+        match subtype.name:
+            case "proc-system":
+                return [
+                    ExportResultMapping(
+                        name="cpu_user",
+                        type=ExportResultDataType.SECONDS, 
+                        description="User CPU Time"
+                    ),
+                    ExportResultMapping(
+                        name="cpu_system", 
+                        type=ExportResultDataType.SECONDS,
+                        description="System/Kernel CPU Time"
+                    ),
+                    ExportResultMapping(
+                        name="cpu_idle", 
+                        type=ExportResultDataType.SECONDS,
+                        description="Idle CPU Time"
+                    ),
+                    ExportResultMapping(
+                        name="mem_used", 
+                        type=ExportResultDataType.DATA_SIZE,
+                        description="Used System Memory"
+                    ),
+                    ExportResultMapping(
+                        name="mem_free", 
+                        type=ExportResultDataType.DATA_SIZE,
+                        description="Free System Memory"
+                    )
+                ]
+            case "proc-process":
+                return [
+                    ExportResultMapping(
+                        name="cpu_user", 
+                        type=ExportResultDataType.SECONDS,
+                        description="Process CPU User Time",
+                        additional_selectors={"process": subtype.options["process"]},
+                        title_suffix=f'Process: {subtype.options["process"]}'
+                    ),
+                    ExportResultMapping(
+                        name="cpu_system",
+                        type=ExportResultDataType.SECONDS,
+                        description="Process CPU System Time",
+                        additional_selectors={"process": subtype.options["process"]},
+                        title_suffix=f'Process: {subtype.options["process"]}'
+                    ),
+                    ExportResultMapping(
+                        name="mem_rss",
+                        type=ExportResultDataType.DATA_SIZE,
+                        description="Process Memory Resident Set Size",
+                        additional_selectors={"process": subtype.options["process"]},
+                        title_suffix=f'Process: {subtype.options["process"]}'
+                    ),
+                    ExportResultMapping(
+                        name="mem_vms",
+                        type=ExportResultDataType.DATA_SIZE,
+                        description="Process Virtual Memory Size",
+                        additional_selectors={"process": subtype.options["process"]},
+                        title_suffix=f'Process: {subtype.options["process"]}'
+                    ),
+                    ExportResultMapping(
+                        name="mem_shared",
+                        type=ExportResultDataType.DATA_SIZE,
+                        description="Proces Shared Memory Size",
+                        additional_selectors={"process": subtype.options["process"]},
+                        title_suffix=f'Process: {subtype.options["process"]}'
+                    )
+                ]
+            case "proc-interface":
+                return [
+                    ExportResultMapping(
+                        name="bytes_sent",
+                        type=ExportResultDataType.DATA_SIZE,
+                        description="Bytes sent via Interface",
+                        additional_selectors={"interface": subtype.options["interface"]},
+                        title_suffix=f'Interface: {subtype.options["interface"]}'
+                    ),
+                    ExportResultMapping(
+                        name="bytes_recv",
+                        type=ExportResultDataType.DATA_SIZE,
+                        description="Bytes received via Interface",
+                        additional_selectors={"interface": subtype.options["interface"]},
+                        title_suffix=f'Interface: {subtype.options["interface"]}'
+                    ),
+                    ExportResultMapping(
+                        name="packets_sent",
+                        type=ExportResultDataType.COUNT,
+                        description="Packets sent via Interface",
+                        additional_selectors={"interface": subtype.options["interface"]},
+                        title_suffix=f'Interface: {subtype.options["interface"]}'
+                    ),
+                    ExportResultMapping(
+                        name="packets_recv",
+                        type=ExportResultDataType.COUNT,
+                        description="Packets received via Interface",
+                        additional_selectors={"interface": subtype.options["interface"]},
+                        title_suffix=f'Interface: {subtype.options["interface"]}'
+                    ),
+                    ExportResultMapping(
+                        name="errin",
+                        type=ExportResultDataType.COUNT,
+                        description="Interface Input Errors",
+                        additional_selectors={"interface": subtype.options["interface"]},
+                        title_suffix=f'Interface: {subtype.options["interface"]}'
+                    ),
+                    ExportResultMapping(
+                        name="errout",
+                        type=ExportResultDataType.COUNT,
+                        description="Interface Output Errors",
+                        additional_selectors={"interface": subtype.options["interface"]},
+                        title_suffix=f'Interface: {subtype.options["interface"]}'
+                    ),
+                    ExportResultMapping(
+                        name="dropin",
+                        type=ExportResultDataType.COUNT,
+                        description="Interface Input Drops",
+                        additional_selectors={"interface": subtype.options["interface"]},
+                        title_suffix=f'Interface: {subtype.options["interface"]}'
+                    ),
+                    ExportResultMapping(
+                        name="dropout",
+                        type=ExportResultDataType.COUNT,
+                        description="Interface Output Drops",
+                        additional_selectors={"interface": subtype.options["interface"]},
+                        title_suffix=f'Interface: {subtype.options["interface"]}'
+                    )
+                ]
+            case _:
+                raise Exception(f"Unknown subtype '{subtype.name}' for procmon application")

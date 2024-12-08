@@ -1,8 +1,8 @@
 import traceback
 
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
-from applications.base_application import BaseApplication
+from applications.base_application import *
 from applications.iperf_common import run_iperf
 from common.application_configs import ApplicationSettings
 
@@ -85,5 +85,49 @@ class IperfClientApplication(BaseApplication):
         except Exception as ex:
             traceback.print_exception(ex)
             raise Exception(f"Iperf3 server error: {ex}")
-
-
+        
+    def get_export_mapping(self, subtype: ExportSubtype) -> Optional[List[ExportResultMapping]]:
+        match subtype.name:
+            case "iperf-udp-client":
+                return [
+                    ExportResultMapping(
+                        name="transfer",
+                        type=ExportResultDataType.DATA_SIZE,
+                        description="Transfer Size"
+                    ),
+                    ExportResultMapping(
+                        name="bitrate",
+                        type=ExportResultDataType.DATA_RATE,
+                        description="Transfer Bitrate"
+                    ),
+                    ExportResultMapping(
+                        name="datagrams",
+                        type=ExportResultDataType.COUNT,
+                        description="Number of UDP datagrams"
+                    )
+                ]
+            case "iperf-tcp-client":
+                return [
+                    ExportResultMapping(
+                        name="transfer",
+                        type=ExportResultDataType.DATA_SIZE,
+                        description="Transfer Size"
+                    ),
+                    ExportResultMapping(
+                        name="bitrate",
+                        type=ExportResultDataType.DATA_RATE,
+                        description="Transfer Bitrate"
+                    ),
+                    ExportResultMapping(
+                        name="retransmit",
+                        type=ExportResultDataType.COUNT,
+                        description="Number of Retransmits"
+                    ),
+                    ExportResultMapping(
+                        name="congestion",
+                        type=ExportResultDataType.DATA_SIZE,
+                        description="Congestion Window Size"
+                    )
+                ]
+            case _:
+                raise Exception(f"Unknown subtype '{subtype.name}' for iperf-client application")

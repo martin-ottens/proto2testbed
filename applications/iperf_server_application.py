@@ -1,8 +1,8 @@
 import traceback
 
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
-from applications.base_application import BaseApplication
+from applications.base_application import *
 from applications.iperf_common import run_iperf
 from common.application_configs import ApplicationSettings
 
@@ -47,3 +47,50 @@ class IperfServerApplication(BaseApplication):
         except Exception as ex:
             traceback.print_exception(ex)
             raise Exception(f"Iperf3 server error: {ex}")
+
+    def get_export_mapping(self, subtype: ExportSubtype) -> Optional[List[ExportResultMapping]]:
+        match subtype.name:
+            case "iperf-udp-server":
+                return [
+                    ExportResultMapping(
+                        name="transfer",
+                        type=ExportResultDataType.DATA_SIZE,
+                        description="Transfer Size"
+                    ),
+                    ExportResultMapping(
+                        name="bitrate",
+                        type=ExportResultDataType.DATA_RATE,
+                        description="Transfer Bitrate"
+                    ),
+                    ExportResultMapping(
+                        name="jitter",
+                        type=ExportResultDataType.MILLISECONDS,
+                        description="Transfer Jitter"
+                    ),
+                    ExportResultMapping(
+                        name="datagrams_lost",
+                        type=ExportResultDataType.COUNT,
+                        description="Number of lost UDP datagrams"
+                    ),
+                    ExportResultMapping(
+                        name="datagrams_total",
+                        type=ExportResultDataType.COUNT,
+                        description="Number of total UDP datagrams"
+                    )
+                ]
+            case "iperf-tcp-server":
+                return [
+                    ExportResultMapping(
+                        name="transfer",
+                        type=ExportResultDataType.DATA_SIZE,
+                        description="Transfer Size"
+                    ),
+                    ExportResultMapping(
+                        name="bitrate",
+                        type=ExportResultDataType.DATA_RATE,
+                        description="Transfer Bitrate"
+                    )
+                ]
+            case _:
+                raise Exception(f"Unknown subtype '{subtype.name}' for iperf-server application")
+

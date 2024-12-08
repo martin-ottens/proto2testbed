@@ -16,20 +16,22 @@ from utils.system_commands import get_asset_relative_to
 from utils.settings import CommonSettings
 
 class InfluxDBAdapter(Dismantable):
+    def _get_client(self) -> InfluxDBClient:
+        if self.user is not None:
+            return InfluxDBClient(host=self.host, port=self.port, 
+                                user=self.user, password=self.password, 
+                                retries=self.retries, timeout=self.timeout)
+        else:
+            return InfluxDBClient(host=self.host, port=self.port,
+                                retries=self.retries, timeout=self.timeout)
+
     def _insert_thread(self):
         if self.store_disabled:
             return
         
         try:
-            if self.user is not None:
-                client = InfluxDBClient(host=self.host, port=self.port,
-                                         user=self.user, password=self.password,
-                                         retries=self.retries, timeout=self.timeout)
-                client.switch_database(self.database)
-            else:
-                client = InfluxDBClient(host=self.host, port=self.port,
-                                         retries=self.retries, timeout=self.timeout)
-                client.switch_database(self.database)
+            client = self._get_client()
+            client.switch_database(self.database)
         except Exception as ex:
             logger.opt(exception=ex).error("InfluxDBAdapter: Unable to connect to databse")
             return
@@ -53,38 +55,33 @@ class InfluxDBAdapter(Dismantable):
     def _check_connection(self) -> bool:
         if self.store_disabled:
             return True
-    
-        if self.user is not None:
-            client = InfluxDBClient(host=self.host, port=self.port, 
-                                user=self.user, password=self.password, 
-                                retries=self.retries, timeout=self.timeout)
-        else:
-            client = InfluxDBClient(host=self.host, port=self.port,
-                                retries=self.retries, timeout=self.timeout)
+        
+        client = None
 
         try:
+            client = self._get_client()
             databases = client.get_list_database()
+
+            if not len(list(filter(lambda x: x["name"] == self.database, databases))):
+                logger.critical(f"InfluxDBAdapter: InfluxDB database '{self.database}' not found!")
+                return False
         except Exception as ex:
             logger.opt(exception=ex).critical("InfluxDBAdapter: Unable to connect to InfluxDB")
-            client.close()
             return False
-
-        if not len(list(filter(lambda x: x["name"] == self.database, databases))):
-            logger.critical(f"InfluxDBAdapter: InfluxDB database '{self.database}' not found!")
-            client.close()
-            return False
+        finally:
+            if client is not None:
+                client.close()
     
         logger.info(f"InfluxDBAdapter: InfluxDB is up & running, database '{self.database}' was found.")
-        client.close()
         return True
 
     def __init__(self, series_name: Optional[str] = None,
-                 store_disabled: bool = False, config_path: Optional[Path] = None):
-        self.store_disabled = store_disabled
+                 warn_on_no_database: bool = False, config_path: Optional[Path] = None):
+        self.store_disabled = warn_on_no_database
         self.series_name = series_name
 
         if config_path is None:
-            if not store_disabled and "INFLUXDB_DATABASE" not in os.environ.keys():
+            if not warn_on_no_database and "INFLUXDB_DATABASE" not in os.environ.keys():
                 default_database = CommonSettings.default_configs.get_defaults("influx_database")
                 if default_database is None:
                     logger.critical("InfluxDBAdapter: INFLUXDB_DATABASE not set in environment. Set varaible or specify config.")
@@ -127,7 +124,7 @@ class InfluxDBAdapter(Dismantable):
             self.host = config.get("host", "127.0.0.1")
             self.user = config.get("user", None)
             self.port = config.get("port", 8086)
-            self.store_disabled = config.get("disabled", store_disabled)
+            self.store_disabled = config.get("disabled", warn_on_no_database)
             self.timeout = config.get("timeout", 20)
             self.retries = config.get("retries", 4)
 
@@ -138,6 +135,18 @@ class InfluxDBAdapter(Dismantable):
         self._lock = threading.Lock()
         self._running = False
         self._thread = False
+        self._reader = None
+
+    def get_reader_client(self) -> Optional[InfluxDBClient]:
+        if self._reader is None:
+            try:
+                self._reader = self._get_client()
+                self._reader.switch_database(self.database)
+            except Exception as ex:
+                logger.opt(exception=ex).critical("Unable to create InfluxDB reader client")
+                return None
+        
+        return self._reader
 
     def insert(self, point: Any) -> bool:
         if self.store_disabled:

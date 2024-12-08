@@ -87,3 +87,6 @@ class RunProgramApplication(BaseApplication):
                 return True
             else:
                 raise Exception(f"Timeout during program execution: {ex}")
+            
+    def exports_data(self) -> bool:
+        return False

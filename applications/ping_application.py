@@ -1,8 +1,8 @@
 import subprocess
 
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
-from applications.base_application import BaseApplication
+from applications.base_application import *
 from common.application_configs import ApplicationSettings
 
 
@@ -107,3 +107,22 @@ class PingApplication(BaseApplication):
             raise Exception(f"Ping error: {ex}")
 
         return process.wait() == 0
+    
+    def get_export_mapping(self, subtype: ExportSubtype) -> Optional[List[ExportResultMapping]]:
+        return [
+            ExportResultMapping(
+                name="rtt",
+                type=ExportResultDataType.MILLISECONDS,
+                description="ICMP RTT"
+            ),
+            ExportResultMapping(
+                name="reachable",
+                type=ExportResultDataType.COUNT,
+                description="TTL of response packet"
+            ),
+            ExportResultMapping(
+                name="reachable",
+                type=ExportResultDataType.COUNT,
+                description="Target reachable"
+            )
+        ]
