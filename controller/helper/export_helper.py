@@ -93,7 +93,7 @@ class ResultExportHelper:
                     logger.warning(f"Application '{application.name}' of type '{application.application}' from instance '{instance_name}' does not define export outputs, even data exists.")
                     continue
             except Exception as ex:
-                logger.opt(exception=ex).error(f"Error getting export mappings for application '{application.name}' of type '{application.application}' from instance '{instance.name}'")
+                logger.opt(exception=ex).error(f"Error getting export mappings for application '{application.name}' of type '{application.application}' from instance '{instance_name}'")
                 return False
             
             for series in data_mappings:
