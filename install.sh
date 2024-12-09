@@ -52,8 +52,7 @@ read -r -p "Link scripts and programs? (y/N): " response
     
 if [[ "$response" =~ ^[Yy]$ ]]; then
     ln -s /opt/proto-testbed/proto-testbed /usr/local/bin/p2t
-    ln -s /opt/proto-testbed/scripts/get_tty.py /usr/local/bin/p2t-tty
-    ln -s /opt/proto-testbed/scripts/image_creator.py /usr/local/bin/p2t-genimg
+    ln -s /opt/proto-testbed/baseimage-creation/im-installer.py /usr/local/bin/p2t-genimg
 fi
     
 echo "Installation finished!"

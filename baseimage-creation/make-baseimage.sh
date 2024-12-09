@@ -2,8 +2,8 @@
 
 # Proto²Testbed Base Image Creation Script
 # 
-# This script installes a Debian 12 OS to a base diskimage in a fully automated
-# way.
+# This script installes a Debian 12 amd64 OS to a base diskimage in a fully 
+# automated way.
 
 # Bash strict mode.
 set -euo pipefail
