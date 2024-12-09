@@ -6,6 +6,10 @@
 # 2. -> Run the script as root from within this directory
 #
 
+# Bash strict mode.
+set -euo pipefail
+IFS=$'\n\t'
+
 if [[ -f /etc/os-release ]]; then
     source /etc/os-release
 

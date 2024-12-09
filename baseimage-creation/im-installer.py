@@ -14,7 +14,7 @@ from loguru import logger
 
 import pexpect.expect
 
-PEXPECT_TIMEOUT = 30
+PEXPECT_TIMEOUT = 60
 PEXPECT_VMNAME = "debian"
 PEXPECT_ROOT_USER = "root"
 PEXPECT_ROOT_PASSWD = "1"
@@ -49,7 +49,7 @@ def wait_for_shell_on_vm(proc: pexpect.spawn, timeout: int = PEXPECT_TIMEOUT):
 
 def run_one_command_on_vm(command: str, proc: pexpect.spawn, 
                           expected_rc: int = 0, timeout: int = PEXPECT_TIMEOUT) -> bool:
-    logger.success(f"Exceuting command '{command}' on VM.")
+    logger.info(f"Exceuting command '{command}' on VM ...")
     proc.sendline(command)
     wait_for_shell_on_vm(proc, timeout=timeout)
     proc.sendline("echo $?")
@@ -63,6 +63,7 @@ def run_one_command_on_vm(command: str, proc: pexpect.spawn,
         logger.error(f"Command '{command}' finished with unexpected exit code: {rc} != {expected_rc}")
         return False
     else:
+        logger.success(f"Sucessfully executed command '{command}'.")
         return True
 
 
