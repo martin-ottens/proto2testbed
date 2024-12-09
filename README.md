@@ -1,5 +1,25 @@
 # Proto²Testbed
 
+*Testbed framework for security **proto**col evaluation and **proto**typing.*
+
+Proto²Testbed is a tool for research and development in the field of network applications and protocols. 
+A virtual topology is created using serveral virtual machines (called instances), which are connected to each other using network bridges.
+The structure of the topology, the configuration and also experiments are defined via a testbed package.
+After a small amount of manual configuration, Proto²Testbed takes care of setting up and dismantling the topology and carrying out experiments, if desired, completely automated way.
+Proto²Testbed can be used for various workflows and can be extended with functions for specific projects thanks to its modular approach.
+
+## Functional Overview & Terms
+- The main part of Proto²Testbed, the **Controller**, is installed on a *Debian 12* workstation, server or even desktop. This system is called the **Testbed Host**.
+- The Topology of a testbed and some configurations are defined in the testbed configuration file `testbed.json`, this file is bundeled together with scripts and additional dependencies that are used during a testbed execution to form a **Testbed Package**.
+- The Controller reads the configuration file. It starts and configures virtual machines, called **Instances**. Instances are run using *QEMU* and connected using Linux Layer-2-Network-Bridges.
+- Instances are based on Disk Images, these images are used in a read only way - all changes to the file system of an Instance are temporary. Proto²Testbed provides tools to automatically create the required disk images. Since all Instances are fully virtualized, tests with kernel modules are possible, which is often not the case with other testbed frameworks.
+- The **Instance Manager** is installed on each Instance and handles communication with the Controller, performs the configuration of the Instance and can carry out experiments.
+- Experiments are done using **Applications**. These are programs written in *Python* and executed on the Instances with a settings defined in the testbed configuration. Proto²Testbed comes with some bundeled Applications, but an easy API allows for development of own Applications.
+- A testbed run can yield different types of experiment artifacs: Applications usually write datapoints to an *InfluxDB* - the framework includes functions to export the data. It is also possible to save files from Instances on the Testbed Host before the testbed is dismantled.
+- Proto²Testbed also allows real network interfaces of the Testbed Host to be integrated into a virtual testbed topology. **Integrations** are available to execute special functions on the Testbed Host during testbed runs.
+- In addition to the fully automatic operation, numerous CLI features also allow a testbed to be used interactively - great for debugging or prototyping.
+- Variables in the testbed configuration allows the test of different environments or scenarios. Especially with integration in CI/CD tools, Proto²Tetsbed can also be used as a tool for automatic software tests.
+
 ## 1. Prepare Host Machine
 
 Install a current Debian 12 OS, no GUI is required. All following commands and

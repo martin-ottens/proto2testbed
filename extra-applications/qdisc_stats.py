@@ -170,26 +170,7 @@ class QdiscStatsApplication(BaseApplication):
         
         return True
 
-    def get_export_mapping(self, subtype: ExportSubtype) -> Optional[List[ExportResultMapping]]:
-        # result["sent_bytes"] = self.__interpret_number(sent_bytes)
-        # result["sent_packets"] = self.__interpret_number(sent_packets)
-
-        # (dropped %i, overlimits %i requeues %i)
-        # _, dropped_dirty, _, overlimits, _, requeues_dirty, remain = remain.split(" ", maxsplit=6)
-        # result["dropped"] = self.__interpret_number(dropped_dirty.replace(",", ""))
-        # result["overlimits"] = self.__interpret_number(overlimits)
-        # result["sent_requeues"] = self.__interpret_number(requeues_dirty.replace(")", ""))
-
-        # backlog %ib %ip requeues %i <remainder>
-        # parts = remain.split(" ", maxsplit=5)
-        # if len(parts) == 5:
-        #     _, backlog_b_dirty, backlog_p_dirty, _, requeues = parts
-        # else:
-        #     _, backlog_b_dirty, backlog_p_dirty, _, requeues, _ = parts
-        # result["backlog_bytes"] = self.__interpret_number(backlog_b_dirty[:-1])
-        # result["backlog_packets"] = self.__interpret_number(backlog_p_dirty[:-1])
-        # result["backlog_requeues"] 
-        
+    def get_export_mapping(self, subtype: ExportSubtype) -> Optional[List[ExportResultMapping]]:        
         return [
             ExportResultMapping(
                 name="sent_bytes",

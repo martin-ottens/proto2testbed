@@ -35,6 +35,7 @@ class ExportResultDataType(Enum):
     def format_identity(x, pos):
         return f"{x:.2f}"
 
+    # Plot axis unit, csv file header, formatter function for plot
     MILLISECONDS = "ms", "ms", format_identity
     SECONDS = "s", "s", format_identity
     DATA_SIZE = "bytes", "bytes", format_datasize
@@ -42,7 +43,7 @@ class ExportResultDataType(Enum):
     COUNT = "", "count", format_identity
 
     def __call__(self, *args, **kwargs):
-        self.value[1](*args, **kwargs)
+        self.value[2](*args, **kwargs)
 
 @dataclass
 class ExportResultMapping:
