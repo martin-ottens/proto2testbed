@@ -57,10 +57,9 @@ This example show the possibility to integrate real hardware to a testbed and us
     apt install -y ethtool
    ```
 
-3. Load required environment variables:
+3. Load required environment variable:
     ```bash
     export EXPERIMENT_TAG=hardware_test
-    export INFLUXDB_DATABASE=testbed
     ```
 
 4. Start the testbed:
@@ -71,13 +70,11 @@ This example show the possibility to integrate real hardware to a testbed and us
 
 5. Export the results (and clean up):
    ```bash
-   cd <proto-testbed>/scripts/
-   ./result_renderer.py --config ../setups/example3/testbed.json --influx_database $INFLUXDB_DATABASE --experiment $EXPERIMENT_TAG --renderout ./${EXPERIMENT_TAG}-images
-
-   ./result_export.py --config ../setups/example3/testbed.json --influx_database $INFLUXDB_DATABASE --experiment $EXPERIMENT_TAG --output ./${EXPERIMENT_TAG}-csvs
+   ./proto-testbed export -e $EXPERIMENT_TAG -o ./${EXPERIMENT_TAG}-images image setups/example1
+   ./proto-testbed export -e $EXPERIMENT_TAG -o ./${EXPERIMENT_TAG}-csvs csv setups/example1 
 
     # Optional: Clean up data from InfluxDB (Should be done before repeating the experiment)
-    ./result_cleanup.py --experiment $EXPERIMENT_TAG --influx_database $INFLUXDB_DATABASE
+   ./proto-testbed clean -e $EXPERIMENT_TAG
 
     # Optional: Delete disk images (After all experiments are completed)
     rm /tmp/endpoint.qcow2

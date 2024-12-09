@@ -42,6 +42,7 @@ echo "Setting up default configs ..."
 chmod go+r -R /opt/proto-testbed
 mkdir -p -m 774 /etc/proto2testbed
 cp proto2testbed_defaults.json /etc/proto2testbed/.
+chmod 774 /etc/proto2testbed/*
 
 read -r -p "Link scripts and programs? (y/N): " response
     
@@ -49,9 +50,6 @@ if [[ "$response" =~ ^[Yy]$ ]]; then
     ln -s /opt/proto-testbed/proto-testbed /usr/local/bin/p2t
     ln -s /opt/proto-testbed/scripts/get_tty.py /usr/local/bin/p2t-tty
     ln -s /opt/proto-testbed/scripts/image_creator.py /usr/local/bin/p2t-genimg
-    ln -s /opt/proto-testbed/scripts/result_renderer.py /usr/local/bin/p2t-render
-    ln -s /opt/proto-testbed/scripts/result_export.py /usr/local/bin/p2t-export
-    ln -s /opt/proto-testbed/scripts/result_clean.py /usr/local/bin/p2t-clean
 fi
     
 echo "Installation finished!"

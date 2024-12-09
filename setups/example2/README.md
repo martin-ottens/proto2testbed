@@ -64,9 +64,6 @@ N = Number of router \in {1,10}
     export $(grep -v '^#' .env-1router | xargs)
     # 10 routers between the endpoints
     export $(grep -v '^#' .env-10router | xargs)
-
-    # In every case: Set the name of the InfluxDB database
-    export INFLUXDB_DATABASE=testbed
     ```
 
 4. Start the testbed:
@@ -77,13 +74,11 @@ N = Number of router \in {1,10}
 
 5. Export the results (and clean up):
    ```bash
-   cd <proto-testbed>/scripts/
-   ./result_renderer.py --config ../setups/example2/testbed.json --influx_database $INFLUXDB_DATABASE --experiment $EXPERIMENT_TAG --renderout ./${EXPERIMENT_TAG}-images
-
-   ./result_export.py --config ../setups/example2/testbed.json --influx_database $INFLUXDB_DATABASE --experiment $EXPERIMENT_TAG --output ./${EXPERIMENT_TAG}-csvs
+   ./proto-testbed export -e $EXPERIMENT_TAG -o ./${EXPERIMENT_TAG}-images image setups/example2
+   ./proto-testbed export -e $EXPERIMENT_TAG -o ./${EXPERIMENT_TAG}-csvs csv setups/example2 
 
     # Optional: Clean up data from InfluxDB (Should be done before repeating the experiment)
-    ./result_cleanup.py --experiment $EXPERIMENT_TAG --influx_database $INFLUXDB_DATABASE
+   ./proto-testbed clean -e $EXPERIMENT_TAG
 
     # Optional: Delete disk images (After all experiments are completed)
     rm /tmp/endpoint.qcow2

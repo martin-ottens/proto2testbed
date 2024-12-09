@@ -72,27 +72,23 @@ When creating the image on a virtual machine itself, you can pass `--no_kvm` to 
 Before starting: Change the image path for all testbed machines (in this repo: `"diskimage": "/root/debian-test.qcow2"`) in `setups/sample/testbed.json` to the correct path of the image created in the previous step.
 
 ```bash
-export INFLUXDB_DATABASE=testbed
-./proto-testbed -e exmaple ../setups/sample
+./proto-testbed run -e exmaple ../setups/sample
 ```
 The following options are helpful (see `./proto-testbed -h` for further details):
 - **`-d`**: Do not store any results to InfluxDB (useful for debugging)
-- **`--clean`**: Cleanup previous, not fully dismantled testbed setups network modifications
-- **`--pause INIT`**: Halt the testbed after VM initialization and do not run experiments (useful for debugging, e.g. SSH into VMs)
+- **`-i INIT`**: Halt the testbed after VM initialization and do not run experiments (useful for debugging, e.g. SSH into VMs)
 
 Running the testbed system on a virtual machine itself is possible, but not recommended for productive use due to severe speed penalties. To allow this testing purposes, add `--no_kvm` when starting an experiment. (Other options, not documented here: Enable nested KVM virtualization in the host systems kernel.)
 
 ### Plot and/or Export data
 ```bash
-cd scripts
-./result_renderer.py --config ../setups/sample/testbed.json --experiment example --influx_database testbed --renderout ./plots # Render matplotlib plots to ./plots
-./result_export.py -config ../setups/sample/testbed.json --experiment example --influx_database testbed --output ./csvs # Export experiment data as CSV to ./csvs
+./proto-testbed export -e example -o ./plots image . # Render matplotlib plots to ./plots
+./proto-testbed export -e example -o ./csvs csv . # Export experiment data as CSV to ./csvs
 ```
 
 ### Clean up
 ```bash
-cd scripts
-./result_cleanup.py --experiment example --influx_database testbed
+./proto-testbed clean -e exmaple
 ```
 
 ## 4. Optional: Use Host for GitLab-CI-Integration

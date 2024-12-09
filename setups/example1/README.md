@@ -59,26 +59,21 @@ This setup allows to see, how the throughput in both version is impacted when th
     export $(grep -v '^#' .env-normal | xargs)
     # For experiment with WireGuard enabled
     export $(grep -v '^#' .env-wireguard | xargs)
-
-    # In every case: Set the name of the InfluxDB database
-    export INFLUXDB_DATABASE=testbed
     ```
 
 4. Start the testbed:
    ```bash
    cd <proto-testbed>
-   ./proto-testbed -e $EXPERIMENT_TAG setups/example1
+   ./proto-testbed run -e $EXPERIMENT_TAG setups/example1
    ```
 
 5. Export the results (and clean up):
    ```bash
-   cd <proto-testbed>/scripts/
-   ./result_renderer.py --config ../setups/example1/testbed.json --influx_database $INFLUXDB_DATABASE --experiment $EXPERIMENT_TAG --renderout ./${EXPERIMENT_TAG}-images
-
-   ./result_export.py --config ../setups/example1/testbed.json --influx_database $INFLUXDB_DATABASE --experiment $EXPERIMENT_TAG --output ./${EXPERIMENT_TAG}-csvs
+   ./proto-testbed export -e $EXPERIMENT_TAG -o ./${EXPERIMENT_TAG}-images image setups/example1
+   ./proto-testbed export -e $EXPERIMENT_TAG -o ./${EXPERIMENT_TAG}-csvs csv setups/example1 
 
     # Optional: Clean up data from InfluxDB (Should be done before repeating the experiment)
-    ./result_cleanup.py --experiment $EXPERIMENT_TAG --influx_database $INFLUXDB_DATABASE
+   ./proto-testbed clean -e $EXPERIMENT_TAG
 
     # Optional: Delete disk images (After all experiments are completed)
     rm /tmp/{router,endpoint}.qcow2
