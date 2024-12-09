@@ -35,11 +35,11 @@ class ExportResultDataType(Enum):
     def format_identity(x, pos):
         return str(x)
 
-    MILLISECONDS = "ms", format_identity
-    SECONDS = "s", format_identity
-    DATA_SIZE = "bytes", format_datasize
-    DATA_RATE = "bits/s", format_datarate
-    COUNT = "", format_identity
+    MILLISECONDS = "ms", "ms", format_identity
+    SECONDS = "s", "s", format_identity
+    DATA_SIZE = "bytes", "bytes", format_datasize
+    DATA_RATE = "bits/s", "bps", format_datarate
+    COUNT = "", "count", format_identity
 
     def __call__(self, *args, **kwargs):
         self.value[1](*args, **kwargs)

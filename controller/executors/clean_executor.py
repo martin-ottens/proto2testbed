@@ -12,6 +12,49 @@ class CleanExecutor(BaseExecutor):
 
     def __init__(self, subparser: argparse._SubParsersAction):
         super().__init__(subparser)
+        self.subparser.add_argument("--all", action="store_true", required=False, default=False, 
+                                    help="Delete all measurements from database")
 
     def invoke(self, args) -> int:
-        pass
+        from cli import CLI
+        from utils.influxdb import InfluxDBAdapter
+
+        CLI(CommonSettings.log_verbose, None)
+
+        if CommonSettings.experiment_generated and not args.all:
+            logger.critical(f"No experiment tag was specified, use -e to specify an experiment tag.")
+            return 1
+        
+        adapter = InfluxDBAdapter(warn_on_no_database=True,
+                                  config_path=CommonSettings.influx_path)
+        client = adapter.get_access_client()
+        if client is None:
+            raise Exception("Unable to create InfluxDB access client")
+
+        if not args.all:
+            logger.info(f"Deleting all result data with experiment tag '{CommonSettings.experiment}' from database '{adapter.get_selected_database()}'")
+            try:
+                client.delete_series(tags={"experiment": CommonSettings.experiment})
+            except Exception as ex:
+                logger.opt(exception=ex).critical(f"Unable to delete experiment tag '{CommonSettings.experiment}' from database '{adapter.get_selected_database()}'")
+                return 1
+            finally:
+                adapter.close_access_client()
+            
+            logger.success(f"All data for experiment tag '{CommonSettings.experiment}' deleted")
+            return 0
+        else:
+            logger.info(f"Deleting ALL data from database '{adapter.get_selected_database()}'")
+            try:
+                for measurment in client.get_list_measurements():
+                    name = measurment["name"]
+                    logger.debug(f"Deleting measurement '{name}'")
+                    client.drop_measurement(name)
+            except Exception as ex:
+                logger.opt(exception=ex).critical(f"Error deleting ALL dara from database '{adapter.get_selected_database()}'")
+                return 1
+            finally:
+                adapter.close_access_client()
+            
+            logger.success(f"Deleted ALL data from database '{adapter.get_selected_database()}'")
+            return 0

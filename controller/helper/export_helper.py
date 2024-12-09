@@ -34,7 +34,7 @@ class ResultExportHelper:
         self.exclude_applications = exclude_applications
         self.adapter = InfluxDBAdapter(warn_on_no_database=True, 
                                        config_path=CommonSettings.influx_path)
-        self.reader = self.adapter.get_reader_client()
+        self.reader = self.adapter.get_access_client()
         if self.reader is None:
             raise Exception("Unable to create InfluxDB data reader")
 
@@ -42,6 +42,8 @@ class ResultExportHelper:
                                         ["exports_data", "get_export_mapping"])
         self.loader.read_packaged_apps()
 
+    def __del__(self) -> None:
+        self.adapter.close_access_client()
     
     def _map_to_application_class(self, app_config: ApplicationConfig) -> Optional[BaseApplication]:
         try: 
@@ -213,11 +215,7 @@ class ResultExportHelper:
         return True
 
     def output_to_plot(self, output_path: str, format: str = "pdf") -> bool:
-        
         path = Path(output_path)
-        if not path.exists():
-            logger.critical(f"Output path '{path}' does not exist.")
-            return False
 
         try:
             import matplotlib.pyplot as plt
@@ -234,7 +232,7 @@ class ResultExportHelper:
             plt.ylabel(f"{container.export_mapping.name} {f'({container.export_mapping.type.value[0]})' if container.export_mapping.type.value[0] != '' else ''}", 
                        fontsize=7)
 
-            ax.yaxis.set_major_formatter(ticker.FuncFormatter(container.export_mapping.type.value[1]))
+            ax.yaxis.set_major_formatter(ticker.FuncFormatter(container.export_mapping.type.value[2]))
 
             title = f"Experiment: {CommonSettings.experiment}, Series: {container.app_config.name}@{container.instance}, "
             title += f"Application: {container.export_mapping.name}@{container.app_config.application}"
@@ -255,11 +253,35 @@ class ResultExportHelper:
             plt.close()
             logger.debug(f"Plot rendered to file: {filename}")#
             logger.success(f"Rendered Plot: instance={container.instance}, application={container.app_config.application}, app_mame={container.app_config.name}, type={container.type_name}, series={container.export_mapping.name}")
-        
+
+            return True
+
         return self._process_series(plot_export_callback)
 
     def output_to_flatfile(self, output_path: str) -> bool:
+        path = Path(output_path)
+
         def flatfile_export_callback(container: SeriesContainer):
-            pass
+            basepath = path / container.instance / container.app_config.name
+
+            if len(container.x) != len(container.y):
+                logger.error(f"Exporting of {container.type_name} from series {container.export_mapping.name} failed: len(x) != len(y)")
+                return False
+
+            if not basepath.exists():
+                logger.debug(f"Creating output path '{basepath}'")
+                os.makedirs(basepath, exist_ok=True)
+            
+            filename = basepath / f"{container.app_config.application}_{container.export_mapping.name}.csv"
+
+            with open(filename, "w") as handle:
+                handle.write(f"time,{container.export_mapping.type.value[1]}\n")
+                for index in range(0, len(container.x)):
+                    handle.write(f"{container.x[index]},{container.y[index]}\n")
+
+            logger.debug(f"CSV file rendered to file: {filename}")#
+            logger.success(f"Exported CSV file: instance={container.instance}, application={container.app_config.application}, app_mame={container.app_config.name}, type={container.type_name}, series={container.export_mapping.name}")
+
+            return True
 
         self._process_series(flatfile_export_callback)

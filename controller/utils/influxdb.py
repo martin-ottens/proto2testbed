@@ -137,7 +137,10 @@ class InfluxDBAdapter(Dismantable):
         self._thread = False
         self._reader = None
 
-    def get_reader_client(self) -> Optional[InfluxDBClient]:
+    def get_selected_database(self) -> str:
+        return self.database
+
+    def get_access_client(self) -> Optional[InfluxDBClient]:
         if self._reader is None:
             try:
                 self._reader = self._get_client()
@@ -148,6 +151,11 @@ class InfluxDBAdapter(Dismantable):
                 return None
         
         return self._reader
+    
+    def close_access_client(self):
+        if self._reader is not None:
+            self._reader.close()
+            self._reader = None
 
     def insert(self, point: Any) -> bool:
         if self.store_disabled:
@@ -186,6 +194,8 @@ class InfluxDBAdapter(Dismantable):
         self._running = True
 
     def stop(self):
+        self.close_access_client()
+
         if self.store_disabled:
             return
 
