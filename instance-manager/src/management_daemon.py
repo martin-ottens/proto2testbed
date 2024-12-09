@@ -102,8 +102,11 @@ class IMClientThread(Thread):
         self.manager.send_data_point(measurement, points, tags)
         return self._respond_to_client(True)
     
-    def _handle_shutdown(self, _) -> bool:
-        message: DownstreamMassage = DownstreamMassage(InstanceMessageType.SHUTDOWN, None)
+    def _handle_shutdown(self, data) -> bool:
+        if "restart" not in data:
+            return self._respond_to_client(False, "Field 'restart' not in message")
+        
+        message: DownstreamMassage = DownstreamMassage(InstanceMessageType.SHUTDOWN, data["restart"])
         self.manager.send_to_server(message)
         return self._respond_to_client(True)
 

@@ -187,6 +187,15 @@ class CLI(Dismantable):
                     logger.log("CLI", f"Shutting down testbed. Interaction will be disabled.")
                     self.continue_event.set()
                     return True
+            case "restart" | "r":
+                self.continue_mode.update(ContinueMode.RESTART)
+                if self.continue_event is None:
+                    logger.log("CLI", "Unable to exit testbed, continue_event object missing.")
+                    return True
+                else:
+                    logger.log("CLI", f"Restarting testbed. Interaction will be disabled.")
+                    self.continue_event.set()
+                    return True
             case "help" | "h":
                 logger.opt(ansi=True).log("CLI", "--------- Proto²Testbed Interactive Mode Help ---------")
                 logger.opt(ansi=True).log("CLI", "  <u>c</u>ontinue (INIT|EXPERIMENT) -> Continue testbed (to next pause step)", color=True)
@@ -194,7 +203,8 @@ class CLI(Dismantable):
                 logger.opt(ansi=True).log("CLI", "  <u>c</u>o<u>p</u>y (\<Instance>:)\<Path> (\<Instance>:)\<Path> -> Copy files from/to instance", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>l</u>i<u>s</u>t                       -> List all Instances in testbed", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>p</u>reserve \<Instance>:\<Path> -> Mark file or directory for preservation", color=True)
-                logger.opt(ansi=True).log("CLI", "  <u>e</u>xit                       -> Terminate Testbed", color=True)
+                logger.opt(ansi=True).log("CLI", "  <u>e</u>xit                       -> Terminate testbed", color=True)
+                logger.opt(ansi=True).log("CLI", "  <u>r</u>estart                    -> Request a full testbed restart")
                 logger.opt(ansi=True).log("CLI", "  <u>h</u>elp                       -> Show this help", color=True)
                 logger.opt(ansi=True).log("CLI", "------------------------------------------------------")
                 return True

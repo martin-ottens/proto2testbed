@@ -18,7 +18,10 @@ def main():
     parser_preserve.add_argument("path", type=str, help="Path to file or directory")
 
     parser_status = subparsers.add_parser("status", help="Shows the status of the Instance Manager Daemon")
+
     parser_shutdown = subparsers.add_parser("shutdown", help="Shuts down the whole testbed")
+    parser_shutdown.add_argument("--restart", "-r", default=False, action="store_true",
+                                 help="Request a restart after testbed shutdown")
 
     parser_log = subparsers.add_parser("log", help="Send a log message to the Testbed Controller")
     parser_log.add_argument("--level", "-l", type=str, choices=["SUCCESS", "INFO", "WARNING", "ERROR", "DEBUG"], 
@@ -35,6 +38,7 @@ def main():
     payload = {"type": args.command}
     match args.command:
         case "shutdown" | "status":
+            payload["restart"] = args.restart
             pass
         case "preserve":
             if not Path(args.path).exists():

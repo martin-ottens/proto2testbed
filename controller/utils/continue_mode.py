@@ -9,6 +9,7 @@ class PauseAfterSteps(Enum):
 
 class ContinueMode(Enum):
     EXIT = "exit"
+    RESTART = "restart"
     CONTINUE_TO = "continue_to"
 
 

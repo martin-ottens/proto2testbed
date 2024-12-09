@@ -7,4 +7,11 @@ REPO_BASE=$(dirname "$SCRIPT")
 CALLER_SCRIPT=$(basename "$0")
 export CALLER_SCRIPT
 
-python3 $REPO_BASE/controller/main.py ${@:1}
+while true; do
+    python3 $REPO_BASE/controller/main.py ${@:1}
+    exit_code=$?
+
+    if [ $exit_code -ne 254 ]; then
+        exit $exit_code
+    fi
+done

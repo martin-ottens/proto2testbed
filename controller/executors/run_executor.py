@@ -104,18 +104,27 @@ class RunExecutor(BaseExecutor):
             was_interrupted = controller.interrupted_event.is_set()
             controller.dismantle(force=was_interrupted)
 
+            restart_requested = controller.request_restart
+
         if parameters.preserve is not None:
             logger.success(f"Files preserved to '{parameters.preserve}' (if any)")
         
         if not parameters.dont_use_influx:
             logger.success(f"Data series stored with experiment tag '{CommonSettings.experiment}' (if any)")
 
+        exit_code = 0
         if status:
             logger.success("Testbed was dismantled!")
-            return 0
+            exit_code = 0
         else:
             logger.critical("Testbed was dismantled after error.")
-            return 0
+            exit_code = 1
+
+        if restart_requested:
+            logger.success("Testbed restart war requested, trying to restart ...")
+            exit_code = 254
+        
+        return exit_code
         
     def requires_priviledges(self) -> bool:
         return True

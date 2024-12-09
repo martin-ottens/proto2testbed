@@ -32,7 +32,8 @@ class Controller(Dismantable):
         self.state_manager: MachineStateManager = MachineStateManager()
         self.dismantables.insert(0, self.state_manager)
         self.has_mgmt_network = False
-        self.network_mapping: Optional[NetworkMappingHelper] = None 
+        self.network_mapping: Optional[NetworkMappingHelper] = None
+        self.request_restart = False
 
         self.base_path = Path(TestbedSettingsWrapper.cli_paramaters.config)
         self.config_path = self.base_path / "testbed.json"
@@ -289,7 +290,8 @@ class Controller(Dismantable):
         elif result == WaitResult.SHUTDOWN:
             logger.critical("Testbed was shut down due to an external request.")
 
-    def stop_interaction(self):
+    def stop_interaction(self, restart: bool = False):
+        self.request_restart = restart
         if self.event is not None:
             self.cli.unblock_input()
 
@@ -317,6 +319,9 @@ class Controller(Dismantable):
             return False
         else:
             if contine_mode.mode == ContinueMode.EXIT:
+                return False
+            if contine_mode.mode == ContinueMode.RESTART:
+                self.request_restart = True
                 return False
             else: # ContinueMode.CONTINUE_TO
                 self.pause_after = contine_mode.pause
