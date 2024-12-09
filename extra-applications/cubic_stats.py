@@ -3,7 +3,7 @@ import subprocess
 
 from typing import List, Tuple, Optional
 
-from applications.base_application import BaseApplication
+from applications.base_application import *
 from common.application_configs import ApplicationSettings
 
 """
@@ -197,3 +197,98 @@ class CubicStatsApplication(BaseApplication):
             time.sleep(self.settings.interval)
         
         return True
+    
+    def get_export_mapping(self, subtype: ExportSubtype) -> Optional[List[ExportResultMapping]]:
+        return [
+            ExportResultMapping(
+                name="recv_q",
+                type=ExportResultDataType.COUNT,
+                description="Receive Queue Length",
+                additional_selectors={"fd": subtype.options["fd"]},
+                title_suffix=f'Process: {subtype.options["prog"]}'
+            ),
+            ExportResultMapping(
+                name="send_q",
+                type=ExportResultDataType.COUNT,
+                description="Send Queue Length",
+                additional_selectors={"fd": subtype.options["fd"]},
+                title_suffix=f'Process: {subtype.options["prog"]}'
+            ),
+            ExportResultMapping(
+                name="send_scale",
+                type=ExportResultDataType.COUNT,
+                description="Send Scale Factor",
+                additional_selectors={"fd": subtype.options["fd"]},
+                title_suffix=f'Process: {subtype.options["prog"]}'
+            ),
+            ExportResultMapping(
+                name="recv_scale",
+                type=ExportResultDataType.COUNT,
+                description="Receive Scale Factor",
+                additional_selectors={"fd": subtype.options["fd"]},
+                title_suffix=f'Process: {subtype.options["prog"]}'
+            ),
+            ExportResultMapping(
+                name="rto",
+                type=ExportResultDataType.MILLISECONDS,
+                description="Retramsmit Timeout",
+                additional_selectors={"fd": subtype.options["fd"]},
+                title_suffix=f'Process: {subtype.options["prog"]}'
+            ),
+            ExportResultMapping(
+                name="rtt",
+                type=ExportResultDataType.MILLISECONDS,
+                description="TCP Round Trip Time",
+                additional_selectors={"fd": subtype.options["fd"]},
+                title_suffix=f'Process: {subtype.options["prog"]}'
+            ),
+            ExportResultMapping(
+                name="rttvar",
+                type=ExportResultDataType.MILLISECONDS,
+                description="TCP RTT Variation",
+                additional_selectors={"fd": subtype.options["fd"]},
+                title_suffix=f'Process: {subtype.options["prog"]}'
+            ),
+            ExportResultMapping(
+                name="mss",
+                type=ExportResultDataType.DATA_SIZE,
+                description="Maximum Segment Size",
+                additional_selectors={"fd": subtype.options["fd"]},
+                title_suffix=f'Process: {subtype.options["prog"]}'
+            ),
+            ExportResultMapping(
+                name="cwnd",
+                type=ExportResultDataType.DATA_SIZE,
+                description="Congestion Window Size",
+                additional_selectors={"fd": subtype.options["fd"]},
+                title_suffix=f'Process: {subtype.options["prog"]}'
+            ),
+            ExportResultMapping(
+                name="pmth",
+                type=ExportResultDataType.DATA_SIZE,
+                description="Discovered Path MTU",
+                additional_selectors={"fd": subtype.options["fd"]},
+                title_suffix=f'Process: {subtype.options["prog"]}'
+            ),
+            ExportResultMapping(
+                name="bytes_retrans",
+                type=ExportResultDataType.DATA_SIZE,
+                description="Amount of Retransmitted Bytes",
+                additional_selectors={"fd": subtype.options["fd"]},
+                title_suffix=f'Process: {subtype.options["prog"]}'
+            ),
+            ExportResultMapping(
+                name="bytes_acked",
+                type=ExportResultDataType.DATA_SIZE,
+                description="Amount of Acked Bytes",
+                additional_selectors={"fd": subtype.options["fd"]},
+                title_suffix=f'Process: {subtype.options["prog"]}'
+            ),
+            ExportResultMapping(
+                name="unacked",
+                type=ExportResultDataType.DATA_SIZE,
+                description="Amount of Unacked Bytes",
+                additional_selectors={"fd": subtype.options["fd"]},
+                title_suffix=f'Process: {subtype.options["prog"]}'
+            )
+        ]

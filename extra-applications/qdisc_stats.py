@@ -3,7 +3,7 @@ import subprocess
 
 from typing import List, Tuple, Optional
 
-from applications.base_application import BaseApplication
+from applications.base_application import *
 from common.application_configs import ApplicationSettings
 
 """
@@ -169,3 +169,82 @@ class QdiscStatsApplication(BaseApplication):
             time.sleep(self.settings.interval)
         
         return True
+
+    def get_export_mapping(self, subtype: ExportSubtype) -> Optional[List[ExportResultMapping]]:
+        # result["sent_bytes"] = self.__interpret_number(sent_bytes)
+        # result["sent_packets"] = self.__interpret_number(sent_packets)
+
+        # (dropped %i, overlimits %i requeues %i)
+        # _, dropped_dirty, _, overlimits, _, requeues_dirty, remain = remain.split(" ", maxsplit=6)
+        # result["dropped"] = self.__interpret_number(dropped_dirty.replace(",", ""))
+        # result["overlimits"] = self.__interpret_number(overlimits)
+        # result["sent_requeues"] = self.__interpret_number(requeues_dirty.replace(")", ""))
+
+        # backlog %ib %ip requeues %i <remainder>
+        # parts = remain.split(" ", maxsplit=5)
+        # if len(parts) == 5:
+        #     _, backlog_b_dirty, backlog_p_dirty, _, requeues = parts
+        # else:
+        #     _, backlog_b_dirty, backlog_p_dirty, _, requeues, _ = parts
+        # result["backlog_bytes"] = self.__interpret_number(backlog_b_dirty[:-1])
+        # result["backlog_packets"] = self.__interpret_number(backlog_p_dirty[:-1])
+        # result["backlog_requeues"] 
+        
+        return [
+            ExportResultMapping(
+                name="sent_bytes",
+                type=ExportResultDataType.DATA_SIZE,
+                description="Bytes sent via Qdisc",
+                additional_selectors={"dev": subtype.options["dev"], "qdisc": subtype.options["qdisc"]},
+                title_suffix=f'Interface: {subtype.options["dev"]}, Qdisc: {subtype.options["qdisc"]}'
+            ),
+            ExportResultMapping(
+                name="sent_packets",
+                type=ExportResultDataType.COUNT,
+                description="Packets sent via Qdisc",
+                additional_selectors={"dev": subtype.options["dev"], "qdisc": subtype.options["qdisc"]},
+                title_suffix=f'Interface: {subtype.options["dev"]}, Qdisc: {subtype.options["qdisc"]}'
+            ),
+            ExportResultMapping(
+                name="dropped",
+                type=ExportResultDataType.COUNT,
+                description="Dropped Packets",
+                additional_selectors={"dev": subtype.options["dev"], "qdisc": subtype.options["qdisc"]},
+                title_suffix=f'Interface: {subtype.options["dev"]}, Qdisc: {subtype.options["qdisc"]}'
+            ),
+            ExportResultMapping(
+                name="overlimits",
+                type=ExportResultDataType.COUNT,
+                description="Packets delayed due to overlimit",
+                additional_selectors={"dev": subtype.options["dev"], "qdisc": subtype.options["qdisc"]},
+                title_suffix=f'Interface: {subtype.options["dev"]}, Qdisc: {subtype.options["qdisc"]}'
+            ),
+            ExportResultMapping(
+                name="sent_requeues",
+                type=ExportResultDataType.DATA_SIZE,
+                description="Packets requeued before sending",
+                additional_selectors={"dev": subtype.options["dev"], "qdisc": subtype.options["qdisc"]},
+                title_suffix=f'Interface: {subtype.options["dev"]}, Qdisc: {subtype.options["qdisc"]}'
+            ),
+            ExportResultMapping(
+                name="backlog_bytes",
+                type=ExportResultDataType.DATA_SIZE,
+                description="Bytes held by Qdisc and childs",
+                additional_selectors={"dev": subtype.options["dev"], "qdisc": subtype.options["qdisc"]},
+                title_suffix=f'Interface: {subtype.options["dev"]}, Qdisc: {subtype.options["qdisc"]}'
+            ),
+            ExportResultMapping(
+                name="backlog_packets",
+                type=ExportResultDataType.COUNT,
+                description="Packets held by Qdisc and childs",
+                additional_selectors={"dev": subtype.options["dev"], "qdisc": subtype.options["qdisc"]},
+                title_suffix=f'Interface: {subtype.options["dev"]}, Qdisc: {subtype.options["qdisc"]}'
+            ),
+            ExportResultMapping(
+                name="backlog_requeues",
+                type=ExportResultDataType.COUNT,
+                description="Packets requeued to backlog",
+                additional_selectors={"dev": subtype.options["dev"], "qdisc": subtype.options["qdisc"]},
+                title_suffix=f'Interface: {subtype.options["dev"]}, Qdisc: {subtype.options["qdisc"]}'
+            ),
+        ]

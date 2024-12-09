@@ -33,7 +33,7 @@ class ExportResultDataType(Enum):
             return f'{x:.1f} bps'
     
     def format_identity(x, pos):
-        return str(x)
+        return f"{x:.2f}"
 
     MILLISECONDS = "ms", "ms", format_identity
     SECONDS = "s", "s", format_identity

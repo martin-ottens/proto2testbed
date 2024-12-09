@@ -2,8 +2,8 @@ import time
 
 from typing import List, Tuple, Optional
 
-from base_application import BaseApplication
-from application_interface import LogMessageLevel
+from applications.base_application import BaseApplication
+from applications.generic_application_interface import LogMessageLevel
 from common.application_configs import ApplicationSettings
 
 class LogApplicationConfig(ApplicationSettings):
@@ -40,3 +40,6 @@ class LogApplication(BaseApplication):
             time.sleep(self.settings.interval)
 
         return True
+    
+    def exports_data(self) -> bool:
+        return False

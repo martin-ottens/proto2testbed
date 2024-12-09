@@ -23,7 +23,7 @@ class ApplicationManager():
         self.instance_name = instance_name
         self.loader = ApplicationLoader(
             Path(GlobalState.start_exec_path), 
-            Path(GlobalState.exchange_mount_path),
+            Path(GlobalState.testbed_package_path),
             ["set_and_validate_config", "start"])
         self.app_exec: List[ApplicationController] = None
         self.barrier = None
