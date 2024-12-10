@@ -39,17 +39,19 @@ This example show the possibility to integrate real hardware to a testbed and us
 
 **Please Note:** It is assumed, that `eno2` and `eno3` are the pysical interfaces of the Testbed Hosts for this experiment. If the names differ in your setup, change the interfaces in `testbed.json` accordingly.
 
+0. Create a base image as described in `/baseimage_creation/README.md`. Start a session as `root` user.
+
+
 1. Build current version of Instance Manager:
    ```bash
    cd <proto-testbed>/instance-manager/
    make all
    ```
 
-2. Prepare the VM image:
+2. Prepare the VM image (if the Instance Manager was not installed before):
     ```bash
-    cp path/to/your/baseimage.qcow2 /tmp/endpoint.qcow2
-    cd <proto-testbed>/scripts/
-    ./image_creator.py /tmp/endpoint.qcow2 ../instance-manager/instance-manager.deb
+    cd <proto-testbed>/baseimage-creation
+    ./im-installer.py -i <path/to/your/baseimage> -o /tmp/endpoint.qcow2 -p ../instance-manager/instance-manager.deb
     ```
 
 3. Install ethtool on the Testbed Host

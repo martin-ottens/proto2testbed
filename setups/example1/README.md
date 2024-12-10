@@ -32,24 +32,23 @@ This setup allows to see, how the throughput in both version is impacted when th
 
 ## Guide
 
+0. Create a base image as described in `/baseimage_creation/README.md`. Start a session as `root` user.
+
 1. Build current version of Instance Manager:
    ```bash
-   cd proto-testbed/instance-manager/
+   cd <proto-testbed>/instance-manager/
    make all
    ```
 
 2. Prepare two VM Images:
     - Image for the router:
       ```bash
-      cp path/to/your/baseimage.qcow2 /tmp/router.qcow2
-      cd <proto-testbed>/scripts/
-      ./image_creator.py /tmp/router.qcow2 ../instance-manager/instance-manager.deb
+      cd <proto-testbed>/baseimage-creation
+      ./im-installer.py -i <path/to/your/baseimage> -o /tmp/router.qcow2 -p ../instance-manager/instance-manager.deb
       ```
     - Image for the endpoints:
       ```bash
-      cp path/to/your/baseimage.qcow2 /tmp/endpoint.qcow2
-      cd <proto-testbed>/scripts/
-      ./image_creator.py --extra ../setups/example1/wireguard.extra /tmp/endpoint.qcow2 ../instance-manager/instance-manager.deb
+      ./im-installer.py -i <path/to/your/baseimage> -o /tmp/endpoints.qcow2 -p ../instance-manager/instance-manager.deb -e ../setups/example1/wireguard.extra
       ```
 
 3. Load required environment variables:

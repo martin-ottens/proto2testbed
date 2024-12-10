@@ -8,7 +8,7 @@ The structure of the topology, the configuration and also experiments are define
 After a small amount of manual configuration, Proto²Testbed takes care of setting up and dismantling the topology and carrying out experiments, if desired, completely automated way.
 Proto²Testbed can be used for various workflows and can be extended with functions for specific projects thanks to its modular approach.
 
-## Functional Overview & Terms
+## 1. Functional Overview & Terms
 - The main part of Proto²Testbed, the **Controller**, is installed on a *Debian 12* workstation, server or even desktop. This system is called the **Testbed Host**.
 - The Topology of a testbed and some configurations are defined in the testbed configuration file `testbed.json`, this file is bundeled together with scripts and additional dependencies that are used during a testbed execution to form a **Testbed Package**.
 - The Controller reads the configuration file. It starts and configures virtual machines, called **Instances**. Instances are run using *QEMU* and connected using Linux Layer-2-Network-Bridges.
@@ -20,42 +20,57 @@ Proto²Testbed can be used for various workflows and can be extended with functi
 - In addition to the fully automatic operation, numerous CLI features also allow a testbed to be used interactively - great for debugging or prototyping.
 - Variables in the testbed configuration allows the test of different environments or scenarios. Especially with integration in CI/CD tools, Proto²Tetsbed can also be used as a tool for automatic software tests.
 
-## 1. Prepare Host Machine
+> **Some notes:**
+> - Proto²Testbed uses KVM, so KVM needs to be avaible on your machine. The framework provides an option to disable KVM (e.g. for test installs on a virtual machine) but this will serverly limit the performance. Nested KVM could also be used during tests on VMs.
+> - Proto²Testbed needs access to the KVM subsystem of the Testbed Host as well as the ability to manage the Testbed Hosts network interfaces. Therefore, priviligedes are required. Execute testbeds with root privileges (e.g. using `sudo`). Users who have access to the framework should always be trusted.
 
-Install a current Debian 12 OS, no GUI is required. All following commands and
-the actual testbed experiments are run with the `root` User (`sudo -s` or `su`).
+## 2. Requirements and Installation
+Proto²Testbed currently has the following requirements:
+- **OS**: Debian 12 "Bookworm", other Debian-based OSes are possible as long as the dependencies are satisfied. Since Proto²Testbed currently has no GUI, a headless installation is sufficient. Users can interact with the framework by using SSH.
+- **CPU**: Use any x86 CPU. Do not underprovision. An Instance should use 2 Threads, so the maximum Number of Instances started in parallel should not exceed *#Threads / 2*. Remember, that parallel Textbed executions are possible.
+- **Memory**: Plan around 2GB per Instance.
 
-Clone this repository to any desired location on the host. All paths in this
-README are relative to the root of the cloned repo.
+### Automated Installation
+Clone this repository to `/opt/proto-testbed` and run `sudo install.sh` to install Proto²Testbed system-wide with all dependencies. No additional manual steps are required.
 
-### Installation of Required Dependencies on Host
-```bash
-apt install qemu-utils qemu-system-x86 qemu-system-gui bridge-utils iptables net-tools genisoimage python3 iproute2 influxdb influxdb-client make socat
+For a manual installation, the following apt-dependencies are required:
+```
+qemu-utils qemu-system-x86 qemu-system-gui bridge-utils iptables net-tools genisoimage python3 iproute2 influxdb influxdb-client make socat
+
+# Python packages from apt (system-wide installation):
+python3-jinja2 python3-pexpect python3-loguru python3-jsonschema python3-influxdb python3-psutil
+
+# Optional for plot generation:
+python3-numpy python3-matplotlib
 ```
 
-The InfluxDB is by default configured to allow arbitrary, privileged connections (the management network of the testbed needs full access to the InfluxDB on the host).
-It is only required to create a database for the testbed (name can be arbitrary, `testbed` in this case):
-```bash
-influx -execute 'CREATE DATABASE testbed'
-```
-
-### Python Dependencies
-#### System-Wide-Debian Packages (Recommended)
-```bash
-apt install python3-jinja2 python3-pexpect python3-loguru python3-jsonschema python3-influxdb python3-psutil
-```
-
-Additional Debian packages for plot rendering:
-```bash
-apt install python3-numpy python3-matplotlib
-```
-
-#### Virtual Environment
+Python dependencies could also be installed in a virtual environment:
 ```bash
 apt install python3-virtualenv python3-pip
 virtualenv -p python3 venv
 source venv/bin/activate
 pip install -r requirements.txt
+```
+All Proto²Testbed commands need to be executed in this virtual environment.
+
+The file `/etc/proto2testbed/proto2testbed_defaults.json` (see `/proto2testbed_defaults.json`) should exist on the system. The database referenced in ths config can be added with the following command:
+```bash
+influx -execute 'CREATE DATABASE testbed'
+```
+
+For ease of use, create the following symlinks:
+```bash
+ln -s /opt/proto-testbed/proto-testbed /usr/local/bin/p2t
+ln -s /opt/proto-testbed/baseimage-creation/im-installer.py /usr/local/bin/p2t-genimg
+```
+
+## 3. Interacting with Proto²Testbed
+
+## 4. Prepare a Base Image and run an Example
+
+## 5. Testbed configuration
+
+## 6. Hacking & Extension
 ```
 
 ## 2. Prepare an Image
