@@ -15,7 +15,7 @@
             "type": "await",
             "invoke_after": "startup",
             "settings": {
-                "start_script": "integration/oneshot.sh",
+                "start_script": "integrations/oneshot.sh",
                 "wait_for_exit": 50
             } 
         },
@@ -26,14 +26,14 @@
             "wait_after_invoke": 2,
             "settings": {
                 "start_delay": 5,
-                "start_script": "integration/start.sh",
-                "stop_script": "integration/stop.sh",
+                "start_script": "integrations/start.sh",
+                "stop_script": "integrations/stop.sh",
                 "wait_for_exit": 5
             }
         },
         {
             "name": "loadable",
-            "type": "integration/loadable_integration",
+            "type": "integrations/loadable_integration",
             "invoke_after": "init",
             "settings": {
                 "delay": 5,
@@ -120,7 +120,22 @@
                         "interfaces": ["enp0s3"],
                         "system": true
                     }
+                },
+                {
+                    "application": "run-program",
+                    "name": "generate-file",
+                    "delay": 20,
+                    "runtime": 1,
+                    "settings": {
+                        "command": "vmb/generate-file.sh",
+                        "environment": {
+                            "OUTPUT": "Generated file for vmb."
+                        }
+                    }
                 }
+            ],
+            "preserve_files": [
+                "/root/output.txt"
             ]
         }
     ]

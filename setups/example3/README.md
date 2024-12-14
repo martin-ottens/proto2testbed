@@ -5,11 +5,11 @@
 ### What is this experiment doing?
 The testbed is subdivided in two area, each area consists of a network bridge, two Instances and a subnet. Each of the network bridges is connected to a physical port of the testbed host.
 
-Between these pyhsical ports (and therefore both subnets) a hardware router is routing, in our testcase another Linux machine is used.
+Between these physical ports (and therefore both subnets) a hardware router is routing, in our testcase another Linux machine is used.
 
 During the experiments, Integrations will switch the port speed of eno2 and eno3 to 100Mbit/s without auto-negotiation to test how the router reacts to such scenarios, and what kind of implication its reaction to the Applications has.
 
-This example show the possibility to integrate real hardware to a testbed and use the testbed system to conduct real end-to-end tests with application workloads over physical hardware. 
+This example shows the possibility to integrate real hardware to a testbed and use the testbed system to conduct real end-to-end tests with application workloads over physical hardware. 
 
 ### Schematic testbed overview
 ```
@@ -37,7 +37,7 @@ This example show the possibility to integrate real hardware to a testbed and us
 
 ## Guide
 
-**Please Note:** It is assumed, that `eno2` and `eno3` are the pysical interfaces of the Testbed Hosts for this experiment. If the names differ in your setup, change the interfaces in `testbed.json` accordingly.
+**Please Note:** It is assumed, that `eno2` and `eno3` are the physical interfaces of the Testbed Hosts for this experiment. If the names differ in your setup, change the interfaces in `testbed.json` accordingly.
 
 0. Create a base image as described in `/baseimage_creation/README.md`. Start a session as `root` user.
 
@@ -59,7 +59,7 @@ This example show the possibility to integrate real hardware to a testbed and us
     apt install -y ethtool
    ```
 
-3. Load required environment variable:
+3. Load required environment variable (select an experiment tag):
     ```bash
     export EXPERIMENT_TAG=hardware_test
     ```
@@ -82,7 +82,7 @@ This example show the possibility to integrate real hardware to a testbed and us
     rm /tmp/endpoint.qcow2
    ```
 
-## Setup a Linux host as router
+## Set up a Linux host as router
 The host has the interfaces `eno2` (connected to `eno2` of the Testbed Host) and `eno3` (connected to `eno3` of the Testbed Host):
 ```bash
 sudo -s

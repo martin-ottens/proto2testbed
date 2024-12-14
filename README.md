@@ -3,36 +3,37 @@
 *Testbed framework for security **proto**col evaluation and **proto**typing.*
 
 Proto²Testbed is a tool for research and development in the field of network applications and protocols. 
-A virtual topology is created using serveral virtual machines (called instances), which are connected to each other using network bridges.
+A virtual topology is created using several virtual machines (called instances), which are connected to each other using network bridges.
 The structure of the topology, the configuration and also experiments are defined via a testbed package.
 After a small amount of manual configuration, Proto²Testbed takes care of setting up and dismantling the topology and carrying out experiments, if desired, completely automated way.
 Proto²Testbed can be used for various workflows and can be extended with functions for specific projects thanks to its modular approach.
 
 ## 1. Functional Overview & Terms
 - The main part of Proto²Testbed, the **Controller**, is installed on a *Debian 12* workstation, server or even desktop. This system is called the **Testbed Host**.
-- The Topology of a testbed and some configurations are defined in the testbed configuration file `testbed.json`, this file is bundeled together with scripts and additional dependencies that are used during a testbed execution to form a **Testbed Package**.
+- The Topology of a testbed and some configurations are defined in the testbed configuration file `testbed.json`, this file is bundled together with scripts and additional dependencies that are used during a testbed execution to form a **Testbed Package**.
 - The Controller reads the configuration file. It starts and configures virtual machines, called **Instances**. Instances are run using *QEMU* and connected using Linux Layer-2-Network-Bridges.
 - Instances are based on Disk Images, these images are used in a read only way - all changes to the file system of an Instance are temporary. Proto²Testbed provides tools to automatically create the required disk images. Since all Instances are fully virtualized, tests with kernel modules are possible, which is often not the case with other testbed frameworks.
 - The **Instance Manager** is installed on each Instance and handles communication with the Controller, performs the configuration of the Instance and can carry out experiments.
-- Experiments are done using **Applications**. These are programs written in *Python* and executed on the Instances with a settings defined in the testbed configuration. Proto²Testbed comes with some bundeled Applications, but an easy API allows for development of own Applications.
-- A testbed run can yield different types of experiment artifacs: Applications usually write datapoints to an *InfluxDB* - the framework includes functions to export the data. It is also possible to save files from Instances on the Testbed Host before the testbed is dismantled.
+- Experiments are done using **Applications**. These are programs written in *Python* and executed on the Instances with settings defined in the testbed configuration. Proto²Testbed comes with some bundled Applications, but an easy API allows for development of own Applications.
+- A testbed run can yield different types of experiment artifacts: Applications usually write datapoints to an *InfluxDB* - the framework includes functions to export the data. It is also possible to save files from Instances on the Testbed Host before the testbed is dismantled.
 - Proto²Testbed also allows real network interfaces of the Testbed Host to be integrated into a virtual testbed topology. **Integrations** are available to execute special functions on the Testbed Host during testbed runs.
 - In addition to the fully automatic operation, numerous CLI features also allow a testbed to be used interactively - great for debugging or prototyping.
 - Variables in the testbed configuration allows the test of different environments or scenarios. Especially with integration in CI/CD tools, Proto²Tetsbed can also be used as a tool for automatic software tests.
 
-> **Some notes:**
-> - Proto²Testbed uses KVM, so KVM needs to be avaible on your machine. The framework provides an option to disable KVM (e.g. for test installs on a virtual machine) but this will serverly limit the performance. Nested KVM could also be used during tests on VMs.
-> - Proto²Testbed needs access to the KVM subsystem of the Testbed Host as well as the ability to manage the Testbed Hosts network interfaces. Therefore, priviligedes are required. Execute testbeds with root privileges (e.g. using `sudo`). Users who have access to the framework should always be trusted.
+> **Some important notes:**
+> - Proto²Testbed uses KVM, so KVM needs to be available on your machine. The framework provides an option to disable KVM (e.g. for test installations on a virtual machine) but this will serverly limit the performance. Nested KVM could also be used during tests on VMs.
+> - Proto²Testbed needs access to the KVM subsystem of the Testbed Host as well as the ability to manage the Testbed Hosts network interfaces. Therefore, privileges are required. Execute testbeds with root privileges (e.g. using `sudo`). Users who have access to the framework should always be trusted.
 
 ## 2. Requirements and Installation
 Proto²Testbed currently has the following requirements:
 - **OS**: Debian 12 "Bookworm", other Debian-based OSes are possible as long as the dependencies are satisfied. Since Proto²Testbed currently has no GUI, a headless installation is sufficient. Users can interact with the framework by using SSH.
-- **CPU**: Use any x86 CPU. Do not underprovision. An Instance should use 2 Threads, so the maximum Number of Instances started in parallel should not exceed *#Threads / 2*. Remember, that parallel Textbed executions are possible.
-- **Memory**: Plan around 2GB per Instance.
+- **CPU**: Use any x86 CPU. Do not under provision. An Instance should use 2 Threads, so the maximum Number of Instances started in parallel should not exceed *#Threads / 2*. Remember, that parallel Textbed executions are possible.
+- **Memory**: Plan around 1GB per Instance, depends on tested protocols and applications.
 
 ### Automated Installation
 Clone this repository to `/opt/proto-testbed` and run `sudo install.sh` to install Proto²Testbed system-wide with all dependencies. No additional manual steps are required.
 
+### Manual Installation
 For a manual installation, the following apt-dependencies are required:
 ```
 qemu-utils qemu-system-x86 qemu-system-gui bridge-utils iptables net-tools genisoimage python3 iproute2 influxdb influxdb-client make socat
@@ -53,7 +54,7 @@ pip install -r requirements.txt
 ```
 All Proto²Testbed commands need to be executed in this virtual environment.
 
-The file `/etc/proto2testbed/proto2testbed_defaults.json` (see `/proto2testbed_defaults.json`) should exist on the system. The database referenced in ths config can be added with the following command:
+The file `/etc/proto2testbed/proto2testbed_defaults.json` (see `/proto2testbed_defaults.json`) should exist on the system. The database referenced in this config can be added with the following command:
 ```bash
 influx -execute 'CREATE DATABASE testbed'
 ```
@@ -64,125 +65,35 @@ ln -s /opt/proto-testbed/proto-testbed /usr/local/bin/p2t
 ln -s /opt/proto-testbed/baseimage-creation/im-installer.py /usr/local/bin/p2t-genimg
 ```
 
-## 3. Interacting with Proto²Testbed
+## 3. Quick Start Checklist
+1. Install Proto²Testbed
+2. Generate a base disk image with basic OS installation, see `baseimage-creation/README.md`
+3. Install the Instance Manager and possibly additional dependencies to a testbed base image, see `baseimage-creation/README.md`
+4. Create a testbed package with a testbed configuration
+5. Execute the testbed and let the framework perform all experiments
+6. Export the results to plots or CSV files
+7. Clean up results
 
-## 4. Prepare a Base Image and run an Example
+## 4. Interacting with Proto²Testbed
+Proto²Testbeds `p2t` command (or `./proto-testbed` if not installed globally) is the main way to interact with the framework. The following subcommands are currently available:
 
-## 5. Testbed configuration
+- `sudo p2t run`: Execute a testbed
+- `p2t attach`: Attach to an Instance in a testbed
+- `p2t list`: List all testbeds with Instances and networks 
+- `p2t export`: Export results from an experiment to plots or CSV files
+- `p2t clean`: Clean up experiment results
+- `sudo p2t prune`: Delete dangling testbeds
 
-## 6. Hacking & Extension
-```
+Testbeds and result data produced by them can be identified with an experiment tag,
+this tag should unique across multiple testbed runs. If a testbed is executed without an experiment tag, a random one will be generated.
 
-## 2. Prepare an Image
+See `docs/commands.md` for further details on how to use Proto²Testbed.
 
-### Create Debian Package
-Download the latest `instance-manager.deb` from the CI or build it yourself on
-the host machine:
-```bash
-cd instance-manager
-make all
-```
+## 5. Prepare a Base Image and run an Example
+Before a testbed can be executed, a base image with a minimal OS installation has to be created. To create a *Debian 12* base image, see `baseimage-creation/README.md`.
 
-### Create an Image
-Create a Debian image as described in `IMAGE_CREATION.md`, an image with the
-basic installation already completed can be downloaded [here](https://cloud.martin-ot.de/s/gDEtxtCAGbwFYwz).
+See `setups/` for some (advanced) usage examples. These examples are an excellent starting point for familiarizing yourself with Proto²Testbed. The `README` files provide an overview of the setups and give instructions on how to run the examples.
 
-### Install Dependencies in Image
-Prepare the image by installing the required dependencies and the `instance-manager.deb` package. You can do this manually (as described in `IMAGE_CREATION.md`) or use the zero-touch script:
-```bash
-cd scripts
-./image_creator.py <IMAGE.qcow2> ../instance-manager/instance-manager.deb
-```
-It is recommended to copy the base image before running this step, so that you
-can start over again with a fresh base image whenever changes to the image or the
-instance-manager are needed.
+## 6. Testbed configuration
 
-When creating the image on a virtual machine itself, you can pass `--no_kvm` to `image_creater.py`.
-
-## 3. Run an Example
-
-**Remember:** Only one testbed can be executed on the host at any given time!
-
-### Start the experiment
-Before starting: Change the image path for all testbed machines (in this repo: `"diskimage": "/root/debian-test.qcow2"`) in `setups/sample/testbed.json` to the correct path of the image created in the previous step.
-
-```bash
-./proto-testbed run -e exmaple ../setups/sample
-```
-The following options are helpful (see `./proto-testbed -h` for further details):
-- **`-d`**: Do not store any results to InfluxDB (useful for debugging)
-- **`-i INIT`**: Halt the testbed after VM initialization and do not run experiments (useful for debugging, e.g. SSH into VMs)
-
-Running the testbed system on a virtual machine itself is possible, but not recommended for productive use due to severe speed penalties. To allow this testing purposes, add `--no_kvm` when starting an experiment. (Other options, not documented here: Enable nested KVM virtualization in the host systems kernel.)
-
-### Plot and/or Export data
-```bash
-./proto-testbed export -e example -o ./plots image . # Render matplotlib plots to ./plots
-./proto-testbed export -e example -o ./csvs csv . # Export experiment data as CSV to ./csvs
-```
-
-### Clean up
-```bash
-./proto-testbed clean -e exmaple
-```
-
-## 4. Optional: Use Host for GitLab-CI-Integration
-
-> **Notice:** The Runner will be run as root. Depending on configuration of the repo and pipeline, all persons with access to the GitLab repo will have full root control over the testbed host by design. 
-
-1. Install GitLab-Runner as described [here](https://docs.gitlab.com/runner/install/linux-repository.html).
-2. Register the GitLab Runner as a shell runner for the project. Per default, `concurrent` is set to `1`. Since it is not possible to run concurrent testbed on a host, ensure this setting is not changed (see `/etc/gitlab-runner/config.toml`)
-3. Start the GitLab-Runner as `root` user by changing `"--user" "gitlab-runner"` to `"--user" "root"` in `/etc/systemd/system/gitlab-runner.service`. Restart the runner:
-    ```bash
-    systemctl daemon-reload
-    systemctl restart gitlab-runner.service
-    ```
-3. Add testbed scripts to system path, easy but hacky way:
-    ```bash
-    cd /usr/local/bin
-    ln -s <REPO_BASE>/proto-testbed .
-    ln -s <REPO_BASE>/scripts/* .
-    ```
-
-## Background functions / Inner Workings
-
-### Creation of Management Network, attach VM TAPs
-```bash
-brctl addbr br-mgmt
-ip addr add 172.16.99.1/24 dev br-mgmt
-ip link set up dev br-mgmt
-# Start VM instances [...]
-brctl addif br-mgmt vma-mgmt
-brctl addif br-mgmt vmb-mgmt
-
-# Test
-ping 172.16.99.2 && ssh user@172.16.99.2
-```
-
-### Experiment Network
-Optional/Additonal: Setup simple Experiment network via Virtual Switch 
-```bash
-brctl addbr br-exp
-brctl addif br-exp vma-exp
-brctl addif br-exp vmb-exp
-ip link set up dev br-exp
-# On vma:
-vma$ sudo ip addr add 10.0.0.2/24 dev enp0s3
-vma$ sudo ip link set up dev enp0s3
-# On vmb:
-vmb$ sudo ip addr add 10.0.0.3/24 dev enp0s3
-vmb$ sudo ip link set up dev enp0s3
-vmb$ ping 10.0.0.2
-```
-
-> **Notice:** When a bridge-device with a default route exists on the host,
-> QEMU will attach the tap-devices to that bridge automatically 
-> (see `/etc/qemu-ifup`).
-
-### Enable NATted Internet Access for Management Network
-```bash
-sysctl -w net.ipv4.conf.all.forwarding=1
-iptables -A FORWARD -s 172.16.99.0/24 -j ACCEPT
-iptables -A FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
-iptables -t nat -A POSTROUTING -s 172.16.99.0/24 -j SNAT --to-source 10.2.30.20
-```
+## 7. Hacking & Extension

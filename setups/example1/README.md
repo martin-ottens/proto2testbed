@@ -5,11 +5,11 @@
 ### What is this experiment doing?
 Two client endpoints in two different subnets are connected via a router, this router will route traffic between the networks, so the client endpoints can reach each other. 30 seconds into the experiment the router will add an artificial delay of 100ms to one of its interfaces.
 
-During the experiment an *iperf3* TCP test is running between both client enpoints and the ping is measured.
+During the experiment an *iperf3* TCP test is running between both client endpoints and the ping is measured.
 
-In the *normal* version, the endpoints are conncted directly, all traffic is transmitted enencrypted via the router. In the *wireguard* version, WireGuard is enabled on both client endpoints, creating a encrypted tunnel between. 
+In the *normal* version, the endpoints are connected directly, all traffic is transmitted encrypted via the router. In the *wireguard* version, WireGuard is enabled on both client endpoints, creating an encrypted tunnel between. 
 
-This setup allows to see, how the throughput in both version is impacted when the delay between the endpoints suddenly increases.
+This setup allows seeing, how the throughput in both version is impacted when the delay between the endpoints suddenly increases.
 
 ### Schematic testbed overview
 ```

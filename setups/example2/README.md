@@ -3,13 +3,13 @@
 ## Overview
 
 ### What is this experiment doing?
-Two client endpoints in two different subnets are connected via ns-3. The ns-3 simulator is running in RealTime mode, so together with Proto-Testbed, a emulation setup is provided.
+Two client endpoints in two different subnets are connected via ns-3. The ns-3 simulator is running in RealTime mode, so together with Proto-Testbed, an emulation setup is provided.
 
-The ns-3 simulation process provides 1 or 10 virtual router, that sits between the client endpoints and allow the entpoints to commincate. The simulated routers are connected with 1000Mbit/s CSMA/CD / Ethernet link.
+The ns-3 simulation process provides 1 or 10 virtual routers, that sits between the client endpoints and allow the endpoints to communicate. The simulated routers are connected with 1000Mbit/s CSMA/CD / Ethernet link.
 
-During the experiment the TCP throughput is measured using iperf3. Also stats about the ICMP pings are collected.
+During the experiment the TCP throughput is measured using iperf3. Also, stats about the ICMP pings are collected.
 
-This experimets allow to get an overview what performance implications (simple) simulated topologies has for the emulation setup. 
+These experiments allow to get an overview what performance implications (simple) simulated topologies has for the emulation setup. 
 
 ### Schematic testbed overview
 ```
