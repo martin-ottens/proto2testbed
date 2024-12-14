@@ -32,7 +32,7 @@ It is configured to do the following things:
 4. Start the testbed:
    ```bash
    cd proto-testbed/setups/sample
-   ./proto-testbed -e $EXPERIMENT_TAG -d preserve .
+   ./proto-testbed -e $EXPERIMENT_TAG -p preserve .
    ```
    After the testbed is completed the file `preserve/vmb/root/output.txt` should be created on the Testbed Host. Also, check the contents of `/tmp/integration` created by both bundled Integrations.
 

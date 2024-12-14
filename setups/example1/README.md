@@ -11,6 +11,8 @@ In the *normal* version, the endpoints are connected directly, all traffic is tr
 
 This setup allows seeing, how the throughput in both version is impacted when the delay between the endpoints suddenly increases.
 
+Example results can be found at `results/example1_{normal,wireguard}`.
+
 ### Schematic testbed overview
 ```
 +--------------+    +-------------------------+    +--------------+

@@ -9,7 +9,9 @@ The ns-3 simulation process provides 1 or 10 virtual routers, that sits between 
 
 During the experiment the TCP throughput is measured using iperf3. Also, stats about the ICMP pings are collected.
 
-These experiments allow to get an overview what performance implications (simple) simulated topologies has for the emulation setup. 
+These experiments allow to get an overview what performance implications (simple) simulated topologies has for the emulation setup.
+
+Example results can be found at `results/example2_{1router,10router}`.
 
 ### Schematic testbed overview
 ```

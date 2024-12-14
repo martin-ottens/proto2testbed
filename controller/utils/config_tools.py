@@ -9,8 +9,8 @@ from jsonschema import validate
 
 import state_manager
 from utils.settings import *
-from utils.system_commands import get_asset_relative_to
-from utils.settings import TestbedConfig
+from utils.system_commands import get_asset_relative_to, set_owner
+from utils.settings import TestbedConfig, CommonSettings
 
 def load_config(config_path: Path, skip_substitution: bool = False) -> TestbedConfig:
     if not config_path.exists():
@@ -87,7 +87,18 @@ def load_vm_initialization(config: TestbedConfig, base_path: Path, state_manager
                     logger.critical(f"Unable to load environment dict for VM {machine.name}")
                     return False
         
-        state_manager.add_machine(machine.name, script_file, env_variables)
+        if machine.preserve_files is not None:
+            state_manager.add_machine(
+                name=machine.name, 
+                script_file=script_file, 
+                setup_env=env_variables, 
+                init_preserve_files=machine.preserve_files)
+        else:
+            state_manager.add_machine(
+                name=machine.name, 
+                script_file=script_file,
+                setup_env=env_variables,
+                init_preserve_files=None)
 
     return True
 
@@ -107,6 +118,8 @@ def check_preserve_dir(preserve_dir: Optional[str]) -> bool:
     else:
         logger.debug(f"File Preservation directory {preserve_dir} does not exist, creating it.")
         os.mkdir(preserve_dir)
+        if CommonSettings.executor is not None:
+            set_owner(preserve_dir, CommonSettings.executor)
 
     logger.info(f"File Preservation: Saving instance files to {preserve_dir}")
     return True

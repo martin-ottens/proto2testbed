@@ -61,7 +61,17 @@ def get_DNS_resolver() -> str:
     return address.replace("\n", "")
 
 
-def copy_file_or_directory(source: Path, target: Path) -> bool:
+def set_owner(path: Path | str, owner: int) -> bool:
+    proc = invoke_subprocess(["/usr/bin/chown", "-R", str(owner), str(path)], 
+                                     capture_output=True, shell=False, needs_root=True)
+    if proc.returncode != 0:
+        logger.error(f"Error running chmod for {path}: {proc.stderr.decode('utf-8')}")
+        return False
+    
+    return True
+
+
+def copy_file_or_directory(source: Path, target: Path, set_owner: bool = False) -> bool:
     try:
         destination = target
         if target.is_dir():
@@ -72,11 +82,22 @@ def copy_file_or_directory(source: Path, target: Path) -> bool:
         else:
             os.makedirs(os.path.dirname(destination), exist_ok=True)
             shutil.copy2(source, destination)
-        
+
+        logger.trace(f"Copied {'directory' if source.is_dir() else 'file'} from {source} to {destination}")
+
+        if set_owner:
+            from utils.settings import CommonSettings
+            if CommonSettings.executor is None:
+                logger.warning("Unable to change owner after copy: No executor is set!")
+                return True
+
+            set_owner(destination, CommonSettings.executor)
+
         return True
     except Exception as ex:
         logger.opt(exception=ex).error(f"Error while copying from '{source}' to '{target}'")
         return False
+
 
 def rename_file_or_direcory(file_or_directory: Path, new_name: str) -> bool:
     try:
@@ -85,6 +106,7 @@ def rename_file_or_direcory(file_or_directory: Path, new_name: str) -> bool:
     except Exception as ex:
         logger.opt(exception=ex).error(f"Error while renaming '{file_or_directory}' to '{new_name}'")
         return False
+
 
 def remove_file_or_direcory(to_delete: Path):
     try:

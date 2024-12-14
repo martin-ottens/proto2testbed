@@ -1,4 +1,5 @@
 import argparse
+import os
 
 from loguru import logger
 
@@ -47,7 +48,7 @@ class PruneExecutor(BaseExecutor):
         # interfaces of non-running testbeds 
         for entry in all:
             if entry.contents is None:
-                if MachineState.clean_interchange_dir(entry.filepath):
+                if MachineState.clean_interchange_dir(os.path.dirname(entry.filepath)):
                     logger.info(f"Deleted interchange dir without contents: '{entry.filepath}'")
                 continue
             
@@ -59,7 +60,7 @@ class PruneExecutor(BaseExecutor):
                 delete_interface(interface.bridge_dev)
                 delete_interface(interface.tap_dev)
             
-            if MachineState.clean_interchange_dir(entry.filepath):
+            if MachineState.clean_interchange_dir(os.path.dirname(entry.filepath)):
                 logger.info(f"Deleted interchange dir: '{entry.filepath}'")
 
         if not args.interfaces:

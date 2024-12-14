@@ -11,6 +11,8 @@ During the experiments, Integrations will switch the port speed of eno2 and eno3
 
 This example shows the possibility to integrate real hardware to a testbed and use the testbed system to conduct real end-to-end tests with application workloads over physical hardware. 
 
+Example results can be found at `results/example3`.
+
 ### Schematic testbed overview
 ```
 +---------------+                                        +---------------+

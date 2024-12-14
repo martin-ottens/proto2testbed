@@ -66,7 +66,7 @@
                     "application": "procmon",
                     "name": "procmon-vma",
                     "delay": 5,
-                    "runtime": 60,
+                    "runtime": 30,
                     "settings": {
                         "interfaces": ["enp0s3"],
                         "system": true
@@ -75,7 +75,7 @@
                 {
                     "application": "apps/log_app",
                     "name": "dynload_log",
-                    "runtime": 60,
+                    "runtime": 30,
                     "settings": {
                         "level": "INFO",
                         "messages": [
@@ -106,7 +106,7 @@
                     "application": "iperf3-client",
                     "name": "vmb-iperf-client",
                     "delay": 1,
-                    "runtime": 60,
+                    "runtime": 30,
                     "settings": {
                         "host": "10.0.0.1"
                     }
@@ -115,7 +115,7 @@
                     "application": "procmon",
                     "name": "procmon-vmb",
                     "delay": 5,
-                    "runtime": 60,
+                    "runtime": 30,
                     "settings": {
                         "interfaces": ["enp0s3"],
                         "system": true

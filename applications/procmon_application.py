@@ -4,10 +4,11 @@ from typing import Dict, List, Optional, Tuple
 
 from applications.base_application import *
 from common.application_configs import ApplicationSettings
+from applications.generic_application_interface import LogMessageLevel
 
 
 class ProcmonApplicationConfig(ApplicationSettings):
-    def __init__(self, interval: int = 1, interfaces: List[str] = None,
+    def __init__(self, interval: int = 2, interfaces: List[str] = None,
                  processes: List[str] = None, system: bool = True) -> None:
         self.interval = interval
         self.interfaces = interfaces
@@ -24,6 +25,9 @@ class ProcmonApplication(BaseApplication):
             return True, None
         except Exception as ex:
             return False, f"Config validation failed: {ex}"
+        
+    def get_runtime_upper_bound(self, runtime: int) -> int:
+        return runtime + 2 * self.settings.interval
 
     def start(self, runtime: int) -> bool:
         import psutil
@@ -132,8 +136,11 @@ class ProcmonApplication(BaseApplication):
             system = system_to_dict()
         
         tracking_error_flag = 0
-        sleep_left = runtime
-        while sleep_left >= self.settings.interval:
+        print_cant_keep_up = True
+        time_left = runtime
+        while True:
+            start = time.time()
+
             # Processes
             run_processes = {}
             for proc_name, elem in processes.items():
@@ -162,9 +169,21 @@ class ProcmonApplication(BaseApplication):
                 run_system = None
             
             report(run_system, run_processes, run_interfaces)
+
+            took = time.time() - start
+
+            if took >= self.settings.interval:
+                if print_cant_keep_up:
+                    self.interface.log(LogMessageLevel.WARNING, "Can't keep up with logging interval!")
+                    print_cant_keep_up = False
+                time_left -= took
+            else:
+                sleep_for = min(time_left - took, self.settings.interval - took)
+                time.sleep(sleep_for)
+                time_left -= sleep_for
             
-            time.sleep(min(sleep_left, self.settings.interval))
-            sleep_left -= self.settings.interval
+            if time_left < self.settings.interval:
+                break
             
         return tracking_error_flag == 0
     

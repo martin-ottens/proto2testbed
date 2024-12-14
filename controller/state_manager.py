@@ -8,11 +8,11 @@ import json
 from enum import Enum
 from pathlib import Path
 from loguru import logger
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Dict
 from threading import Lock, Semaphore, Event
 from dataclasses import dataclass
 
-from utils.system_commands import invoke_subprocess
+from utils.system_commands import invoke_subprocess, set_owner
 from helper.file_copy_helper import FileCopyHelper
 from helper.network_helper import BridgeMapping
 from helper.state_file_helper import MachineStateFile, MachineStateFileInterfaceMapping
@@ -55,7 +55,7 @@ class InterfaceMapping():
 class MachineState():
     @staticmethod
     def clean_interchange_dir(path: str) -> bool:
-        prefix = os.path.basename(INTERCHANGE_BASE_PATH)
+        prefix = INTERCHANGE_BASE_PATH
         try:
             if os.path.isdir(path) and path.startswith(prefix):
                 shutil.rmtree(path)
@@ -68,7 +68,8 @@ class MachineState():
             return False
 
     def __init__(self, name: str, script_file: str, 
-                 setup_env: Optional[dict[str, str]], manager,):
+                 setup_env: Optional[dict[str, str]], manager,
+                 init_preserve_files: Optional[List[str]] = None):
         self.name: str = name
         self.script_file: str = script_file
         self.uuid = ''.join(random.choices(string.ascii_letters, k=8))
@@ -84,7 +85,10 @@ class MachineState():
         self.connection = None
         self.interchange_ready = False
         self.interfaces: List[InterfaceMapping] = []
-        self.preserve_files: List[str] = []
+        if init_preserve_files is not None:
+            self.preserve_files = init_preserve_files.copy()
+        else:
+            self.preserve_files: List[str] = []
         self.apps = Optional[List[ApplicationConfig]]
         self.mgmt_ip_addr: Optional[str] = None
         self.file_copy_helper = FileCopyHelper(self)
@@ -162,6 +166,8 @@ class MachineState():
                 target = file_preservation / self.name
                 target.mkdir(parents=True, exist_ok=True)
                 shutil.copytree(self.get_p9_data_path(), target, dirs_exist_ok=True)
+                if CommonSettings.executor is not None:
+                    set_owner(target, CommonSettings.executor)
                 logger.info(f"File Preservation: Preserved {len(flist)} files for Instance {self.name} to '{target}'")
             
         
@@ -273,12 +279,15 @@ class MachineStateManager(Dismantable):
         return list(self.map.values())
     
     def add_machine(self, name: str, script_file: str, 
-                    setup_env: dict[str, str]):
+                    setup_env: Dict[str, str], 
+                    init_preserve_files: Optional[List[str]] = None):
         if name in self.map:
             raise Exception(f"Machine {name} was already configured")
         
-        self.map[name] = MachineState(name, script_file, setup_env, self)
-        self.map[name].set_setup_env_entry("INSTANCE_NAME", name)
+        machine = MachineState(name, script_file, setup_env, self, 
+                               init_preserve_files)
+        machine.set_setup_env_entry("INSTANCE_NAME", name)
+        self.map[name] = machine
 
     def dump_states(self) -> None:
         for instance in self.map.values():
