@@ -16,6 +16,7 @@ from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_r
 from state_manager import MachineState
 from utils.settings import CommonSettings
 from helper.network_helper import BridgeMapping
+from constants import SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE
 
 @dataclass
 class InstanceManagementSettings():
@@ -64,8 +65,8 @@ class InstanceHelper(Dismantable):
         if management is not None:
             self.ip_address = management.ip_interface.ip
 
-        if len(extra_interfaces) > 4:
-            raise Exception(f"Error during creation, 4 interfaces are allowed, but {len(extra_interfaces)} were added!")
+        if len(extra_interfaces) > SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE:
+            raise Exception(f"Error during creation, {SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE} interfaces are allowed, but {len(extra_interfaces)} were added!")
         
         if not instance.interchange_ready:
             raise Exception("Unable to set up interchange directory for p9 an mgmt socket!")

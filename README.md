@@ -25,7 +25,7 @@ Proto²Testbed can be used for various workflows and can be extended with functi
 > - Proto²Testbed uses KVM, so KVM needs to be available on your machine. The framework provides an option to disable KVM (e.g. for test installations on a virtual machine) but this will serverly limit the performance. Nested KVM could also be used during tests on VMs.
 > - Proto²Testbed needs access to the KVM subsystem of the Testbed Host as well as the ability to manage the Testbed Hosts network interfaces. Therefore, privileges are required. Execute testbeds with root privileges (e.g. using `sudo`). Users who have access to the framework should always be trusted.
 
-A testbed environment provided by Proto²Testbed with all its internal functions can be found in the following image:
+A testbed environment provided by Proto²Testbed with some of its internal functions can be found in the following image:
 ![Overview of Proto²Testbed](docs/images/proto2testbed_overview.png)
 
 ## 2. What can Proto²Testbed be used for?
@@ -36,21 +36,21 @@ Proto²Testbed can run experiments (e.g., end-to-end protocol tests, bandwidth t
 
 Results of experiments from a testbed run can be the following:
 - Time series of numeric values, stored in an InfluxDB or exported to images or CSV files (e.g., RTT or bandwidth statistics)
-- Arbitrary files that are copied from an Instance to the Testbed Host after the completion of a testbed run for subsqeuent manual analysis (e.g., packet dumps or log files)
+- Arbitrary files that are copied from an Instance to the Testbed Host after the completion of a testbed run for subsequent manual analysis (e.g., packet dumps or log files)
 
-Experiments can be executes in the following way:
+Experiments can be executed in the following way:
 - By using Applications. These are Python programs wrapping software (e.g., ping or iperf3). These are Python programs that wrap software and are executed on the instances. Data points or files can be added as results using an API.
 - Using bash scripts, which may be faster to write than applications. They can add experiments results using the `im` tool, which is available on the instances.
 
 ### Prototyping and Manual Experiments
-Testbed executions can be paused at various points of a testbed run. At this point, manual interactions with the Instances are possible (via a serial console or SSH, when enabled) is possible - use Proto²Testbed just as a builder for disposable topologies and interact with the Instances as they are normal machines. Even without SSH access it is possible to copy files from the Instance to the Testbed Host and the other way around. Using the `im` tool on the Instances, it is possible to manaully add results.
+Testbed executions can be paused at various points of a testbed run. At this point, manual interactions with the Instances are possible (via a serial console or SSH, when enabled) is possible - use Proto²Testbed just as a builder for disposable topologies and interact with the Instances as they are normal machines. Even without SSH access it is possible to copy files from the Instance to the Testbed Host and the other way around. Using the `im` tool on the Instances, it is possible to manually add results.
 
 After manual interaction (e.g., for debugging or setup) it is possible to continue the testbed execution, for example to run automated experiments.
 
 ## 3. Requirements and Installation
 Proto²Testbed currently has the following requirements:
 - **OS**: Debian 12 "Bookworm", other Debian-based OSes are possible as long as the dependencies are satisfied. Since Proto²Testbed currently has no GUI, a headless installation is sufficient. Users can interact with the framework by using SSH.
-- **CPU**: Use any x86 CPU. Do not under provision. An Instance should use 2 Threads, so the maximum Number of Instances started in parallel should not exceed *#Threads / 2*. Remember, that parallel Textbed executions are possible.
+- **CPU**: Use any x86 CPU. Do not under provision. An Instance should use 2 Threads, so the maximum Number of Instances started in parallel should not exceed *#Threads / 2*. Remember, that parallel testbed executions are possible.
 - **Memory**: Plan around 1GB per Instance, depends on tested protocols and applications.
 
 ### Automated Installation
@@ -92,10 +92,10 @@ ln -s /opt/proto-testbed/baseimage-creation/im-installer.py /usr/local/bin/p2t-g
 1. Install Proto²Testbed
 2. Generate a base disk image with basic OS installation, see [`baseimage-creation/README.md`](baseimage-creation/README.md)
 3. Install the Instance Manager and possibly additional dependencies to a testbed base image, see [`baseimage-creation/README.md`](baseimage-creation/README.md)
-4. Create a testbed package with a testbed configuration
-5. Execute the testbed and let the framework perform all experiments
-6. Export the results to plots or CSV files
-7. Clean up results
+4. Create a testbed package with a testbed, see [`docs/testbed-package.md`](docs/testbed-package.md)
+5. Execute the testbed and let the framework perform all experiments, see [`docs/commands.md`](docs/commands.md)
+6. Export the results to plots or CSV files, see [`docs/commands.md`](docs/commands.md)
+7. Clean up results, see [`docs/commands.md`](docs/commands.md)
 
 ### Typical Workflow for automated Experiments
 Even though Proto²Testbed can be used in very different ways, we envision the application for automated experiments as follows. The creation of different disk images is particularly relevant here in order to reduce the overhead for starting a testbed to a few seconds.
@@ -104,7 +104,7 @@ Even though Proto²Testbed can be used in very different ways, we envision the a
 1. Create a base image with a basic OS installation
 2. Install the Instance Manager and additional dependencies to create a base disk images for experiments. Additional dependencies can be software, configurations and so on that does not change for different testbed runs or are identical for all Instances in a testbed. By performing the installation at an early stage, the startup time of a Testbed can be reduced. A base disk image can be used by multiple Instances and is not modified during testbed runs. A disk images used in a testbed run needs the Installation of the Instance Manager.
 3. During the startup of a testbed, Instances are created from the base images as defined in the `testbed.json`. Some initial preparation is done by *cloud-init* at startup.
-4. After the startup, a setup script can be executed on the Instance that is provided in the Testbed Package. Additional and testbed run/Instance dependend dependencies (e.g., kernel modules or software that is to be evaluated in the testbed) can be installed by the setup script (loaded from within the testbed package or downloaded from the internet (when management network is enabled)). The setup scripts also needs to perform the network configuration of the Instances.
+4. After the startup, a setup script can be executed on the Instance that is provided in the Testbed Package. Additional and testbed run/Instance specific dependencies (e.g., kernel modules or software that is to be evaluated in the testbed) can be installed by the setup script (loaded from within the testbed package or downloaded from the internet (when management network is enabled)). The setup scripts also needs to perform the network configuration of the Instances.
 5. When the setup is completed, the Instances are ready for the experiment and Applications are executed, pushing results (time series data) to the Controller or marking files for preservation when the testbed is stopped. After the Experiment is completed, the testbed is shut down - all Instances and the virtual topology is fully destroyed.
 
 ## 5. Interacting with Proto²Testbed

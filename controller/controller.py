@@ -19,8 +19,7 @@ from management_server import ManagementServer
 from cli import CLI
 from state_manager import MachineStateManager, AgentManagementState, WaitResult
 from common.instance_manager_message import *
-
-SUPPORTED_INSTANCE_NUMBER = 50
+from constants import SUPPORTED_INSTANCE_NUMBER
 
 
 class Controller(Dismantable):
