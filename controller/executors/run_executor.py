@@ -17,14 +17,12 @@ class RunExecutor(BaseExecutor):
         super().__init__(subparser)
 
         self.subparser.add_argument("TESTBED_CONFIG", type=str, help="Path to testbed package")
-        self.subparser.add_argument("--clean", action="store_true", required=False, default=False,
-                                    help="Clean network interfaces and files.")
         self.subparser.add_argument("--interact", "-i", choices=[p.name for p in PauseAfterSteps], 
                                     required=False, default=PauseAfterSteps.DISABLE.name, type=str.upper,
                                     help="Interact with Conctroller after step is completed")
         self.subparser.add_argument("--no_kvm", action="store_true", required=False, default=False,
                                     help="Disable KVM virtualization in QEMU")
-        self.subparser.add_argument("-s", "--skip_integration", action="store_true", required=False, default=False,
+        self.subparser.add_argument("-s", "--skip_integrations", action="store_true", required=False, default=False,
                                     help="Skip the execution of integrations") 
         self.subparser.add_argument("-d", "--dont_store", required=False, default=False, action="store_true", 
                                     help="Dont store experiment results to InfluxDB on host")
@@ -43,7 +41,7 @@ class RunExecutor(BaseExecutor):
         parameters.interact = PauseAfterSteps[args.interact]
         parameters.disable_kvm = args.no_kvm
         parameters.dont_use_influx = args.dont_store
-        parameters.skip_integration = args.skip_integration
+        parameters.skip_integration = args.skip_integrations
         parameters.skip_substitution = args.skip_substitution
         
         if CommonSettings.experiment_generated:

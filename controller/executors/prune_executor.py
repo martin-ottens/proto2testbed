@@ -14,10 +14,10 @@ class PruneExecutor(BaseExecutor):
     def __init__(self, subparser: argparse._SubParsersAction):
         super().__init__(subparser)
 
-        self.subparser.add_argument("-a", "--all", required=False, default=False, action="store_true",
+        self.subparser.add_argument("--all", required=False, default=False, action="store_true",
                                     help="Also clean testbeds from different users")
-        self.subparser.add_argument("-i", "--interfaces", required=False, default=False, action="store_true",
-                                    help="Clean danging interfaces, ")
+        self.subparser.add_argument("--interfaces", required=False, default=False, action="store_true",
+                                    help="Clean dangling interfaces, ")
 
     def invoke(self, args) -> int:
         from cli import CLI

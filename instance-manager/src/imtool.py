@@ -37,8 +37,9 @@ def main():
 
     payload = {"type": args.command}
     match args.command:
-        case "shutdown" | "status":
+        case "shutdown":
             payload["restart"] = args.restart
+        case "status":
             pass
         case "preserve":
             if not Path(args.path).exists():

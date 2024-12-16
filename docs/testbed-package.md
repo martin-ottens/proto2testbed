@@ -99,7 +99,7 @@ Integrations are programs executed on the Testbed Host during the Testbed execut
 - Integrations modify can change configurations of the Testbed Host - these changes are not rolled back automatically. The user must ensure, that the Integrations resets these changes upon termination of a testbed (e.g., by a shutdown script)
 - Integrations can be started at different phases of a testbed run, depending on when the configuration done by the Integration or software executed by the Integration needs to be available
 - Integrations cannot push data to the InfluxDB. If you need to store data, you should rework your setup to use an Application for that.
-
+ 
 Any number of Integrations can be executed on the Testbed Host, definitions are provided in an array:
 ```json
 {
