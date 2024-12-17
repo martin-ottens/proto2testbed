@@ -51,10 +51,18 @@ class IntegrationStatusContainer():
     def get_finished_flag(self) -> threading.Event:
         return self._flag
 
+
 class BaseIntegration(ABC):
+    # API version of the Integration, currently only 1.0 is used (optional)
     API_VERSION = "1.0"
+
+    # Name of the Integration. Used to referenced bundeled Integrations and for logging.
     NAME = "##DONT_LOAD##"
 
+    # Constructor, the "name" and "environment" is passed from the corresponding Integration
+    # settings from the Testbed Configuration. The "status_container" is used to allow
+    # subprocesses to communicate with the Testbed Controller. Subclasses should call the
+    # BaeeIntegration's constructor using super.
     def __init__(self, name: str, status_container: IntegrationStatusContainer, 
                  environment: Optional[Dict[str, str]] = None) -> None:
         self.name = name
@@ -63,6 +71,7 @@ class BaseIntegration(ABC):
         self.base_path = Path(TestbedSettingsWrapper.cli_paramaters.config)
         self.settings = None
 
+    # Helper function to kill a process with all of its child. Do not overwrite.
     def kill_process_with_child(self, process: Process):
         try:
             parent = psutil.Process(process.ident)
@@ -76,6 +85,8 @@ class BaseIntegration(ABC):
 
         process.terminate()
 
+    # Helper function to check a script that is, for example, executed by the Integration.
+    # Do not overwrite.
     def get_and_check_script(self, rel_path_str: str) -> Optional[Path]:
         script_file = self.base_path / Path(rel_path_str)
         if not script_file.exists() or not script_file.is_relative_to(self.base_path):
@@ -88,6 +99,8 @@ class BaseIntegration(ABC):
 
         return script_file
 
+    # Helper function to run a script inside a new subprocess while monitoring its status.
+    # Do not overwrite.
     def run_subprocess(self, script_path: Path, shell: bool = False, precommand: Optional[str] = "/bin/bash"):
         """
         Important: This method will be forked away from the main process!
@@ -113,26 +126,42 @@ class BaseIntegration(ABC):
         except Exception as ex:
             self.status.set_error(f"Error during execution: {ex}")
 
+    # The config from the Integration-specific part of the Integration config from the Testbed Package
+    # is passed to this method. This method needs to validate this config and store it for later use 
+    # (e.g., in the start or stop method). It returns, wether the validation was successful, optionally, an 
+    # error message can be added, that is logged (use "None" for no message) 
     @abstractmethod
     def set_and_validate_config(self, config: IntegrationSettings) -> Tuple[bool, Optional[str]]:
         pass
 
+    # Returns, if the start and stop methods are blocking: If blocking is enabled, the testbed waits 
+    # until the start and stop methods return before proceeding. Otherwise, the testbed just waits 
+    # for the configured "wait_after_invoke" time before proceeding. This method is called, after the
+    # config has been set.
     @abstractmethod
     def is_integration_blocking(self) -> bool:
         pass
-
+    
+    # Returns the expected timeout in seconds for the start method (if "at_shutdown" is False) or 
+    # for the stop method (if "at_shutdown" is True). When the returned timeout is exceeded, the 
+    # Controller will consider the Integration as failed. This method is called, after the
+    # config has been set.
     @abstractmethod
     def get_expected_timeout(self, at_shutdown: bool = False) -> int:
         pass
 
-    # Needs to be implemeted blocking!
+    # Start the Integration, this needs to be implemeted blocking, regardless if 
+    # "is_integration_blocking" returns True. The return value is the status of the
+    # start stage of the Integration.
     @abstractmethod
     def start(self) -> bool:
         pass
 
-    # Needs to be implemeted blocking!
+    # Stop the Integration, this needs to be implemeted blocking, regardless if 
+    # "is_integration_blocking" returns True. The return value is the status of the
+    # stop stage of the Integration. Note that stop is called under all cirumstances,
+    # especially, when start reports a failure. This method should reset the state of
+    # the Testbed Host.
     @abstractmethod
     def stop(self) -> bool:
         pass
-
-

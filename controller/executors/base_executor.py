@@ -3,7 +3,7 @@ import argparse
 from abc import ABC, abstractmethod
 
 class BaseExecutor(ABC):
-    SUBCOMMAND = "##DONTLOAD##"
+    SUBCOMMAND = "##DONT_LOAD##"
     ALIASES = []
     HELP = "I'm an abstract base class"
 

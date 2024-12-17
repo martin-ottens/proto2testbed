@@ -76,7 +76,7 @@ class ExportResultMapping:
 
 
 class BaseApplication(ABC):
-    # API Version of the Application, currently only 1.0 is used (optional)
+    # API version of the Application, currently only 1.0 is used (optional)
     API_VERSION = "1.0"
 
     # Name of the Applicaton. Used to referenced bundeled Applications, for logging and data labling.
