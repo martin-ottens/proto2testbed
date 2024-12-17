@@ -6,6 +6,34 @@ from applications.base_application import *
 from common.application_configs import ApplicationSettings
 from applications.generic_application_interface import LogMessageLevel
 
+"""
+Monitors different system and/or process parameters:
+- "interfaces": A list of interfaces of which different stats (like 
+   raw sent/received bytes/packets) are monitored
+- "processes": A list of command lines. All processes running on the Instance
+   when the Application is started are checked against the entries, when a
+   process matches, its PID will be monitored. Therefore, the process has to be
+   launched before the Application and the PID should not change (e.g. the 
+   process should not be restarted)
+- "system": A boolean value whether different global system parameters, like CPU
+  and memory usage should be monitored
+All statistics are checked every "interval" seconds (defaults to 2). If the check
+duration is longer, a log message will be logged to the Controller.
+
+Example config:
+    {
+        "application": "procmon",
+        "name": "check-iperf",
+        "delay": 0,
+        "runtime": 60,
+        "settings": {
+            "interval": 2, // every two second
+            "processes": ["iperf3 -s"], // cmdline of the monitored process
+            "interfaces": ["enp0s3"], // name of monitored interfaces
+            "system": true // monitor global system parameters
+        }
+    }
+"""
 
 class ProcmonApplicationConfig(ApplicationSettings):
     def __init__(self, interval: int = 2, interfaces: List[str] = None,

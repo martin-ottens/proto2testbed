@@ -2,6 +2,10 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Optional, Dict, Any
 
+"""
+This is a generic/abstract class. It contains nothing that can be directly 
+loaded as an Application in your Testbed Configuration.
+"""
 
 class LogMessageLevel(Enum):
     INFO = "INFO"

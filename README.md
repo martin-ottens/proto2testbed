@@ -32,7 +32,9 @@ A testbed environment provided by Proto²Testbed with some of its internal funct
 There are two main use cases:
 
 ### Automated Experiments
-Proto²Testbed can run experiments (e.g., end-to-end protocol tests, bandwidth tests) in a fully automated way. This can be used for automated software tests or to evaluate protocols and applications in a large variety of environments or scenarios. Since Proto²Testbed uses virtual machines as hosts, there are no limitations of what kind of network software can be evaluated (e.g., modifications to the Linux kernel - which is not possible with dockerized setups).
+Proto²Testbed can run experiments (e.g., end-to-end protocol tests, bandwidth tests) in a fully automated way. 
+This can be used for automated software tests or to evaluate protocols and applications in a large variety of environments or scenarios. 
+Since Proto²Testbed uses virtual machines as hosts, there are no limitations of what kind of network software can be evaluated (e.g., modifications to the Linux kernel - which is not possible with dockerized setups).
 
 Results of experiments from a testbed run can be the following:
 - Time series of numeric values, stored in an InfluxDB or exported to images or CSV files (e.g., RTT or bandwidth statistics)
@@ -43,7 +45,9 @@ Experiments can be executed in the following way:
 - Using bash scripts, which may be faster to write than applications. They can add experiments results using the `im` tool, which is available on the instances.
 
 ### Prototyping and Manual Experiments
-Testbed executions can be paused at various points of a testbed run. At this point, manual interactions with the Instances are possible (via a serial console or SSH, when enabled) is possible - use Proto²Testbed just as a builder for disposable topologies and interact with the Instances as they are normal machines. Even without SSH access it is possible to copy files from the Instance to the Testbed Host and the other way around. Using the `im` tool on the Instances, it is possible to manually add results.
+Testbed executions can be paused at various points of a testbed run. 
+At this point, manual interactions with the Instances are possible (via a serial console or SSH, when enabled) is possible - use Proto²Testbed just as a builder for disposable topologies and interact with the Instances as they are normal machines. 
+Even without SSH access it is possible to copy files from the Instance to the Testbed Host and the other way around. Using the `im` tool on the Instances, it is possible to manually add results.
 
 After manual interaction (e.g., for debugging or setup) it is possible to continue the testbed execution, for example to run automated experiments.
 
@@ -98,7 +102,8 @@ ln -s /opt/proto-testbed/baseimage-creation/im-installer.py /usr/local/bin/p2t-g
 7. Clean up results, see [`docs/commands.md`](docs/commands.md)
 
 ### Typical Workflow for automated Experiments
-Even though Proto²Testbed can be used in very different ways, we envision the application for automated experiments as follows. The creation of different disk images is particularly relevant here in order to reduce the overhead for starting a testbed to a few seconds.
+Even though Proto²Testbed can be used in very different ways, we envision the application for automated experiments as follows. 
+The creation of different disk images is particularly relevant here in order to reduce the overhead for starting a testbed to a few seconds.
 ![Workflow for Proto²Testbed](docs/images/proto2testbed_workflow.png)
 
 1. Create a base image with a basic OS installation
@@ -125,7 +130,8 @@ See [`docs/commands.md`](docs/commands.md) for further details on how to use Pro
 ## 6. Prepare a Base Image and execute an Example
 Before a testbed can be executed, a base image with a minimal OS installation has to be created. To create a *Debian 12* base image, see [`baseimage-creation/README.md`](baseimage-creation/README.md).
 
-See `setups/` for some (advanced) usage examples. These examples are an excellent starting point for familiarizing yourself with Proto²Testbed. The `README` files provide an overview of the setups and give instructions on how to run the examples.
+See `setups/` for some (advanced) usage examples. These examples are an excellent starting point for familiarizing yourself with Proto²Testbed. 
+The `README` files provide an overview of the setups and give instructions on how to run the examples.
 
 ## 7. Testbed Configuration
 For a testbed run, a **Testbed Package** is required. A testbed package must contain at least the testbed configuration `testbed.json`, see [`docs/testbed-package.md`](docs/testbed-package.md) for further details.

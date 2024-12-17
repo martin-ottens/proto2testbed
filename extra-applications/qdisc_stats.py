@@ -7,8 +7,13 @@ from applications.base_application import *
 from common.application_configs import ApplicationSettings
 
 """
-Parse 'tc -s qdisc sh' for a given list of interfaces.
-Supported qdiscs: netem, tbf
+Parse 'tc -s qdisc sh' for a given list of interfaces. Supported qdiscs: netem, tbf
+Two list are provided: "netem_if" for the interfaces that should be monitored for
+netem stats and "tbf_if" that should be monitored for tbf statistics. Stats will
+be queried every "interval" seconds (defaults to one).
+
+At least one interface needs to be defined in "netem_if" or "tbf_if". Use null
+to disable monitoring of a specific qdisc type.
 
 Example config:
     {
@@ -17,9 +22,9 @@ Example config:
         "delay": 0,
         "runtime": 60,
         "settings": {
-            "interval": 1, # every second
-            "netem_if": ["enp0s3", "enp0s4"], # monitor 'netem' qdisc on enp0s{3,4}
-            "tbf_if": ["enp0s3", "enp0s4"] # monitor 'tbf' qdisc on enp0s{3,4}
+            "interval": 1, // every second
+            "netem_if": ["enp0s3", "enp0s4"], // monitor 'netem' qdisc on enp0s{3,4}
+            "tbf_if": ["enp0s3", "enp0s4"] // monitor 'tbf' qdisc on enp0s{3,4}
         }
     }
 """

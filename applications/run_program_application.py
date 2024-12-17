@@ -7,6 +7,35 @@ from typing import Optional, Dict, Tuple
 from applications.base_application import BaseApplication
 from common.application_configs import ApplicationSettings
 
+"""
+Run a command or script on the Instance. The command or script should be
+given as a path, if the path is relative, it is interpreted relative to the
+Testbed Package's root. 
+
+The setting value "command" contains that path alongside with additional arguments.
+It is possible to use expressions like '/bin/bash <script>'. The script or program
+should be executable. "environment" contains a key-value-dictionary that is passed
+as environment variables to the command or script. The script or command is 
+always terminated when the "timeout" is exceeded, the "ignore_timeout" setting can
+be used to define if that should be interpreted as a failure of this Application 
+and defaults to "false". Settings "environment" and "ignore_timeout" are optional.
+
+Example config:
+    {
+        "application": "run-program",
+        "name": "run-my-script",
+        "delay": 0,
+        "runtime": 60,
+        "settings": {
+            "command": "my-instance/run-script.sh", // in this case: relative to Testbed Package
+            "environment": {
+                "KEY": "VALUE",
+                "REPEAT": "10"
+            }
+            "ignore_timeout": true // Timeout is not treated as a failure
+        }
+    }
+"""
 
 class RunProgramApplicationConfig(ApplicationSettings):
     def __init__(self, command: str, ignore_timeout: bool = False, 

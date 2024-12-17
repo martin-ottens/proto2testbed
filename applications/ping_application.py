@@ -5,6 +5,32 @@ from typing import Tuple, Optional, List
 from applications.base_application import *
 from common.application_configs import ApplicationSettings
 
+"""
+Wraps the 'ping' command to monitor ICMP RTT and TTL values. "target" is the
+IP address or hostname that should be pinged, "source" if the local IP address 
+that should be used to send the pings (can be omitted). Pings are sent every 
+"interval" seconds (defaults to 1). ICMP ping requests have a size of 
+"packetsize" bytes and a TTL of "ttl" hops (both values are optional and 
+default to the standard values used by 'ping'). A timeout in seconds for a 
+ping reply can be defined with "timeout" (defaults to 1), after that time a 
+"-1" value is stored to indicate, that the host is unreachable.
+
+Example config:
+    {
+        "application": "ping",
+        "name": "my-ping",
+        "delay": 0,
+        "runtime": 60,
+        "settings": {
+            "target": 10.0.0.2, // host, ICMP echo requests are sent to
+            "source": 10.0.0.1, // local source IP address, required when "target" can be reached by multiple way
+            "interval": 5, // send request every 5 seconds
+            "packetsize": 1024, // packets have a size of 1024 bytes
+            "ttl": 20, // packets have a ttl of 20
+            "timeout": 2 // if no reply is received within 2 seconds, the host is assumed that the host is unreachable
+        }
+    }
+"""
 
 class PingApplicationConfig(ApplicationSettings):
     def __init__(self, target: str, source: str = None, interval: int = 1,

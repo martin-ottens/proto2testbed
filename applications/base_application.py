@@ -6,6 +6,11 @@ from enum import Enum
 from common.application_configs import ApplicationSettings
 from applications.generic_application_interface import GenericApplicationInterface
 
+"""
+This is a generic/abstract class. It contains nothing that can be directly 
+loaded as an Application in your Testbed Configuration.
+"""
+
 # Represents a data series inside the InfluxDB, passed to an Application so that
 # it is able to calculate more details that are used for data export
 @dataclass

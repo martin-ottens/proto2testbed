@@ -6,6 +6,38 @@ from applications.base_application import *
 from applications.iperf_common import run_iperf
 from common.application_configs import ApplicationSettings
 
+"""
+Wraps iPerf3 in server mode ('iperf3 -s') to perform speed tests. Bind to the
+interface and port given as "host" and "port" (optional, defaults to "0.0.0.0"
+and 5201). Each output of iPerf is pushed to the InfluxDB, "report_interval"
+controls, how often iPerf will report statistics. Only interim reports are 
+parsed, the conclusion will not be pushed.
+The server only performs one test and terminates (one-off) and will not 
+terminate by itself when no client connected. For the runtime and delay, select 
+the following values to prevent problems:
+
+DELAYserver = DELAYclient - 1 // Start server 1 second before the client
+TIMEOUTserver = max(TIMEOUTclient * 1.1, TIMEOUTclient + 5) // Allow the server to run longer
+
+See 'iperf_client_application.py' for the corresponding client config. If only 
+the client- or server-report-output should be stored, use the "dont_store"
+option in the common application settings.
+
+Output parsing works with iperf 3.12 (cJSON 1.7.15) (Debian 12 standard install).
+
+Example config:
+    {
+        "application": "iperf3-server",
+        "name": "my-iperf-server",
+        "delay": 0,
+        "runtime": 60,
+        "settings": {
+            "host": "0.0.0.0", // bind to 0.0.0.0 (listen on all interfaces)
+            "port": 5201, // bind control server to port 5201
+            "report_interval": 5 // report stats every 5 seconds
+        }
+    }
+"""
 
 class IperfServerApplicationConfig(ApplicationSettings):
     def __init__(self, host: str = "0.0.0.0", port: int = 5201, 

@@ -7,8 +7,11 @@ from applications.base_application import *
 from common.application_configs import ApplicationSettings
 
 """
-Parse 'ss -tipH' to get TCP congestion control stats for a specific list of processes.
-Supported congestion control algorithms: cubic
+Parse 'ss -tipH' to get TCP congestion control stats for a specific list of 
+processes ("procs"). Supported congestion control algorithms: cubic
+Checks every "interval" seconds (optional, defaults to 1). If an iPerf connection
+is monitored, the "iperf_mode" option can be used to disable recording of the 
+control process (optional, defaults to false).
 
 Example config:
     {
@@ -17,9 +20,9 @@ Example config:
         "delay": 0,
         "runtime": 60,
         "settings": {
-            "interval": 1, # every second
-            "procs": ["iperf3"], # short name of processes to parse
-            "iperf_mode": true # filter iperf control process
+            "interval": 1, // every second
+            "procs": ["iperf3"], // short name of processes to parse
+            "iperf_mode": true // filter iPerf control process
         }
     }
 """

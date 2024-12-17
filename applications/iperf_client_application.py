@@ -6,6 +6,43 @@ from applications.base_application import *
 from applications.iperf_common import run_iperf
 from common.application_configs import ApplicationSettings
 
+"""
+Wraps iPerf3 in client mode ('iperf3 -c') to perform speed tests. Connects to the
+iPerf3 server at "host" and "port" (optional, defaults to 5201). The following 
+additional settings can be enabled:
+- "reverse", boolean: Reverse the data transfer (server to client, default false)
+- "udp", boolean: Use UDP instead of TCP (bandwidth_kbps required, default false)
+- "streams", int: Number of streams for data transfer (default 1)
+- "bandwidth_kbps", int: Data rate for UDP tests
+- "tcp_no_delay", boolean: Enable TCP_NO_DELAY (default false)
+This Application pushes all interim status reports from iPerf3 to the InfluxDB, 
+the conclusion after the test is completed is not considered. The interval of the
+reports can be changed with "report_interval" (defaults to 1).
+
+See 'iperf_server_application.py' for the corresponding server config. If only 
+the client- or server-report-output should be stored, use the "dont_store"
+option in the common application settings.
+
+Output parsing works with iperf 3.12 (cJSON 1.7.15) (Debian 12 standard install).
+
+Example config:
+    {
+        "application": "iperf3-client",
+        "name": "my-iperf-client",
+        "delay": 0,
+        "runtime": 60,
+        "settings": {
+            "host": "10.0.0.1", // connect server at 10.0.0.1
+            "port": 5201, // connect to port 5201
+            "reverse": false, // transfer from client to server
+            "udp": true, // use UDP for transfers
+            "streams": 1, // use one stream for transfers
+            "bandwidth_kbps": 2000, // 2000kbps as UDP data rate
+            "tcp_no_delay": false, // TCP_NO_DELAY is disabled
+            "report_interval": 5 // report stats every 5 seconds
+        }
+    }
+"""
 
 class IperfClientApplicationConfig(ApplicationSettings):
     def __init__(self, host: str, port: int = 5201, reverse: bool = None, 

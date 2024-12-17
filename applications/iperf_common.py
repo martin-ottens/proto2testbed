@@ -1,9 +1,14 @@
-# Written for iperf 3.12 (cJSON 1.7.15) -> Debian 12
+"""
+Common functions/parsers for "iperf_server_application.py" and "iperf_client_application.py".
+No loadable Applications are contained in this file.
 
-# TCP: Client: [ ID] Interval           Transfer     Bitrate         Retr  Cwnd
-#      Server: [ ID] Interval           Transfer     Bitrate
-# UDP: Client: [ ID] Interval           Transfer     Bitrate         Total Datagrams
-#      Server: [ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+Written for iperf 3.12 (cJSON 1.7.15) -> Debian 12
+
+TCP: Client: [ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+     Server: [ ID] Interval           Transfer     Bitrate
+UDP: Client: [ ID] Interval           Transfer     Bitrate         Total Datagrams
+      Server: [ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+"""
 
 import subprocess
 import re
