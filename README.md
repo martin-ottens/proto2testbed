@@ -19,10 +19,10 @@ Proto²Testbed can be used for various workflows and can be extended with functi
 - Proto²Testbed also allows real network interfaces of the Testbed Host to be integrated into a virtual testbed topology. **Integrations** are available to execute special functions on the Testbed Host during testbed runs.
 - With the right preparation, each testbed run has only a few seconds overhead for the creation and setup of the instances - a virtual topology is available in just a few seconds.
 - In addition to the fully automatic operation, numerous CLI features also allow a testbed to be used interactively - great for debugging or prototyping.
-- Variables in the testbed configuration allows the test of different environments or scenarios. Especially with integration in CI/CD tools, Proto²Tetsbed can also be used as a tool for automatic software tests.
+- Variables in the testbed configuration allows the test of different environments or scenarios. Especially with integration in CI/CD tools, Proto²Testbed can also be used as a tool for automatic software tests.
 
 > **Some important notes:**
-> - Proto²Testbed uses KVM, so KVM needs to be available on your machine. The framework provides an option to disable KVM (e.g. for test installations on a virtual machine) but this will serverly limit the performance. Nested KVM could also be used during tests on VMs.
+> - Proto²Testbed uses KVM, so KVM needs to be available on your machine. The framework provides an option to disable KVM (e.g. for test installations on a virtual machine) but this will severely limit the performance. Nested KVM could also be used during tests on VMs.
 > - Proto²Testbed needs access to the KVM subsystem of the Testbed Host as well as the ability to manage the Testbed Hosts network interfaces. Therefore, privileges are required. Execute testbeds with root privileges (e.g. using `sudo`). Users who have access to the framework should always be trusted.
 
 A testbed environment provided by Proto²Testbed with some of its internal functions can be found in the following image:
@@ -149,3 +149,6 @@ Proto²Testbed can be easily extended for special requirements, see [`docs/exten
 - Own top-level commands for the Testbed Controller (see `controller/executors/`)
 
 Proto²Testbed can also be used in automated workflows, e.g., for automated, fully integrated end-to-end software tests in GitLab CI/CD. See [`docs/gitlab-integration.md`](docs/gitlab-integration.md) for further details.
+
+## 9. License
+This project is licensed under the [GNU General Public License v3.0](LICENSE). For more details, see the `LICENSE` file or see https://www.gnu.org/licenses/.

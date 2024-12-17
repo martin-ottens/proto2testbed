@@ -3,7 +3,7 @@
 There are several ways to interact with Proto²Testbed, the options depend on the configuration and the phase the testbed is currently in.
 
 ## Top-Level Controller Commands
-In the most cases, users will interact with Proto²Testbed by using the CLI of the Testbed Contoller. 
+In the most cases, users will interact with Proto²Testbed by using the CLI of the Testbed Controller. 
 It is invoked with the command `p2t <subcommand> <arguments>` (or `proto-testbed <subcommands> <arguments>` when not installed globally). 
 *Arguments* can be common for all subcommands or subcommand specific. The following arguments can be used for all subcommands:
 - **`--verbose`/`-v`**: Increase verbosity of log outputs for debugging (`-vv` to show even more log messages)
