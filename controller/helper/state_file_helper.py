@@ -25,19 +25,7 @@ from typing import List, Optional, Dict
 
 from constants import INTERCHANGE_BASE_PATH, MACHINE_STATE_FILE
 from utils.settings import CommonSettings
-
-@dataclass
-class MachineStateFileInterfaceMapping():
-    bridge_dev: str
-    bridge_name: str
-    tap_index: int
-    tap_dev: str
-    tap_mac: str
-    host_ports: Optional[List[str]] = None
-
-    def __lt__(self, other) -> bool:
-        return self.tap_index < other.tap_index
-
+from helper.network_helper import InstanceInterface
 
 @dataclass
 class MachineStateFile():
@@ -48,13 +36,13 @@ class MachineStateFile():
     main_pid: int
     uuid: str
     mgmt_ip: Optional[str]
-    interfaces: List[MachineStateFileInterfaceMapping] = None
+    interfaces: List[InstanceInterface] = None
 
     @staticmethod
     def from_json(json):
         interfaces = []
         for mapping in json["interfaces"]:
-            interfaces.append(MachineStateFileInterfaceMapping(**mapping))
+            interfaces.append(InstanceInterface(**mapping))
 
         del json["interfaces"]
 

@@ -24,7 +24,7 @@ from loguru import logger
 from typing import List
 from threading import Event, Thread
 
-from helper.network_helper import NetworkBridge, NetworkMappingHelper
+from helper.network_helper import NetworkBridge, NetworkMappingHelper, InstanceInterface
 from helper.instance_helper import InstanceHelper, InstanceManagementSettings
 from helper.integration_helper import IntegrationHelper
 from utils.interfaces import Dismantable
@@ -186,8 +186,14 @@ class Controller(Dismantable):
                     return False
                 extra_interfaces[if_int_name] = if_bridge_mapping
                 wait_for_interfaces.append(if_int_name)
-                machine.add_interface_mapping(if_bridge_mapping, 
-                                              index + 1 if self.has_mgmt_network else index)
+                instane_interface = InstanceInterface(
+                    index=(index + 1 if self.has_mgmt_network else index),
+                    bridge_name=if_bridge_mapping.name,
+                    bridge_dev=if_bridge_mapping.dev_name,
+                    bridge_mapping=if_bridge_mapping,
+                    is_management=False
+                )
+                machine.add_interface_mapping(instane_interface)
 
             try:
                 diskimage_path = Path(instance.diskimage)
@@ -208,7 +214,14 @@ class Controller(Dismantable):
                         gateway=str(self.mgmt_gateway),
                     )
                     machine.set_mgmt_ip(management_settings.ip_interface)
-                    machine.add_interface_mapping(mgmt_bridge_mapping, 0)
+                    instane_interface = InstanceInterface(
+                        index=0,
+                        bridge_name=mgmt_bridge_mapping.name,
+                        bridge_dev=mgmt_bridge_mapping.dev_name,
+                        bridge_mapping=mgmt_bridge_mapping,
+                        is_management=False
+                    )
+                    machine.add_interface_mapping(instane_interface)
 
                 wrapper = InstanceHelper(instance=self.state_manager.get_machine(instance.name),
                                     management=management_settings,

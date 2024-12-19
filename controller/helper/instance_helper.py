@@ -119,7 +119,8 @@ class InstanceHelper(Dismantable):
                 network_config = j2_env.get_template("network-config.j2").render(
                     mgmt_address=str(management.ip_interface.ip),
                     mgmt_server=str(management.gateway),
-                    mgmt_netmask=management.ip_interface.with_prefixlen.split("/")[1]
+                    mgmt_netmask=management.ip_interface.with_prefixlen.split("/")[1],
+                    mgmt_if_mac=management.bridge_mapping.dev_name # TODO
                 )
                 with open(init_files / "network-config", mode="w", encoding="utf-8") as handle:
                     handle.write(network_config)

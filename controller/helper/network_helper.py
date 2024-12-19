@@ -26,6 +26,7 @@ import socket
 
 from typing import Dict, List, Optional
 from loguru import logger
+from dataclasses import dataclass
 
 from utils.interfaces import Dismantable
 from utils.system_commands import invoke_subprocess
@@ -275,13 +276,28 @@ class NetworkBridge(Dismantable):
 
 
 class BridgeMapping():
-    def __init__(self, name: str, dev_name: str) -> None:
+    def __init__(self, name: str, dev_name: str, mac: str) -> None:
         self.name = name
         self.dev_name: str = dev_name
         self.bridge: NetworkBridge = None
 
     def __str__(self) -> str:
         return f"{self.name} ({self.dev_name})"
+
+
+@dataclass
+class InstanceInterface():
+    tap_index: int
+    bridge_dev: Optional[str] = None
+    bridge_name: Optional[str] = None
+    tap_dev: Optional[str] = None
+    tap_mac: Optional[str] = None
+    host_ports: Optional[List[str]] = None
+    bridge_mapping: Optional[BridgeMapping] = None
+    is_management: bool = False
+
+    def __lt__(self, other) -> bool:
+        return self.tap_index < other.tap_index
 
 
 class NetworkMappingHelper():

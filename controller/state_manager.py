@@ -32,8 +32,8 @@ from dataclasses import dataclass
 
 from utils.system_commands import invoke_subprocess, set_owner
 from helper.file_copy_helper import FileCopyHelper
-from helper.network_helper import BridgeMapping
-from helper.state_file_helper import MachineStateFile, MachineStateFileInterfaceMapping
+from helper.network_helper import BridgeMapping, InstanceInterface
+from helper.state_file_helper import MachineStateFile
 from common.application_configs import ApplicationConfig
 from utils.interfaces import Dismantable
 from common.interfaces import DataclassJSONEncoder
@@ -60,14 +60,6 @@ class WaitResult(Enum):
     TIMEOUT = 2
     INTERRUPTED = 3
     SHUTDOWN = 4
-
-
-@dataclass
-class InterfaceMapping():
-    bridge: BridgeMapping
-    index: int
-    tap: str = None
-    mac: str = None
 
 
 class MachineState():
@@ -102,7 +94,7 @@ class MachineState():
         self._state: AgentManagementState = AgentManagementState.UNKNOWN
         self.connection = None
         self.interchange_ready = False
-        self.interfaces: List[InterfaceMapping] = []
+        self.interfaces: List[InstanceInterface] = []
         if init_preserve_files is not None:
             self.preserve_files = init_preserve_files.copy()
         else:
@@ -117,21 +109,30 @@ class MachineState():
     def add_preserve_file(self, file: str):
         self.preserve_files.append(file)
 
-    def add_interface_mapping(self, interface: BridgeMapping, index: int):
-        self.interfaces.append(InterfaceMapping(interface, index))
+    def add_interface_mapping(self, interface: InstanceInterface):
+        self.interfaces.append(interface)
+
+    def get_interface_by_bridge(self, bridge: str) -> Optional[InstanceInterface]:
+        found_interface = None
+        for interface in self.interfaces:
+            if interface.bridge_mapping.dev_name == bridge:
+                found_interface = interface
+                break
+        
+        return found_interface
 
     def link_tap_to_bridge(self, bridge: str, tap: str, mac: str):
         mapping = None
         for interface in self.interfaces:
-            if interface.bridge.dev_name == bridge:
+            if interface.bridge_mapping.dev_name == bridge:
                 mapping = interface
                 break
         
         if mapping is None:
             raise Exception(f"Unable to find interface mapping for '{bridge}'")
         
-        mapping.tap = tap
-        mapping.mac = mac
+        mapping.tap_dev = tap
+        mapping.tap_mac = mac
     
     def set_mgmt_ip(self, ip_addr: str):
         self.mgmt_ip_addr = ip_addr
@@ -247,10 +248,10 @@ class MachineState():
         self.set_state(AgentManagementState.DISCONNECTED)
 
     def dump_state(self) -> None:
-        interfaces: List[MachineStateFileInterfaceMapping] = []
+        interfaces: List[InstanceInterface] = []
 
         for interface in self.interfaces:
-            interfaces.insert(interface.index, MachineStateFileInterfaceMapping(
+            interfaces.insert(interface.index, InstanceInterface(
                 bridge_dev=interface.bridge.dev_name,
                 bridge_name=interface.bridge.name,
                 tap_index=interface.index,
