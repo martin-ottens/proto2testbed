@@ -34,12 +34,12 @@ from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_r
 from state_manager import MachineState
 from utils.settings import CommonSettings
 from helper.network_helper import BridgeMapping
+from utils.networking import InstanceInterface
 from constants import SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE
 
 @dataclass
 class InstanceManagementSettings():
-    bridge_mapping: BridgeMapping
-    tap_dev_name: str
+    interface: InstanceInterface
     ip_interface: ipaddress.IPv4Interface
     gateway: str
 
@@ -71,8 +71,9 @@ class InstanceHelper(Dismantable):
                                    -joliet \
                                    -rock {input}"""
 
-    def __init__(self, instance: MachineState, management: Optional[InstanceManagementSettings],
-                 extra_interfaces: Dict[str, BridgeMapping], image: str, testbed_package_path: str,
+    def __init__(self, instance: MachineState, 
+                 management: Optional[InstanceManagementSettings],
+                 image: str, testbed_package_path: str,
                  cores: int = 2, memory: int = 1024, debug: bool = False, 
                  disable_kvm: bool = False, netmodel: str = "virtio") -> None:
         self.instance = instance
@@ -83,7 +84,7 @@ class InstanceHelper(Dismantable):
         if management is not None:
             self.ip_address = management.ip_interface.ip
 
-        if len(extra_interfaces) > SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE:
+        if len(instance.interfaces) > (SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE + 1):
             raise Exception(f"Error during creation, {SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE} interfaces are allowed, but {len(extra_interfaces)} were added!")
         
         if not instance.interchange_ready:

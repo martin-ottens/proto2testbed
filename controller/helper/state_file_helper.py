@@ -25,7 +25,7 @@ from typing import List, Optional, Dict
 
 from constants import INTERCHANGE_BASE_PATH, MACHINE_STATE_FILE
 from utils.settings import CommonSettings
-from helper.network_helper import InstanceInterface
+from utils.networking import InstanceInterface
 
 @dataclass
 class MachineStateFile():
@@ -36,7 +36,7 @@ class MachineStateFile():
     main_pid: int
     uuid: str
     mgmt_ip: Optional[str]
-    interfaces: List[InstanceInterface] = None
+    interfaces: Optional[List[InstanceInterface]] = None
 
     @staticmethod
     def from_json(json):

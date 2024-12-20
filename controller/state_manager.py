@@ -28,11 +28,10 @@ from pathlib import Path
 from loguru import logger
 from typing import Tuple, Optional, List, Dict
 from threading import Lock, Semaphore, Event
-from dataclasses import dataclass
 
 from utils.system_commands import invoke_subprocess, set_owner
 from helper.file_copy_helper import FileCopyHelper
-from helper.network_helper import BridgeMapping, InstanceInterface
+from utils.networking import InstanceInterface
 from helper.state_file_helper import MachineStateFile
 from common.application_configs import ApplicationConfig
 from utils.interfaces import Dismantable

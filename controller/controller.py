@@ -21,10 +21,10 @@ import time
 
 from pathlib import Path
 from loguru import logger
-from typing import List
+from typing import List, Dict
 from threading import Event, Thread
 
-from helper.network_helper import NetworkBridge, NetworkMappingHelper, InstanceInterface
+from helper.network_helper import *
 from helper.instance_helper import InstanceHelper, InstanceManagementSettings
 from helper.integration_helper import IntegrationHelper
 from utils.interfaces import Dismantable
@@ -32,6 +32,7 @@ from utils.config_tools import load_config, load_vm_initialization, check_preser
 from utils.settings import CommonSettings, TestbedSettingsWrapper
 from utils.settings import InvokeIntegrationAfter
 from utils.influxdb import InfluxDBAdapter
+from utils.networking import InstanceInterface
 from utils.continue_mode import *
 from management_server import ManagementServer
 from cli import CLI
@@ -48,8 +49,9 @@ class Controller(Dismantable):
         self.dismantables: List[Dismantable] = []
         self.state_manager: MachineStateManager = MachineStateManager()
         self.dismantables.insert(0, self.state_manager)
-        self.has_mgmt_network = False
-        self.network_mapping: Optional[NetworkMappingHelper] = None
+        self.mgmt_bridge: Optional[ManagementNetworkBridge] = None
+        self.mgmt_bridge_mapping: Optional[BridgeMapping] = None
+        self.network_mapping = NetworkMappingHelper()
         self.request_restart = False
 
         self.base_path = Path(TestbedSettingsWrapper.cli_paramaters.config)
@@ -105,42 +107,35 @@ class Controller(Dismantable):
     def get_name(self) -> str:
         return f"Controller"
     
-    def setup_local_network(self) -> bool:        
-        self.network_mapping = NetworkMappingHelper()
-
+    def setup_local_network(self) -> bool:
         if TestbedSettingsWrapper.testbed_config.settings.management_network.lower() == "auto":
-            self.mgmt_network = NetworkBridge.generate_auto_management_network(CommonSettings.unique_run_name)
-            if self.mgmt_network is None:
+            mgmt_network = NetworkBridge.generate_auto_management_network(CommonSettings.unique_run_name)
+            if mgmt_network is None:
                 logger.critical(f"Unable to generate a management subnet for 'auto' option.")
                 return False
             else:
-                logger.info(f"Generated Management Network subnet '{self.mgmt_network}' for 'auto' option.")
+                logger.info(f"Generated Management Network subnet '{mgmt_network}' for 'auto' option.")
         else:
-            self.mgmt_network = ipaddress.IPv4Network(TestbedSettingsWrapper.testbed_config.settings.management_network)
+            mgmt_network = ipaddress.IPv4Network(TestbedSettingsWrapper.testbed_config.settings.management_network)
 
-            if NetworkBridge.is_network_in_use(self.mgmt_network):
-                logger.critical(f"Network '{self.mgmt_network}' is already in use on this host.")
+            if NetworkBridge.is_network_in_use(mgmt_network):
+                logger.critical(f"Network '{mgmt_network}' is already in use on this host.")
                 return False
 
-        self.mgmt_ips = list(self.mgmt_network.hosts())
-        self.mgmt_netmask = ipaddress.IPv4Network(f"0.0.0.0/{self.mgmt_network.netmask}").prefixlen
-
-        # Setup Networks
+        # Setup management network bridge
         try:
-            mgmt_bridge_mapping = self.network_mapping.add_bridge_mapping("br-mgmt")
-            mgmt_bridge = NetworkBridge(mgmt_bridge_mapping.dev_name, 
-                                        mgmt_bridge_mapping.name)
-            mgmt_bridge_mapping.bridge = mgmt_bridge
-            self.dismantables.insert(0, mgmt_bridge)
-            self.mgmt_gateway = self.mgmt_ips.pop(0)
-            mgmt_bridge.setup_local(ip=ipaddress.IPv4Interface(f"{self.mgmt_gateway}/{self.mgmt_netmask}"), 
-                                    nat=self.mgmt_network)
-            mgmt_bridge.start_bridge()
+            self.mgmt_bridge_mapping = self.network_mapping.add_bridge_mapping("br-mgmt")
+            self.mgmt_bridge = ManagementNetworkBridge(self.mgmt_bridge_mapping.dev_name, 
+                                                       self.mgmt_bridge_mapping.name,
+                                                       mgmt_network)
+            self.mgmt_bridge_mapping.bridge = self.mgmt_bridge
+            self.dismantables.insert(0, self.mgmt_bridge)
+            self.mgmt_bridge.setup_local()
+            self.mgmt_bridge.start_bridge()
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to setup management network!")
             return False
 
-        self.has_mgmt_network = True
         return True
 
     def setup_infrastructure(self) -> bool:
@@ -152,6 +147,7 @@ class Controller(Dismantable):
             logger.critical(f"{len(TestbedSettingsWrapper.testbed_config.instances)} Instances configured, a maximum of {SUPPORTED_INSTANCE_NUMBER} is supported.")
             return False
 
+        # Create bridges for experiment networks
         for network in TestbedSettingsWrapper.testbed_config.networks:
             try:
                 bridge_mapping = self.network_mapping.add_bridge_mapping(network.name)
@@ -176,22 +172,24 @@ class Controller(Dismantable):
         diskimage_basepath = Path(TestbedSettingsWrapper.testbed_config.settings.diskimage_basepath)
         for instance in TestbedSettingsWrapper.testbed_config.instances:
             machine = self.state_manager.get_machine(instance.name)
-            extra_interfaces = {}
 
             for index, if_bridge in enumerate(instance.networks):
-                if_int_name = self.network_mapping.generate_tap_name()
-                if_bridge_mapping = self.network_mapping.get_bridge_mapping(if_bridge)
-                if if_bridge_mapping is None:
+                tap_name = self.network_mapping.generate_tap_name()
+                bridge_mapping = self.network_mapping.get_bridge_mapping(if_bridge)
+                if bridge_mapping is None:
                     logger.critical(f"Unable to map network '{if_bridge}' for Instance '{instance.name}': Not mapped.")
                     return False
-                extra_interfaces[if_int_name] = if_bridge_mapping
-                wait_for_interfaces.append(if_int_name)
+
+                wait_for_interfaces.append(tap_name)
                 instane_interface = InstanceInterface(
                     index=(index + 1 if self.has_mgmt_network else index),
-                    bridge_name=if_bridge_mapping.name,
-                    bridge_dev=if_bridge_mapping.dev_name,
-                    bridge_mapping=if_bridge_mapping,
-                    is_management=False
+                    tap_dev=tap_name,
+                    bridge_name=bridge_mapping.name,
+                    bridge_dev=bridge_mapping.dev_name,
+                    bridge=bridge_mapping,
+                    bridge_attached=False,
+                    is_management=False,
+                    instance=machine
                 )
                 machine.add_interface_mapping(instane_interface)
 
@@ -205,28 +203,35 @@ class Controller(Dismantable):
                     raise Exception(f"Unable to find diskimage '{diskimage_path}'")
                 
                 management_settings = None
-                if self.has_mgmt_network:
-                    mgmt_bridge_mapping = self.network_mapping.get_bridge_mapping("br-mgmt")
+                if self.mgmt_bridge is not None:
+                    intstance_mgmt_ip = self.mgmt_bridge.get_next_mgmt_ip()
+                    tap_name = self.network_mapping.generate_tap_name()
+                    machine.set_mgmt_ip(intstance_mgmt_ip)
+
+                    wait_for_interfaces.append(tap_name)
+                    instance_interface = InstanceInterface(
+                        index=0,
+                        tap_dev=tap_name,
+                        bridge_name=self.mgmt_bridge_mapping.name,
+                        bridge_dev=self.mgmt_bridge_mapping.dev_name,
+                        bridge=self.mgmt_bridge_mapping,
+                        bridge_attached=False,
+                        is_management=True,
+                        attached_instance=instance
+                    )
+                    machine.add_interface_mapping(instance_interface)
+
                     management_settings = InstanceManagementSettings(
-                        bridge_mapping=mgmt_bridge_mapping,
-                        tap_dev_name=self.network_mapping.generate_tap_name(),
-                        ip_interface=ipaddress.IPv4Interface(f"{self.mgmt_ips.pop(0)}/{self.mgmt_netmask}"),
+                        interface=instance_interface,
+                        ip_interface=intstance_mgmt_ip,
                         gateway=str(self.mgmt_gateway),
                     )
-                    machine.set_mgmt_ip(management_settings.ip_interface)
-                    instane_interface = InstanceInterface(
-                        index=0,
-                        bridge_name=mgmt_bridge_mapping.name,
-                        bridge_dev=mgmt_bridge_mapping.dev_name,
-                        bridge_mapping=mgmt_bridge_mapping,
-                        is_management=False
-                    )
-                    machine.add_interface_mapping(instane_interface)
 
-                wrapper = InstanceHelper(instance=self.state_manager.get_machine(instance.name),
+
+                # TODO rename machine to intstance here
+                wrapper = InstanceHelper(instance=machine,
                                     management=management_settings,
                                     testbed_package_path=self.base_path,
-                                    extra_interfaces=list(extra_interfaces.items()),
                                     image=str(diskimage_path),
                                     cores=instance.cores,
                                     memory=instance.memory,
@@ -235,12 +240,7 @@ class Controller(Dismantable):
                 self.dismantables.insert(0, wrapper)
                 wrapper.start_instance()
 
-                if self.has_mgmt_network:
-                    mgmt_if_int_name = management_settings.tap_dev_name
-                    extra_interfaces[mgmt_if_int_name] = management_settings.bridge_mapping
-                    wait_for_interfaces.append(mgmt_if_int_name)
-
-                instances[instance.name] = (wrapper, extra_interfaces, )
+                instances[instance.name] = wrapper
             except Exception as ex:
                 logger.opt(exception=ex).critical(f"Unable to setup and start instance {instance.name}")
                 return False
@@ -258,6 +258,7 @@ class Controller(Dismantable):
             time.sleep(1)
 
         # Attach tap devices to bridges
+        # TODO Hier weiter.
         try:
             for name, instance in instances.items():
                 wrapper, extra_interfaces = instance
