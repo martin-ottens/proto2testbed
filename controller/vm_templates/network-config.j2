@@ -8,19 +8,20 @@ network:
       addresses:
         - "{{ mgmt_address }}/{{ mgmt_netmask }}"
       gateway4: "{{ mgmt_server }}"
-    eth1:
-      match:
-        macaddress: "{{ exp1_if_mac }}"
-      set-name: "eth1"
-    eth2:
-      match:
-        macaddress: "{{ exp2_if_mac }}"
-      set-name: "eth2"
-    eth3:
-      match:
-        macaddress: "{{ exp3_if_mac }}"
-      set-name: "eth3"
-    eth4:
-      match:
-        macaddress: "{{ exp4_if_mac }}"
-      set-name: "eth4"
+#    eth1:
+#      match:
+#        macaddress: "{{ exp1_if_mac }}"
+#      set-name: "eth1"
+#    eth2:
+#      match:
+#        macaddress: "{{ exp2_if_mac }}"
+#      set-name: "eth2"
+#    eth3:
+#      match:
+#        macaddress: "{{ exp3_if_mac }}"
+#      set-name: "eth3"
+#    eth4:
+#      match:
+#        macaddress: "{{ exp4_if_mac }}"
+#      set-name: "eth4"
+#

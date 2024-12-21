@@ -26,14 +26,13 @@ import ipaddress
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from loguru import logger
-from typing import Dict, Optional
+from typing import Optional
 from dataclasses import dataclass
 
 from utils.interfaces import Dismantable
 from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_relative_to, get_DNS_resolver
 from state_manager import MachineState
 from utils.settings import CommonSettings
-from helper.network_helper import BridgeMapping
 from utils.networking import InstanceInterface
 from constants import SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE
 
@@ -81,9 +80,6 @@ class InstanceHelper(Dismantable):
         self.qemu_handle = None
         self.testbed_package_path = testbed_package_path
 
-        if management is not None:
-            self.ip_address = management.ip_interface.ip
-
         if len(instance.interfaces) > (SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE + 1):
             raise Exception(f"Error during creation, {SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE} interfaces are allowed, but {len(extra_interfaces)} were added!")
         
@@ -92,8 +88,27 @@ class InstanceHelper(Dismantable):
 
         self.tempdir = tempfile.TemporaryDirectory()
  
-        # Generate cloud-init files
         try:
+            # Generate pseudo unique interface macs
+            hash_hex = hashlib.sha256((CommonSettings.unique_run_name + instance.name).encode()).hexdigest()
+            base_mac = hash_hex[1:2] + 'e:' + hash_hex[2:4] + ':' + hash_hex[4:6] + ':' + hash_hex[6:8] + ':' + hash_hex[8:10] + ':' + hash_hex[10:11]
+            interfaces = ""
+
+            if management is not None:
+                mac = (base_mac + "0")
+                instance.set_interface_mac(management.interface.bridge_name, mac)
+                interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management.interface.tap_dev, mac=mac)
+
+            index = 1
+            for interface in instance.interfaces:
+                if interface.is_management_interface:
+                    continue
+
+                mac = (base_mac + str(index))
+                instance.set_interface_mac(interface.bridge_name, mac)
+                interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=interface.tap_dev, mac=mac)
+
+            # Generate cloud-init files
             init_files = Path(self.tempdir.name) / "cloud-init"
             os.mkdir(init_files)
 
@@ -121,7 +136,7 @@ class InstanceHelper(Dismantable):
                     mgmt_address=str(management.ip_interface.ip),
                     mgmt_server=str(management.gateway),
                     mgmt_netmask=management.ip_interface.with_prefixlen.split("/")[1],
-                    mgmt_if_mac=management.bridge_mapping.dev_name # TODO
+                    mgmt_if_mac=management.interface.tap_mac
                 )
                 with open(init_files / "network-config", mode="w", encoding="utf-8") as handle:
                     handle.write(network_config)
@@ -132,21 +147,6 @@ class InstanceHelper(Dismantable):
             
             if process.returncode != 0:
                 raise Exception(f"Unbale to run genisoimage: {process.stderr.decode('utf-8')}")
-            
-            # Generate pseudo unique interface macs
-            hash_hex = hashlib.sha256((CommonSettings.unique_run_name + instance.name).encode()).hexdigest()
-            base_mac = hash_hex[1:2] + 'e:' + hash_hex[2:4] + ':' + hash_hex[4:6] + ':' + hash_hex[6:8] + ':' + hash_hex[8:10] + ':' + hash_hex[10:11]
-            
-            interfaces = ""
-            if management is not None:
-                mac = (base_mac + "0")
-                instance.link_tap_to_bridge(management.bridge_mapping.dev_name, management.tap_dev_name, mac)
-                interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management.tap_dev_name, mac=mac)
-
-            for index, (tap_name, bridge_mapping) in enumerate(extra_interfaces):
-                mac = (base_mac + str(index + 1))
-                instance.link_tap_to_bridge(bridge_mapping.dev_name, tap_name, mac)
-                interfaces += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=tap_name, mac=mac)
 
             # Prepare qemu command
             self.qemu_command = InstanceHelper.__QEMU_COMMAND_TEMPLATE.format(

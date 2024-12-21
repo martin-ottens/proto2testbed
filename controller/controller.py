@@ -32,11 +32,11 @@ from utils.config_tools import load_config, load_vm_initialization, check_preser
 from utils.settings import CommonSettings, TestbedSettingsWrapper
 from utils.settings import InvokeIntegrationAfter
 from utils.influxdb import InfluxDBAdapter
-from utils.networking import InstanceInterface
+from utils.networking import *
 from utils.continue_mode import *
 from management_server import ManagementServer
 from cli import CLI
-from state_manager import MachineStateManager, AgentManagementState, WaitResult
+from state_manager import MachineStateManager, AgentManagementState, WaitResult, MachineState
 from common.instance_manager_message import *
 from constants import SUPPORTED_INSTANCE_NUMBER
 
@@ -167,8 +167,7 @@ class Controller(Dismantable):
             return False
             
         # Setup Instances
-        instances = {}
-        wait_for_interfaces = []
+        wait_for_interfaces: List[str] = []
         diskimage_basepath = Path(TestbedSettingsWrapper.testbed_config.settings.diskimage_basepath)
         for instance in TestbedSettingsWrapper.testbed_config.instances:
             machine = self.state_manager.get_machine(instance.name)
@@ -182,13 +181,9 @@ class Controller(Dismantable):
 
                 wait_for_interfaces.append(tap_name)
                 instane_interface = InstanceInterface(
-                    index=(index + 1 if self.has_mgmt_network else index),
+                    tap_index=(index + 1 if self.mgmt_bridge is not None else index),
                     tap_dev=tap_name,
-                    bridge_name=bridge_mapping.name,
-                    bridge_dev=bridge_mapping.dev_name,
                     bridge=bridge_mapping,
-                    bridge_attached=False,
-                    is_management=False,
                     instance=machine
                 )
                 machine.add_interface_mapping(instane_interface)
@@ -210,26 +205,23 @@ class Controller(Dismantable):
 
                     wait_for_interfaces.append(tap_name)
                     instance_interface = InstanceInterface(
-                        index=0,
+                        tap_index=0,
                         tap_dev=tap_name,
-                        bridge_name=self.mgmt_bridge_mapping.name,
-                        bridge_dev=self.mgmt_bridge_mapping.dev_name,
                         bridge=self.mgmt_bridge_mapping,
-                        bridge_attached=False,
-                        is_management=True,
-                        attached_instance=instance
+                        is_management_interface=True,
+                        instance=instance
                     )
                     machine.add_interface_mapping(instance_interface)
 
                     management_settings = InstanceManagementSettings(
                         interface=instance_interface,
                         ip_interface=intstance_mgmt_ip,
-                        gateway=str(self.mgmt_gateway),
+                        gateway=self.mgmt_bridge.mgmt_gateway,
                     )
 
 
                 # TODO rename machine to intstance here
-                wrapper = InstanceHelper(instance=machine,
+                helper = InstanceHelper(instance=machine,
                                     management=management_settings,
                                     testbed_package_path=self.base_path,
                                     image=str(diskimage_path),
@@ -237,10 +229,8 @@ class Controller(Dismantable):
                                     memory=instance.memory,
                                     disable_kvm=TestbedSettingsWrapper.cli_paramaters.disable_kvm,
                                     netmodel=instance.netmodel)
-                self.dismantables.insert(0, wrapper)
-                wrapper.start_instance()
-
-                instances[instance.name] = wrapper
+                self.dismantables.insert(0, helper)
+                helper.start_instance()
             except Exception as ex:
                 logger.opt(exception=ex).critical(f"Unable to setup and start instance {instance.name}")
                 return False
@@ -258,16 +248,19 @@ class Controller(Dismantable):
             time.sleep(1)
 
         # Attach tap devices to bridges
-        # TODO Hier weiter.
         try:
-            for name, instance in instances.items():
-                wrapper, extra_interfaces = instance
-                for interface, bridge in extra_interfaces.items():
-                    bridge.bridge.add_device(interface)
-                if self.has_mgmt_network:
-                    logger.info(f"{name} ({wrapper.ip_address}, {self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(list(map(lambda x: str(x), extra_interfaces.values())))}")
+            for instance in self.state_manager.get_all_machines():
+                interface: InstanceInterface
+                bridge_list: List[str] = []
+                for interface in instance.interfaces:
+                    interface.bridge.bridge.add_device(interface.tap_dev)
+                    interface.bridge_attached = True
+                    bridge_list.append(interface.bridge_name)
+                
+                if self.mgmt_bridge is not None:
+                    logger.info(f"{instance.name} ({instance.mgmt_ip_addr}, {instance.uuid}) attached to bridges: {', '.join(bridge_list)}")
                 else:
-                    logger.info(f"{name} ({self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(list(map(lambda x: str(x), extra_interfaces.values())))}")
+                    logger.info(f"{instance.name} ({instance.uuid}) attached to bridges: {', '.join(bridge_list)}")
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to attach Instance interfaces to bridges.")
             return False
@@ -276,6 +269,7 @@ class Controller(Dismantable):
             if not instance.update_mgmt_socket_permission():
                 logger.warning(f"Unable to set socket permissions for {instance.name}")
 
+        # TODO
         self.state_manager.dump_states()
 
         return True

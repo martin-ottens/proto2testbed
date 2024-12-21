@@ -26,7 +26,7 @@ import json
 from enum import Enum
 from pathlib import Path
 from loguru import logger
-from typing import Tuple, Optional, List, Dict
+from typing import Tuple, Optional, List, Dict, Any
 from threading import Lock, Semaphore, Event
 
 from utils.system_commands import invoke_subprocess, set_owner
@@ -111,27 +111,48 @@ class MachineState():
     def add_interface_mapping(self, interface: InstanceInterface):
         self.interfaces.append(interface)
 
-    def get_interface_by_bridge(self, bridge: str) -> Optional[InstanceInterface]:
+    def get_interface_by_bridge_name(self, bridge_name: str) -> Optional[InstanceInterface]:
         found_interface = None
         for interface in self.interfaces:
-            if interface.bridge_mapping.dev_name == bridge:
+            if interface.bridge_name == bridge_name:
+                found_interface = interface
+                break
+        
+        return found_interface
+    
+    def get_interface_by_bridge_dev(self, bridge_dev: str) -> Optional[InstanceInterface]:
+        found_interface = None
+        for interface in self.interfaces:
+            if interface.bridge_dev == bridge_dev:
                 found_interface = interface
                 break
         
         return found_interface
 
-    def link_tap_to_bridge(self, bridge: str, tap: str, mac: str):
-        mapping = None
+    def get_interface_by_tap_dev(self, tap_dev: str) -> Optional[InstanceInterface]:
+        found_interface = None
         for interface in self.interfaces:
-            if interface.bridge_mapping.dev_name == bridge:
-                mapping = interface
+            if interface.tap_dev == tap_dev:
+                found_interface = interface
                 break
         
-        if mapping is None:
-            raise Exception(f"Unable to find interface mapping for '{bridge}'")
+        return found_interface
+
+    def set_interface_mac(self, bridge_name: str, mac: str) -> None:
+        mapping = self.get_interface_by_bridge_name(bridge_name)
         
-        mapping.tap_dev = tap
+        if mapping is None:
+            raise Exception(f"Unable to find interface mapping for bridge '{bridge_name}'")
+
         mapping.tap_mac = mac
+
+    def set_interface_bridge_attached(self, tap_dev: str) -> None:
+        mapping = self.get_interface_by_tap_dev(tap_dev)
+        
+        if mapping is None:
+            raise Exception(f"Unable to find interface mapping for tap device '{tap_dev}'")
+
+        mapping.bridge_attached = True
     
     def set_mgmt_ip(self, ip_addr: str):
         self.mgmt_ip_addr = ip_addr
@@ -247,17 +268,10 @@ class MachineState():
         self.set_state(AgentManagementState.DISCONNECTED)
 
     def dump_state(self) -> None:
-        interfaces: List[InstanceInterface] = []
+        dump_interfaces: List[Any] = []
 
         for interface in self.interfaces:
-            interfaces.insert(interface.index, InstanceInterface(
-                bridge_dev=interface.bridge.dev_name,
-                bridge_name=interface.bridge.name,
-                tap_index=interface.index,
-                tap_dev=interface.tap,
-                tap_mac=interface.mac,
-                host_ports=interface.bridge.bridge.host_ports
-            ))
+            dump_interfaces.append(interface.dump())
 
         state = MachineStateFile(
             instance=self.name,
@@ -267,7 +281,7 @@ class MachineState():
             experiment=CommonSettings.experiment,
             main_pid=CommonSettings.main_pid,
             mgmt_ip=str(self.mgmt_ip_addr),
-            interfaces=interfaces
+            interfaces=dump_interfaces
         )
 
         target = self.interchange_dir / MACHINE_STATE_FILE

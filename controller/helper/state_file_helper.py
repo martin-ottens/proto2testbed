@@ -21,7 +21,7 @@ import json
 
 from loguru import logger
 from dataclasses import dataclass
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 
 from constants import INTERCHANGE_BASE_PATH, MACHINE_STATE_FILE
 from utils.settings import CommonSettings
@@ -36,7 +36,7 @@ class MachineStateFile():
     main_pid: int
     uuid: str
     mgmt_ip: Optional[str]
-    interfaces: Optional[List[InstanceInterface]] = None
+    interfaces: Optional[List[InstanceInterface | Any]] = None
 
     @staticmethod
     def from_json(json):
