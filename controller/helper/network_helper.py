@@ -32,8 +32,8 @@ from utils.system_commands import invoke_subprocess
 from utils.settings import CommonSettings
 from constants import TAP_PREFIX, BRIDGE_PREFIX
 
-class NetworkBridge(Dismantable):
 
+class NetworkBridge(Dismantable):
     @staticmethod
     def get_running_interfaces() -> List[str]:
         process = invoke_subprocess(["/usr/sbin/ip", "--brief", "--json", "link", "show"])
@@ -114,7 +114,7 @@ class NetworkBridge(Dismantable):
                     return True
 
         return False
-
+    
     def _run_command(self, command: List[str]):
         process = invoke_subprocess(command, needs_root=True)
         if process.returncode != 0:
@@ -122,7 +122,7 @@ class NetworkBridge(Dismantable):
             return False
 
         return True
-        
+
     def __init__(self, name: str, display_name: str):
         self.name = name
         self.display_name = display_name
@@ -218,12 +218,29 @@ class NetworkBridge(Dismantable):
         
         return True
 
-    def setup_local(self, ip: ipaddress.IPv4Interface, nat: ipaddress.IPv4Network) -> bool:
-        logger.debug(f"Network '{self.name}' (for '{self.display_name}'): Adding IP {str(ip)} to bridge.")
-        if not self._run_command(["/usr/sbin/ip", "addr", "add", str(ip), "dev", self.name]):
-            raise Exception(f"Unable to add IP {str(ip)} to bridge '{self.name}' (for '{self.display_name}')!")
 
-        logger.info(f"Network '{self.display_name}': NAT: Enabling NAT for {str(nat)}!")
+class ManagementNetworkBridge(NetworkBridge):
+    def __init__(self, name: str, display_name: str, network: ipaddress.IPv4Network):
+        super().__init__(name, display_name)
+        self.mgmt_network = network
+        self.mgmt_ips = list(self.mgmt_network.hosts())
+        self.mgmt_netmask = ipaddress.IPv4Network(f"0.0.0.0/{self.mgmt_network.netmask}").prefixlen
+        self.mgmt_gateway = self.mgmt_ips.pop(0)
+        self.mgmt_interface = ipaddress.IPv4Interface(f"{self.mgmt_gateway}/{self.mgmt_netmask}")
+
+    def get_next_mgmt_ip(self) -> ipaddress.IPv4Interface:
+        address = self.mgmt_ips.pop(0)
+        return ipaddress.IPv4Interface(f"{address}/{self.mgmt_netmask}")
+
+    def get_name(self) -> str:
+        return f"ManagementNetworkBridge {self.name} ({self.display_name})"
+    
+    def setup_local(self) -> bool:
+        logger.debug(f"Network '{self.name}' (for '{self.display_name}'): Adding IP {str(self.mgmt_interface)} to bridge.")
+        if not self._run_command(["/usr/sbin/ip", "addr", "add", str(self.mgmt_interface), "dev", self.name]):
+            raise Exception(f"Unable to add IP {str(self.mgmt_interface)} to bridge '{self.name}' (for '{self.display_name}')!")
+
+        logger.info(f"Network '{self.display_name}': NAT: Enabling NAT for {str(self.mgmt_network)}!")
 
         # Get default prefsrc
         process = invoke_subprocess(["/usr/sbin/ip", "--json", "route"])
@@ -259,58 +276,16 @@ class NetworkBridge(Dismantable):
         if not self._run_command(["/usr/sbin/sysctl", "-w", "net.ipv4.conf.all.forwarding=1"]):
             raise Exception(f"NAT: Unable to allow IPv4 forwarding on host!")
 
-        if not self._run_command(["/usr/sbin/iptables", "-A", "FORWARD", "-s", str(nat), "-j", "ACCEPT"]):
+        if not self._run_command(["/usr/sbin/iptables", "-A", "FORWARD", "-s", str(self.mgmt_network), "-j", "ACCEPT"]):
             raise Exception(f"NAT: Unable to create iptables rule!")
-        self.dismantle_action.insert(0, ["/usr/sbin/iptables", "-D", "FORWARD", "-s", str(nat), "-j", "ACCEPT"])
+        self.dismantle_action.insert(0, ["/usr/sbin/iptables", "-D", "FORWARD", "-s", str(self.mgmt_network), "-j", "ACCEPT"])
 
         if not self._run_command(["/usr/sbin/iptables", "-A", "FORWARD", "-m", "state", "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"]):
             raise Exception(f"Unable to create iptables rule!")
         self.dismantle_action.insert(0, ["/usr/sbin/iptables", "-D", "FORWARD", "-m", "state", "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"])
 
-        if not self._run_command(["/usr/sbin/iptables", "-t", "nat", "-A", "POSTROUTING", "-s", str(nat), "-j", "SNAT", "--to-source", default_route_prefsrc]):
+        if not self._run_command(["/usr/sbin/iptables", "-t", "nat", "-A", "POSTROUTING", "-s", str(self.mgmt_network), "-j", "SNAT", "--to-source", default_route_prefsrc]):
             raise Exception(f"NAT: Unable to create iptables rule!")
-        self.dismantle_action.insert(0, ["/usr/sbin/iptables", "-t", "nat", "-D", "POSTROUTING", "-s", str(nat), "-j", "SNAT", "--to-source", default_route_prefsrc])
+        self.dismantle_action.insert(0, ["/usr/sbin/iptables", "-t", "nat", "-D", "POSTROUTING", "-s", str(self.mgmt_network), "-j", "SNAT", "--to-source", default_route_prefsrc])
 
         return True
-
-
-class BridgeMapping():
-    def __init__(self, name: str, dev_name: str) -> None:
-        self.name = name
-        self.dev_name: str = dev_name
-        self.bridge: NetworkBridge = None
-
-    def __str__(self) -> str:
-        return f"{self.name} ({self.dev_name})"
-
-
-class NetworkMappingHelper():
-    def __init__(self) -> None:
-        self.bridge_map: Dict[str, BridgeMapping] = {}
-
-    def _generate_name(self) -> str:
-        return "".join(random.choices(string.ascii_letters + string.digits, k=8))
-    
-    def generate_tap_name(self) -> str:
-        while True:
-            choice = TAP_PREFIX + self._generate_name()
-            if NetworkBridge.check_interfaces_available([choice]):
-                continue
-            
-            return choice
-
-    def add_bridge_mapping(self, config_name: str) -> BridgeMapping:
-        if config_name in self.bridge_map.keys():
-            raise Exception(f"Bridge {config_name} already mapped.")
-
-        while True:
-            choice = BRIDGE_PREFIX + self._generate_name()
-            if NetworkBridge.check_interfaces_available([choice]):
-                continue
-            
-            mapping = BridgeMapping(config_name, choice)
-            self.bridge_map[config_name] = mapping
-            return mapping
-
-    def get_bridge_mapping(self, config_name: str) -> Optional[BridgeMapping]:
-        return self.bridge_map.get(config_name, None)

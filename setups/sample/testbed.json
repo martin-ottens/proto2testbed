@@ -68,7 +68,7 @@
                     "delay": 5,
                     "runtime": 30,
                     "settings": {
-                        "interfaces": ["enp0s3"],
+                        "interfaces": ["eth1"],
                         "system": true
                     }
                 },
@@ -117,7 +117,7 @@
                     "delay": 5,
                     "runtime": 30,
                     "settings": {
-                        "interfaces": ["enp0s3"],
+                        "interfaces": ["eth1"],
                         "system": true
                     }
                 },

@@ -29,7 +29,7 @@ from pathlib import Path
 
 from utils.interfaces import Dismantable
 from utils.continue_mode import *
-from state_manager import MachineStateManager
+from state_manager import InstanceStateManager
 from utils.settings import TestbedSettingsWrapper
 
 
@@ -106,13 +106,13 @@ class CLI(Dismantable):
                     logger.log("CLI", f"No Instance name provided. Usage: {base_command} <Instance Name>")
                     return True
                 target = args[0]
-                machine = self.manager.get_machine(target)
-                if machine is None:
-                    logger.log("CLI", f"Unable to get Instance with name '{machine}'")
+                instance = self.manager.get_instance(target)
+                if instance is None:
+                    logger.log("CLI", f"Unable to get Instance with name '{instance}'")
                     return True
-                socket_path = machine.get_mgmt_tty_path()
+                socket_path = instance.get_mgmt_tty_path()
                 if socket_path is None:
-                    logger.log("CLI", f"Unable to get TTY Socket for Instance'{machine}'")
+                    logger.log("CLI", f"Unable to get TTY Socket for Instance'{instance}'")
                     return True
                 logger.log("CLI", f"Attaching to Instance '{target}', CRTL + ] to disconnect.")
                 self.toggle_output(False)
@@ -158,12 +158,12 @@ class CLI(Dismantable):
                 if instance is None:
                     raise Exception("Instance not given after parsing.")
                 
-                machine = self.manager.get_machine(instance)
-                if machine is None:
+                instance = self.manager.get_instance(instance)
+                if instance is None:
                     logger.log("CLI", f"Unable to get Instance with name '{instance}'")
                     return True
 
-                status, message = machine.file_copy_helper.copy(source_path, 
+                status, message = instance.file_copy_helper.copy(source_path, 
                                                                 destination_path, 
                                                                 copy_to_instance)
                 if not status:
@@ -175,25 +175,25 @@ class CLI(Dismantable):
                     logger.log("CLI", f"No Instance name or path provided. Usage: {base_command} <Instance Name> <Path>")
                     return True
                 target = args[0]
-                machine = self.manager.get_machine(target)
-                if machine is None:
-                    logger.log("CLI", f"Unable to get Instance with name '{machine}'")
+                instance = self.manager.get_instance(target)
+                if instance is None:
+                    logger.log("CLI", f"Unable to get Instance with name '{instance}'")
                     return True
                 
                 if TestbedSettingsWrapper.cli_paramaters.preserve is None:
                     logger.log("CLI", f"File preservation is not enabled in this testbed run.")
                     return True
                 
-                machine.add_preserve_file(args[1])
+                instance.add_preserve_file(args[1])
                 logger.log("CLI", f"File '{args[1]}' was as added to preserve list of Instance '{target}'")
                 return True
             case "list" | "ls":
-                for machine in self.manager.get_all_machines():
-                    line = f"- Instance '{machine.name}' ({machine.uuid}) | {machine.get_state().name}"
-                    if len(machine.interfaces) != 0:
-                        line += f" | Interfaces: {', '.join(list(map(lambda x: str(x.bridge.name), machine.interfaces)))}"
-                    if machine.mgmt_ip_addr is not None:
-                        line += f" | MGMT IP: {machine.mgmt_ip_addr}"
+                for instance in self.manager.get_all_instances():
+                    line = f"- Instance '{instance.name}' ({instance.uuid}) | {instance.get_state().name}"
+                    if len(instance.interfaces) != 0:
+                        line += f" | Interfaces: {', '.join(list(map(lambda x: f'{x.bridge.name} -> {x.interface_on_instance}', instance.interfaces)))}"
+                    if instance.mgmt_ip_addr is not None:
+                        line += f" | MGMT IP: {instance.mgmt_ip_addr}"
                     logger.log("CLI", line)
                 return True
             case "exit" | "e":
@@ -274,9 +274,9 @@ class CLI(Dismantable):
                 logger.log("CLI", f"Unknown command '{command}' or error running it, use 'help' to show available commands.")
 
 
-    def __init__(self, log_verbose: int, manager: MachineStateManager = None):
+    def __init__(self, log_verbose: int, manager: InstanceStateManager = None):
         CLI.instance = self
-        self.manager: Optional[MachineStateManager] = manager
+        self.manager: Optional[InstanceStateManager] = manager
         self.log_verbose = log_verbose
         self.enable_interaction = Event()
         self.enable_output = Event()

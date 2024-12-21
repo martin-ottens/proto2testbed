@@ -39,8 +39,8 @@ class ManagementClientConnection(threading.Thread):
     message_schema = None
 
     def __init__(self, socket_path, controller,
-                 manager: state_manager.MachineStateManager, 
-                 instance: state_manager.MachineState,
+                 manager: state_manager.InstanceStateManager, 
+                 instance: state_manager.InstanceState,
                  influx_adapter: InfluxDBAdapter,
                  timeout: int,
                  init_instant: bool):
@@ -72,7 +72,7 @@ class ManagementClientConnection(threading.Thread):
         message_obj = InstanceManagerDownstream(**json_data)
 
         if self.client is None:
-            self.client = self.manager.get_machine(message_obj.name)
+            self.client = self.manager.get_instance(message_obj.name)
             if self.client is None:
                 logger.error(f"Management: Client '{self.expected_instance.name}': reported invalid instance name: {message_obj.name}")
                 return False
@@ -270,7 +270,7 @@ class ManagementClientConnection(threading.Thread):
 
 class ManagementServer(Dismantable):
     def __init__(self, controller, 
-                 state_manager: state_manager.MachineStateManager, 
+                 state_manager: state_manager.InstanceStateManager, 
                  startup_init_timeout: int, 
                  influx_adapter: InfluxDBAdapter, 
                  init_instant: bool = False):
@@ -286,7 +286,7 @@ class ManagementServer(Dismantable):
     def start(self):
         self.keep_running.clear()
 
-        for instance in self.manager.get_all_machines():
+        for instance in self.manager.get_all_instances():
             if not instance.interchange_ready:
                 raise Exception(f"Interchange files of instance {instance.name} not ready!")
 

@@ -102,6 +102,6 @@ class ListExecutor(BaseExecutor):
                     prefix_interface += "   │ " if not is_last_instance else "     "
                     prefix_interface += " ├─" if not is_last_interface else " └─"
                     
-                    logger.opt(ansi=True).info(f"{prefix_interface} {interface.tap_index}: Interface {interface.tap_dev} ({interface.tap_mac}) ─> bridge <blue>{interface.bridge_name}</blue>")
+                    logger.opt(ansi=True).info(f"{prefix_interface} {interface.tap_index}: Interface {interface.tap_dev} ({interface.interface_on_instance}, {interface.tap_mac}) ─> bridge <blue>{interface.bridge_name}</blue>")
 
         return 0

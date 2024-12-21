@@ -108,8 +108,8 @@ class TestbedConfig():
         for integration in json["integrations"]:
             self.integrations.append(Integration(**integration))
 
-        for machine in json["instances"]:
-            self.instances.append(TestbedInstance(**machine))
+        for instance in json["instances"]:
+            self.instances.append(TestbedInstance(**instance))
 
 
 class DefaultConfigs():

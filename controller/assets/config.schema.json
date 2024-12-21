@@ -9,7 +9,10 @@
             "type": "object",
             "properties": {
                 "management_network": {
-                    "type": "string"
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 },
                 "diskimage_basepath": {
                     "type": "string"

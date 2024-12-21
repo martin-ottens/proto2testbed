@@ -39,7 +39,7 @@ class PruneExecutor(BaseExecutor):
 
     def invoke(self, args) -> int:
         from cli import CLI
-        from state_manager import MachineState
+        from state_manager import InstanceState
         from helper.state_file_helper import StateFileReader
         from helper.network_helper import NetworkBridge
 
@@ -66,7 +66,7 @@ class PruneExecutor(BaseExecutor):
         # interfaces of non-running testbeds 
         for entry in all:
             if entry.contents is None:
-                if MachineState.clean_interchange_dir(os.path.dirname(entry.filepath)):
+                if InstanceState.clean_interchange_dir(os.path.dirname(entry.filepath)):
                     logger.info(f"Deleted interchange dir without contents: '{entry.filepath}'")
                 continue
             
@@ -78,7 +78,7 @@ class PruneExecutor(BaseExecutor):
                 delete_interface(interface.bridge_dev)
                 delete_interface(interface.tap_dev)
             
-            if MachineState.clean_interchange_dir(os.path.dirname(entry.filepath)):
+            if InstanceState.clean_interchange_dir(os.path.dirname(entry.filepath)):
                 logger.info(f"Deleted interchange dir: '{entry.filepath}'")
 
         if not args.interfaces:

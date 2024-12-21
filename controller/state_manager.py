@@ -26,14 +26,13 @@ import json
 from enum import Enum
 from pathlib import Path
 from loguru import logger
-from typing import Tuple, Optional, List, Dict
+from typing import Tuple, Optional, List, Dict, Any
 from threading import Lock, Semaphore, Event
-from dataclasses import dataclass
 
 from utils.system_commands import invoke_subprocess, set_owner
 from helper.file_copy_helper import FileCopyHelper
-from helper.network_helper import BridgeMapping
-from helper.state_file_helper import MachineStateFile, MachineStateFileInterfaceMapping
+from utils.networking import InstanceInterface
+from helper.state_file_helper import InstanceStateFile
 from common.application_configs import ApplicationConfig
 from utils.interfaces import Dismantable
 from common.interfaces import DataclassJSONEncoder
@@ -62,15 +61,7 @@ class WaitResult(Enum):
     SHUTDOWN = 4
 
 
-@dataclass
-class InterfaceMapping():
-    bridge: BridgeMapping
-    index: int
-    tap: str = None
-    mac: str = None
-
-
-class MachineState():
+class InstanceState():
     @staticmethod
     def clean_interchange_dir(path: str) -> bool:
         prefix = INTERCHANGE_BASE_PATH
@@ -102,7 +93,7 @@ class MachineState():
         self._state: AgentManagementState = AgentManagementState.UNKNOWN
         self.connection = None
         self.interchange_ready = False
-        self.interfaces: List[InterfaceMapping] = []
+        self.interfaces: List[InstanceInterface] = []
         if init_preserve_files is not None:
             self.preserve_files = init_preserve_files.copy()
         else:
@@ -117,21 +108,51 @@ class MachineState():
     def add_preserve_file(self, file: str):
         self.preserve_files.append(file)
 
-    def add_interface_mapping(self, interface: BridgeMapping, index: int):
-        self.interfaces.append(InterfaceMapping(interface, index))
+    def add_interface_mapping(self, interface: InstanceInterface):
+        self.interfaces.append(interface)
 
-    def link_tap_to_bridge(self, bridge: str, tap: str, mac: str):
-        mapping = None
+    def get_interface_by_bridge_name(self, bridge_name: str) -> Optional[InstanceInterface]:
+        found_interface = None
         for interface in self.interfaces:
-            if interface.bridge.dev_name == bridge:
-                mapping = interface
+            if interface.bridge_name == bridge_name:
+                found_interface = interface
                 break
         
-        if mapping is None:
-            raise Exception(f"Unable to find interface mapping for '{bridge}'")
+        return found_interface
+    
+    def get_interface_by_bridge_dev(self, bridge_dev: str) -> Optional[InstanceInterface]:
+        found_interface = None
+        for interface in self.interfaces:
+            if interface.bridge_dev == bridge_dev:
+                found_interface = interface
+                break
         
-        mapping.tap = tap
-        mapping.mac = mac
+        return found_interface
+
+    def get_interface_by_tap_dev(self, tap_dev: str) -> Optional[InstanceInterface]:
+        found_interface = None
+        for interface in self.interfaces:
+            if interface.tap_dev == tap_dev:
+                found_interface = interface
+                break
+        
+        return found_interface
+
+    def set_interface_mac(self, bridge_name: str, mac: str) -> None:
+        mapping = self.get_interface_by_bridge_name(bridge_name)
+        
+        if mapping is None:
+            raise Exception(f"Unable to find interface mapping for bridge '{bridge_name}'")
+
+        mapping.tap_mac = mac
+
+    def set_interface_bridge_attached(self, tap_dev: str) -> None:
+        mapping = self.get_interface_by_tap_dev(tap_dev)
+        
+        if mapping is None:
+            raise Exception(f"Unable to find interface mapping for tap device '{tap_dev}'")
+
+        mapping.bridge_attached = True
     
     def set_mgmt_ip(self, ip_addr: str):
         self.mgmt_ip_addr = ip_addr
@@ -232,9 +253,12 @@ class MachineState():
 
     def send_message(self, message: bytes):
         if self.connection is None:
-            raise Exception(f"Machine {self.name} is not connected")
+            raise Exception(f"Instance {self.name} is not connected")
 
         self.connection.send_message(message)
+
+    def is_connected(self) -> bool:
+        return self.connection is not None
     
     def connect(self, connection):
         self.connection = connection
@@ -247,19 +271,12 @@ class MachineState():
         self.set_state(AgentManagementState.DISCONNECTED)
 
     def dump_state(self) -> None:
-        interfaces: List[MachineStateFileInterfaceMapping] = []
+        dump_interfaces: List[Any] = []
 
         for interface in self.interfaces:
-            interfaces.insert(interface.index, MachineStateFileInterfaceMapping(
-                bridge_dev=interface.bridge.dev_name,
-                bridge_name=interface.bridge.name,
-                tap_index=interface.index,
-                tap_dev=interface.tap,
-                tap_mac=interface.mac,
-                host_ports=interface.bridge.bridge.host_ports
-            ))
+            dump_interfaces.append(interface.dump())
 
-        state = MachineStateFile(
+        state = InstanceStateFile(
             instance=self.name,
             uuid=self.uuid,
             executor=int(CommonSettings.executor),
@@ -267,24 +284,24 @@ class MachineState():
             experiment=CommonSettings.experiment,
             main_pid=CommonSettings.main_pid,
             mgmt_ip=str(self.mgmt_ip_addr),
-            interfaces=interfaces
+            interfaces=dump_interfaces
         )
 
         target = self.interchange_dir / MACHINE_STATE_FILE
         with open(target, "w") as handle:
             json.dump(state, handle, cls=DataclassJSONEncoder, indent=4)
 
-        logger.trace(f"Dumped state of instance {self.name} to file {target}.")
+        logger.trace(f"Dumped state of Instance {self.name} to file {target}.")
 
 
-class MachineStateManager(Dismantable):
+class InstanceStateManager(Dismantable):
     def __init__(self):
-        self.map: dict[str, MachineState] = {}
+        self.map: dict[str, InstanceState] = {}
         self.state_change_lock: Lock = Lock()
         self.file_preservation: Optional[Path] = None
 
-        self.waiting_for_state: MachineState | None = None
-        self.state_change_semaphore: Semaphore | None = None
+        self.waiting_for_states: Optional[List[InstanceState]] = None
+        self.state_change_semaphore: Optional[Semaphore] = None
         self.has_shutdown_signal = Event()
         self.has_shutdown_signal.clear()
         self.external_interrupt_signal = Event()
@@ -293,19 +310,19 @@ class MachineStateManager(Dismantable):
     def enable_file_preservation(self, preservation_path: Optional[Path]):
         self.file_preservation = preservation_path
 
-    def get_all_machines(self) -> List[MachineState]:
+    def get_all_instances(self) -> List[InstanceState]:
         return list(self.map.values())
     
-    def add_machine(self, name: str, script_file: str, 
+    def add_instance(self, name: str, script_file: str, 
                     setup_env: Dict[str, str], 
                     init_preserve_files: Optional[List[str]] = None):
         if name in self.map:
-            raise Exception(f"Machine {name} was already configured")
+            raise Exception(f"Instance {name} was already configured")
         
-        machine = MachineState(name, script_file, setup_env, self, 
+        instance = InstanceState(name, script_file, setup_env, self, 
                                init_preserve_files)
-        machine.set_setup_env_entry("INSTANCE_NAME", name)
-        self.map[name] = machine
+        instance.set_setup_env_entry("INSTANCE_NAME", name)
+        self.map[name] = instance
 
     def dump_states(self) -> None:
         for instance in self.map.values():
@@ -314,7 +331,7 @@ class MachineStateManager(Dismantable):
             except Exception as ex:
                 logger.opt(exception=ex).error(f"Unable to dump state of instance {instance.name}.")
     
-    def remove_machine(self, name: str):
+    def remove_instance(self, name: str):
         if not name in self.map:
             return
         self.map.pop(name).disconnect()
@@ -324,29 +341,29 @@ class MachineStateManager(Dismantable):
             self.external_interrupt_signal.set()
             self.state_change_semaphore.release(n=len(self.map))
 
-        for machine in self.map.values():
-            machine.remove_interchange_dir(self.file_preservation)
-            machine.disconnect()
+        for instance in self.map.values():
+            instance.remove_interchange_dir(self.file_preservation)
+            instance.disconnect()
         
         self.map.clear()
 
-    def get_machine(self, name: str) -> MachineState | None:
+    def get_instance(self, name: str) -> Optional[InstanceState]:
         if name not in self.map:
             return None
         
         return self.map[name]
     
-    def send_machine_message(self, name: str, message: bytes):
+    def send_instance_message(self, name: str, message: bytes):
         if name not in self.map:
-            raise Exception(f"Machine {name} is not configured")
+            raise Exception(f"Instance {name} is not configured")
         
-        machine = self.map[name]
-        machine.send_message(message)
+        instance = self.map[name]
+        instance.send_message(message)
 
-    def all_machines_in_state(self, expected_state: AgentManagementState) -> bool:
+    def all_instances_in_state(self, expected_state: AgentManagementState) -> bool:
         return all(x.get_state() == expected_state for x in self.map.values())
     
-    def all_machines_connected(self) -> bool:
+    def all_instances_connected(self) -> bool:
         return all(x.connection is not None for x in self.map.values())
     
     def apply_shutdown_signal(self):
@@ -364,15 +381,16 @@ class MachineStateManager(Dismantable):
                     self.state_change_semaphore.release(n=len(self.map))
                     return
 
-                if new_state == self.waiting_for_state:
+                if new_state in self.waiting_for_states:
                     self.state_change_semaphore.release()
     
-    def wait_for_machines_to_become_state(self, expected_state: AgentManagementState, timeout = None) -> WaitResult:
+    def wait_for_instances_to_become_state(self, expected_states: List[AgentManagementState], 
+                                          timeout = None) -> WaitResult:
         wait_for_count = 0
         with self.state_change_lock:
             self.state_change_semaphore = Semaphore(0)
-            self.waiting_for_state = expected_state
-            wait_for_count = sum(map(lambda x: x.get_state() != expected_state, self.map.values()))
+            self.waiting_for_states = expected_states
+            wait_for_count = sum(map(lambda x: x.get_state() not in expected_states, self.map.values()))
         
         wait_until = time.time() + timeout
         for _ in range(wait_for_count):
@@ -384,13 +402,13 @@ class MachineStateManager(Dismantable):
 
                 waited = self.state_change_semaphore.acquire(timeout=(wait_until - this_run_time))
             except Exception as ex:
-                logger.opt(exception=ex).debug("Exception during wait_for_machines_to_become_state")
+                logger.opt(exception=ex).debug("Exception while waiting for Instances")
                 self.waiting_for_state = None
                 self.state_change_semaphore = None
                 return WaitResult.INTERRUPTED
 
         with self.state_change_lock:
-            self.waiting_for_state = None
+            self.waiting_for_states = None
             self.state_change_semaphore = None
 
             if self.external_interrupt_signal.is_set():
@@ -403,13 +421,13 @@ class MachineStateManager(Dismantable):
                 self.has_shutdown_signal.clear()
                 return WaitResult.SHUTDOWN
 
-            if sum(map(lambda x: x.get_state() == expected_state, self.map.values())) == len(self.map):
+            if sum(map(lambda x: x.get_state() in expected_states, self.map.values())) == len(self.map):
                 return WaitResult.OK
             else:
                 return WaitResult.FAILED
             
     def get_name(self) -> str:
-        return "MachineStateManager"
+        return "InstanceStateManager"
     
     def dismantle(self, force = False) -> None:
         self.remove_all()

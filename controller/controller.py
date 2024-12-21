@@ -21,10 +21,10 @@ import time
 
 from pathlib import Path
 from loguru import logger
-from typing import List
+from typing import List, Dict
 from threading import Event, Thread
 
-from helper.network_helper import NetworkBridge, NetworkMappingHelper
+from helper.network_helper import *
 from helper.instance_helper import InstanceHelper, InstanceManagementSettings
 from helper.integration_helper import IntegrationHelper
 from utils.interfaces import Dismantable
@@ -32,10 +32,11 @@ from utils.config_tools import load_config, load_vm_initialization, check_preser
 from utils.settings import CommonSettings, TestbedSettingsWrapper
 from utils.settings import InvokeIntegrationAfter
 from utils.influxdb import InfluxDBAdapter
+from utils.networking import *
 from utils.continue_mode import *
 from management_server import ManagementServer
 from cli import CLI
-from state_manager import MachineStateManager, AgentManagementState, WaitResult
+from state_manager import InstanceStateManager, AgentManagementState, WaitResult, InstanceState
 from common.instance_manager_message import *
 from constants import SUPPORTED_INSTANCE_NUMBER
 
@@ -46,10 +47,11 @@ class Controller(Dismantable):
             raise Exception("No CLIParamaters class object was set before calling the controller")
 
         self.dismantables: List[Dismantable] = []
-        self.state_manager: MachineStateManager = MachineStateManager()
+        self.state_manager: InstanceStateManager = InstanceStateManager()
         self.dismantables.insert(0, self.state_manager)
-        self.has_mgmt_network = False
-        self.network_mapping: Optional[NetworkMappingHelper] = None
+        self.mgmt_bridge: Optional[ManagementNetworkBridge] = None
+        self.mgmt_bridge_mapping: Optional[BridgeMapping] = None
+        self.network_mapping = NetworkMappingHelper()
         self.request_restart = False
 
         self.base_path = Path(TestbedSettingsWrapper.cli_paramaters.config)
@@ -105,42 +107,35 @@ class Controller(Dismantable):
     def get_name(self) -> str:
         return f"Controller"
     
-    def setup_local_network(self) -> bool:        
-        self.network_mapping = NetworkMappingHelper()
-
+    def setup_local_network(self) -> bool:
         if TestbedSettingsWrapper.testbed_config.settings.management_network.lower() == "auto":
-            self.mgmt_network = NetworkBridge.generate_auto_management_network(CommonSettings.unique_run_name)
-            if self.mgmt_network is None:
+            mgmt_network = NetworkBridge.generate_auto_management_network(CommonSettings.unique_run_name)
+            if mgmt_network is None:
                 logger.critical(f"Unable to generate a management subnet for 'auto' option.")
                 return False
             else:
-                logger.info(f"Generated Management Network subnet '{self.mgmt_network}' for 'auto' option.")
+                logger.info(f"Generated Management Network subnet '{mgmt_network}' for 'auto' option.")
         else:
-            self.mgmt_network = ipaddress.IPv4Network(TestbedSettingsWrapper.testbed_config.settings.management_network)
+            mgmt_network = ipaddress.IPv4Network(TestbedSettingsWrapper.testbed_config.settings.management_network)
 
-            if NetworkBridge.is_network_in_use(self.mgmt_network):
-                logger.critical(f"Network '{self.mgmt_network}' is already in use on this host.")
+            if NetworkBridge.is_network_in_use(mgmt_network):
+                logger.critical(f"Network '{mgmt_network}' is already in use on this host.")
                 return False
 
-        self.mgmt_ips = list(self.mgmt_network.hosts())
-        self.mgmt_netmask = ipaddress.IPv4Network(f"0.0.0.0/{self.mgmt_network.netmask}").prefixlen
-
-        # Setup Networks
+        # Setup management network bridge
         try:
-            mgmt_bridge_mapping = self.network_mapping.add_bridge_mapping("br-mgmt")
-            mgmt_bridge = NetworkBridge(mgmt_bridge_mapping.dev_name, 
-                                        mgmt_bridge_mapping.name)
-            mgmt_bridge_mapping.bridge = mgmt_bridge
-            self.dismantables.insert(0, mgmt_bridge)
-            self.mgmt_gateway = self.mgmt_ips.pop(0)
-            mgmt_bridge.setup_local(ip=ipaddress.IPv4Interface(f"{self.mgmt_gateway}/{self.mgmt_netmask}"), 
-                                    nat=self.mgmt_network)
-            mgmt_bridge.start_bridge()
+            self.mgmt_bridge_mapping = self.network_mapping.add_bridge_mapping("br-mgmt")
+            self.mgmt_bridge = ManagementNetworkBridge(self.mgmt_bridge_mapping.dev_name, 
+                                                       self.mgmt_bridge_mapping.name,
+                                                       mgmt_network)
+            self.mgmt_bridge_mapping.bridge = self.mgmt_bridge
+            self.dismantables.insert(0, self.mgmt_bridge)
+            self.mgmt_bridge.setup_local()
+            self.mgmt_bridge.start_bridge()
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to setup management network!")
             return False
 
-        self.has_mgmt_network = True
         return True
 
     def setup_infrastructure(self) -> bool:
@@ -152,6 +147,7 @@ class Controller(Dismantable):
             logger.critical(f"{len(TestbedSettingsWrapper.testbed_config.instances)} Instances configured, a maximum of {SUPPORTED_INSTANCE_NUMBER} is supported.")
             return False
 
+        # Create bridges for experiment networks
         for network in TestbedSettingsWrapper.testbed_config.networks:
             try:
                 bridge_mapping = self.network_mapping.add_bridge_mapping(network.name)
@@ -171,26 +167,29 @@ class Controller(Dismantable):
             return False
             
         # Setup Instances
-        instances = {}
-        wait_for_interfaces = []
+        wait_for_interfaces: List[str] = []
         diskimage_basepath = Path(TestbedSettingsWrapper.testbed_config.settings.diskimage_basepath)
-        for instance in TestbedSettingsWrapper.testbed_config.instances:
-            machine = self.state_manager.get_machine(instance.name)
-            extra_interfaces = {}
+        for instance_config in TestbedSettingsWrapper.testbed_config.instances:
+            instance = self.state_manager.get_instance(instance_config.name)
 
-            for index, if_bridge in enumerate(instance.networks):
-                if_int_name = self.network_mapping.generate_tap_name()
-                if_bridge_mapping = self.network_mapping.get_bridge_mapping(if_bridge)
-                if if_bridge_mapping is None:
-                    logger.critical(f"Unable to map network '{if_bridge}' for Instance '{instance.name}': Not mapped.")
+            for index, if_bridge in enumerate(instance_config.networks):
+                tap_name = self.network_mapping.generate_tap_name()
+                bridge_mapping = self.network_mapping.get_bridge_mapping(if_bridge)
+                if bridge_mapping is None:
+                    logger.critical(f"Unable to map network '{if_bridge}' for Instance '{instance_config.name}': Not mapped.")
                     return False
-                extra_interfaces[if_int_name] = if_bridge_mapping
-                wait_for_interfaces.append(if_int_name)
-                machine.add_interface_mapping(if_bridge_mapping, 
-                                              index + 1 if self.has_mgmt_network else index)
+
+                wait_for_interfaces.append(tap_name)
+                instance_interface = InstanceInterface(
+                    tap_index=(index + 1 if self.mgmt_bridge is not None else index),
+                    tap_dev=tap_name,
+                    bridge=bridge_mapping,
+                    instance=instance
+                )
+                instance.add_interface_mapping(instance_interface)
 
             try:
-                diskimage_path = Path(instance.diskimage)
+                diskimage_path = Path(instance_config.diskimage)
 
                 if not diskimage_path.is_absolute():
                     diskimage_path =  diskimage_basepath / diskimage_path
@@ -199,37 +198,40 @@ class Controller(Dismantable):
                     raise Exception(f"Unable to find diskimage '{diskimage_path}'")
                 
                 management_settings = None
-                if self.has_mgmt_network:
-                    mgmt_bridge_mapping = self.network_mapping.get_bridge_mapping("br-mgmt")
-                    management_settings = InstanceManagementSettings(
-                        bridge_mapping=mgmt_bridge_mapping,
-                        tap_dev_name=self.network_mapping.generate_tap_name(),
-                        ip_interface=ipaddress.IPv4Interface(f"{self.mgmt_ips.pop(0)}/{self.mgmt_netmask}"),
-                        gateway=str(self.mgmt_gateway),
-                    )
-                    machine.set_mgmt_ip(management_settings.ip_interface)
-                    machine.add_interface_mapping(mgmt_bridge_mapping, 0)
+                if self.mgmt_bridge is not None:
+                    intstance_mgmt_ip = self.mgmt_bridge.get_next_mgmt_ip()
+                    tap_name = self.network_mapping.generate_tap_name()
+                    instance.set_mgmt_ip(intstance_mgmt_ip)
 
-                wrapper = InstanceHelper(instance=self.state_manager.get_machine(instance.name),
+                    wait_for_interfaces.append(tap_name)
+                    instance_interface = InstanceInterface(
+                        tap_index=0,
+                        tap_dev=tap_name,
+                        bridge=self.mgmt_bridge_mapping,
+                        is_management_interface=True,
+                        instance=instance_config
+                    )
+                    instance.add_interface_mapping(instance_interface)
+
+                    management_settings = InstanceManagementSettings(
+                        interface=instance_interface,
+                        ip_interface=intstance_mgmt_ip,
+                        gateway=self.mgmt_bridge.mgmt_gateway,
+                    )
+
+
+                helper = InstanceHelper(instance=instance,
                                     management=management_settings,
                                     testbed_package_path=self.base_path,
-                                    extra_interfaces=list(extra_interfaces.items()),
                                     image=str(diskimage_path),
-                                    cores=instance.cores,
-                                    memory=instance.memory,
+                                    cores=instance_config.cores,
+                                    memory=instance_config.memory,
                                     disable_kvm=TestbedSettingsWrapper.cli_paramaters.disable_kvm,
-                                    netmodel=instance.netmodel)
-                self.dismantables.insert(0, wrapper)
-                wrapper.start_instance()
-
-                if self.has_mgmt_network:
-                    mgmt_if_int_name = management_settings.tap_dev_name
-                    extra_interfaces[mgmt_if_int_name] = management_settings.bridge_mapping
-                    wait_for_interfaces.append(mgmt_if_int_name)
-
-                instances[instance.name] = (wrapper, extra_interfaces, )
+                                    netmodel=instance_config.netmodel)
+                self.dismantables.insert(0, helper)
+                helper.start_instance()
             except Exception as ex:
-                logger.opt(exception=ex).critical(f"Unable to setup and start instance {instance.name}")
+                logger.opt(exception=ex).critical(f"Unable to setup and start instance {instance_config.name}")
                 return False
 
         # Wait for tap devices to become ready
@@ -246,28 +248,32 @@ class Controller(Dismantable):
 
         # Attach tap devices to bridges
         try:
-            for name, instance in instances.items():
-                wrapper, extra_interfaces = instance
-                for interface, bridge in extra_interfaces.items():
-                    bridge.bridge.add_device(interface)
-                if self.has_mgmt_network:
-                    logger.info(f"{name} ({wrapper.ip_address}, {self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(list(map(lambda x: str(x), extra_interfaces.values())))}")
+            for instance_config in self.state_manager.get_all_instances():
+                interface: InstanceInterface
+                bridge_list: List[str] = []
+                for interface in instance_config.interfaces:
+                    interface.bridge.bridge.add_device(interface.tap_dev)
+                    interface.bridge_attached = True
+                    bridge_list.append(interface.bridge_name)
+                
+                if self.mgmt_bridge is not None:
+                    logger.info(f"{instance_config.name} ({instance_config.mgmt_ip_addr}, {instance_config.uuid}) attached to bridges: {', '.join(bridge_list)}")
                 else:
-                    logger.info(f"{name} ({self.state_manager.get_machine(name).uuid}) attached to bridges: {', '.join(list(map(lambda x: str(x), extra_interfaces.values())))}")
+                    logger.info(f"{instance_config.name} ({instance_config.uuid}) attached to bridges: {', '.join(bridge_list)}")
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to attach Instance interfaces to bridges.")
             return False
 
-        for instance in self.state_manager.get_all_machines():
-            if not instance.update_mgmt_socket_permission():
-                logger.warning(f"Unable to set socket permissions for {instance.name}")
+        for instance_config in self.state_manager.get_all_instances():
+            if not instance_config.update_mgmt_socket_permission():
+                logger.warning(f"Unable to set socket permissions for {instance_config.name}")
 
         self.state_manager.dump_states()
 
         return True
     
     def start_management_infrastructure(self, init_instances_instant: bool) -> bool:
-        for instance in self.state_manager.get_all_machines():
+        for instance in self.state_manager.get_all_instances():
             instance.prepare_interchange_dir()
         
         try:
@@ -295,12 +301,16 @@ class Controller(Dismantable):
     
     def send_finish_message(self):
         logger.info("Sending finish instructions to Instances")
-        for machine in self.state_manager.get_all_machines():
-            message = FinishInstanceMessageUpstream(machine.preserve_files, 
-                                                    TestbedSettingsWrapper.cli_paramaters.preserve is not None)
-            machine.send_message(message.to_json().encode("utf-8"))
+        for instance in self.state_manager.get_all_instances():
+            if not instance.is_connected():
+                continue
 
-        result: WaitResult = self.state_manager.wait_for_machines_to_become_state(AgentManagementState.FILES_PRESERVED,
+            message = FinishInstanceMessageUpstream(instance.preserve_files, 
+                                                    TestbedSettingsWrapper.cli_paramaters.preserve is not None)
+            instance.send_message(message.to_json().encode("utf-8"))
+
+        result: WaitResult = self.state_manager.wait_for_instances_to_become_state([AgentManagementState.FILES_PRESERVED, 
+                                                                                   AgentManagementState.DISCONNECTED],
                                                                                   timeout=30000)
         if result in [WaitResult.FAILED, WaitResult.TIMEOUT]:
             logger.critical("Instances have reported failed during file preservation or a timeout occured!")
@@ -346,7 +356,7 @@ class Controller(Dismantable):
 
     def wait_for_to_become(self, timeout: int, stage: str, waitstate: AgentManagementState, interact_on_failure: bool = True):
         logger.debug(f"Waiting a maximum of {timeout} seconds for action '{stage}' to finish.")
-        result: WaitResult = self.state_manager.wait_for_machines_to_become_state(waitstate, timeout)
+        result: WaitResult = self.state_manager.wait_for_instances_to_become_state([waitstate], timeout)
         if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
             logger.critical(f"Instances have reported failure during action '{stage}' or a timeout occured!")
             if interact_on_failure:
@@ -426,10 +436,10 @@ class Controller(Dismantable):
                 self.send_finish_message()
                 return True
             
-            for machine in self.state_manager.get_all_machines():
-                machine.send_message(InitializeMessageUpstream(
-                            machine.get_setup_env()[0], 
-                            machine.get_setup_env()[1]).to_json().encode("utf-8"))
+            for instance in self.state_manager.get_all_instances():
+                instance.send_message(InitializeMessageUpstream(
+                            instance.get_setup_env()[0], 
+                            instance.get_setup_env()[1]).to_json().encode("utf-8"))
         else:
             logger.info("Waiting for Instances to start and initialize ...")
 
@@ -439,12 +449,12 @@ class Controller(Dismantable):
             return False
 
         logger.info("Instances are initialized, invoking installtion of apps ...")
-        for config_machine in TestbedSettingsWrapper.testbed_config.instances:
-            machine = self.state_manager.get_machine(config_machine.name)
-            apps = config_machine.applications
-            machine.add_apps(apps)
-            machine.set_state(AgentManagementState.APPS_SENDED)
-            machine.send_message(InstallApplicationsMessageUpstream(apps).to_json().encode("utf-8"))
+        for config_instance in TestbedSettingsWrapper.testbed_config.instances:
+            instance = self.state_manager.get_instance(config_instance.name)
+            apps = config_instance.applications
+            instance.add_apps(apps)
+            instance.set_state(AgentManagementState.APPS_SENDED)
+            instance.send_message(InstallApplicationsMessageUpstream(apps).to_json().encode("utf-8"))
         
         if not self.wait_for_to_become(setup_timeout, 'App Installation', 
                                 AgentManagementState.APPS_READY, 
@@ -464,9 +474,9 @@ class Controller(Dismantable):
         
         logger.info("Startig applications on Instances.")
         message = RunApplicationsMessageUpstream().to_json().encode("utf-8")
-        for machine in self.state_manager.get_all_machines():
-            machine.send_message(message)
-            machine.set_state(AgentManagementState.IN_EXPERIMENT)
+        for instance in self.state_manager.get_all_instances():
+            instance.send_message(message)
+            instance.set_state(AgentManagementState.IN_EXPERIMENT)
             
         logger.info("Waiting for Instances to finish applications ...")
 
