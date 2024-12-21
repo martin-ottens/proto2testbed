@@ -1,0 +1,16 @@
+network:
+  version: 2
+  ethernets:
+    mgmt:
+      match:
+        macaddress: "{{ mgmt_if_mac }}"
+      set-name: "mgmt"
+      addresses:
+        - "{{ mgmt_address }}/{{ mgmt_netmask }}"
+      gateway4: "{{ mgmt_server }}"
+  {% for interface in experiment_interfaces %}
+    {{ interface.dev }}:
+      match:
+        macaddress: "{{ interface.mac }}"
+      set-name: "{{ interface.dev }}"
+  {% endfor %}

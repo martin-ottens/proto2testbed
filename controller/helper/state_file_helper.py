@@ -42,7 +42,11 @@ class MachineStateFile():
     def from_json(json):
         interfaces = []
         for mapping in json["interfaces"]:
-            interfaces.append(InstanceInterface(**mapping))
+            interface = InstanceInterface(**mapping)
+            status = interface.check_export_values()
+            if status is not None:
+                raise Exception(f"Invalid interface: {status}")
+            interfaces.append(interface)
 
         del json["interfaces"]
 

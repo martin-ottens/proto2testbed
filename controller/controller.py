@@ -269,7 +269,6 @@ class Controller(Dismantable):
             if not instance.update_mgmt_socket_permission():
                 logger.warning(f"Unable to set socket permissions for {instance.name}")
 
-        # TODO
         self.state_manager.dump_states()
 
         return True
@@ -304,11 +303,15 @@ class Controller(Dismantable):
     def send_finish_message(self):
         logger.info("Sending finish instructions to Instances")
         for machine in self.state_manager.get_all_machines():
+            if not machine.is_connected():
+                continue
+
             message = FinishInstanceMessageUpstream(machine.preserve_files, 
                                                     TestbedSettingsWrapper.cli_paramaters.preserve is not None)
             machine.send_message(message.to_json().encode("utf-8"))
 
-        result: WaitResult = self.state_manager.wait_for_machines_to_become_state(AgentManagementState.FILES_PRESERVED,
+        result: WaitResult = self.state_manager.wait_for_machines_to_become_state([AgentManagementState.FILES_PRESERVED, 
+                                                                                   AgentManagementState.DISCONNECTED],
                                                                                   timeout=30000)
         if result in [WaitResult.FAILED, WaitResult.TIMEOUT]:
             logger.critical("Instances have reported failed during file preservation or a timeout occured!")
@@ -354,7 +357,7 @@ class Controller(Dismantable):
 
     def wait_for_to_become(self, timeout: int, stage: str, waitstate: AgentManagementState, interact_on_failure: bool = True):
         logger.debug(f"Waiting a maximum of {timeout} seconds for action '{stage}' to finish.")
-        result: WaitResult = self.state_manager.wait_for_machines_to_become_state(waitstate, timeout)
+        result: WaitResult = self.state_manager.wait_for_machines_to_become_state([waitstate], timeout)
         if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
             logger.critical(f"Instances have reported failure during action '{stage}' or a timeout occured!")
             if interact_on_failure:

@@ -256,6 +256,9 @@ class MachineState():
             raise Exception(f"Machine {self.name} is not connected")
 
         self.connection.send_message(message)
+
+    def is_connected(self) -> bool:
+        return self.connection is not None
     
     def connect(self, connection):
         self.connection = connection
@@ -297,8 +300,8 @@ class MachineStateManager(Dismantable):
         self.state_change_lock: Lock = Lock()
         self.file_preservation: Optional[Path] = None
 
-        self.waiting_for_state: MachineState | None = None
-        self.state_change_semaphore: Semaphore | None = None
+        self.waiting_for_states: Optional[List[MachineState]] = None
+        self.state_change_semaphore: Optional[Semaphore] = None
         self.has_shutdown_signal = Event()
         self.has_shutdown_signal.clear()
         self.external_interrupt_signal = Event()
@@ -378,15 +381,16 @@ class MachineStateManager(Dismantable):
                     self.state_change_semaphore.release(n=len(self.map))
                     return
 
-                if new_state == self.waiting_for_state:
+                if new_state in self.waiting_for_states:
                     self.state_change_semaphore.release()
     
-    def wait_for_machines_to_become_state(self, expected_state: AgentManagementState, timeout = None) -> WaitResult:
+    def wait_for_machines_to_become_state(self, expected_states: List[AgentManagementState], 
+                                          timeout = None) -> WaitResult:
         wait_for_count = 0
         with self.state_change_lock:
             self.state_change_semaphore = Semaphore(0)
-            self.waiting_for_state = expected_state
-            wait_for_count = sum(map(lambda x: x.get_state() != expected_state, self.map.values()))
+            self.waiting_for_states = expected_states
+            wait_for_count = sum(map(lambda x: x.get_state() not in expected_states, self.map.values()))
         
         wait_until = time.time() + timeout
         for _ in range(wait_for_count):
@@ -404,7 +408,7 @@ class MachineStateManager(Dismantable):
                 return WaitResult.INTERRUPTED
 
         with self.state_change_lock:
-            self.waiting_for_state = None
+            self.waiting_for_states = None
             self.state_change_semaphore = None
 
             if self.external_interrupt_signal.is_set():
@@ -417,7 +421,7 @@ class MachineStateManager(Dismantable):
                 self.has_shutdown_signal.clear()
                 return WaitResult.SHUTDOWN
 
-            if sum(map(lambda x: x.get_state() == expected_state, self.map.values())) == len(self.map):
+            if sum(map(lambda x: x.get_state() in expected_states, self.map.values())) == len(self.map):
                 return WaitResult.OK
             else:
                 return WaitResult.FAILED

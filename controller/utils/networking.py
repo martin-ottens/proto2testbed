@@ -1,3 +1,21 @@
+#
+# This file is part of Proto²Testbed.
+#
+# Copyright (C) 2024 Martin Ottens
+# 
+# This program is free software: you can redistribute it and/or modify 
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful, 
+# but WITHOUT ANY WARRANTY; without even the implied warranty of 
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the 
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License 
+# along with this program. If not, see https://www.gnu.org/licenses/.
+#
+
 import random
 import string
 
@@ -18,6 +36,18 @@ class BridgeMapping():
 
 
 class InstanceInterface():
+
+    _EXPORT_ATTRIBUTES = [
+        "tap_index",
+        "tap_dev",
+        "tap_mac",
+        "host_ports",
+        "bridge_name",
+        "bridge_dev",
+        "interface_on_instance",
+        "is_management_interface"
+    ]
+
     def __init__(self, tap_index: int, 
                  tap_dev: Optional[str] = None,
                  tap_mac: Optional[str] = None,
@@ -26,12 +56,14 @@ class InstanceInterface():
                  bridge_name: Optional[str] = None,
                  bridge: Optional[BridgeMapping] = None,
                  is_management_interface: bool = False,
+                 interface_on_instance: Optional[str] = None,
                  instance = None) -> None:
         self.tap_index = tap_index
         self.tap_dev = tap_dev
         self.tap_mac = tap_mac
         self.bridge = bridge
         self.bridge_attached = False
+        self.interface_on_instance = interface_on_instance
         self.is_management_interface = is_management_interface
         self.instance = instance
 
@@ -44,21 +76,22 @@ class InstanceInterface():
             self.bridge_dev = bridge_dev
             self.host_ports = host_ports
 
-    
+    def check_export_values(self) -> Optional[str]:
+        for attr in InstanceInterface._EXPORT_ATTRIBUTES:
+            if getattr(self, attr) is None:
+                return f"Attribute {attr} is not set!"
+        
+        return None
 
     def __lt__(self, other) -> bool:
         return self.tap_index < other.tap_index
     
     def dump(self) -> Any:
-        return {
-            "tap_index": self.tap_index,
-            "tap_dev": self.tap_dev,
-            "tap_mac": self.tap_mac,
-            "host_ports": self.host_ports,
-            "bridge_dev": self.bridge_dev,
-            "bridge_name": self.bridge_name,
-            "is_management_interface": self.is_management_interface
-        }
+        result = {}
+        for attr in InstanceInterface._EXPORT_ATTRIBUTES:
+            result[attr] = getattr(self, attr)
+       
+        return result
 
 
 class NetworkMappingHelper():
