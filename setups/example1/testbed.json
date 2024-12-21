@@ -43,7 +43,7 @@
                     "delay": 5,
                     "runtime": 60,
                     "settings": {
-                        "interfaces": ["enp0s3"],
+                        "interfaces": ["eth1"],
                         "system": false
                     }
                 }
@@ -73,7 +73,7 @@
                         "command": "router/application.sh",
                         "ignore_timeout": true,
                         "environment": {
-                            "INTERFACE": "enp0s3",
+                            "INTERFACE": "eth1",
                             "DELAY_MS": 100
                         }
                     }
