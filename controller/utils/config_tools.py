@@ -81,39 +81,39 @@ def load_config(config_path: Path, skip_substitution: bool = False) -> TestbedCo
     return TestbedConfig(config)
 
 
-def load_vm_initialization(config: TestbedConfig, base_path: Path, state_manager: state_manager.MachineStateManager) -> bool:
-    for machine in config.instances:
+def load_vm_initialization(config: TestbedConfig, base_path: Path, state_manager: state_manager.InstanceStateManager) -> bool:
+    for instance in config.instances:
         script_file = None
         env_variables = None
-        if machine.setup_script is not None:
-            script_file = base_path / Path(machine.setup_script)
+        if instance.setup_script is not None:
+            script_file = base_path / Path(instance.setup_script)
             if not script_file.exists() or not script_file.is_relative_to(base_path):
-                logger.critical(f"Unable to get script file '{script_file}' for Instance {machine.name}!")
+                logger.critical(f"Unable to get script file '{script_file}' for Instance {instance.name}!")
                 return False
 
             if not bool(script_file.stat().st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)):
-                logger.critical(f"Setup script '{script_file}' for Instance {machine.name} is not executable!")
+                logger.critical(f"Setup script '{script_file}' for Instance {instance.name} is not executable!")
                 return False
 
-            script_file = machine.setup_script # relative to package root
+            script_file = instance.setup_script # relative to package root
         
-            if machine.environment is None:
+            if instance.environment is None:
                 env_variables = None
             else:
-                env_variables = machine.environment
+                env_variables = instance.environment
                 if not isinstance(env_variables, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in env_variables.items()):
-                    logger.critical(f"Unable to load environment dict for VM {machine.name}")
+                    logger.critical(f"Unable to load environment dict for VM {instance.name}")
                     return False
         
-        if machine.preserve_files is not None:
-            state_manager.add_machine(
-                name=machine.name, 
+        if instance.preserve_files is not None:
+            state_manager.add_instance(
+                name=instance.name, 
                 script_file=script_file, 
                 setup_env=env_variables, 
-                init_preserve_files=machine.preserve_files)
+                init_preserve_files=instance.preserve_files)
         else:
-            state_manager.add_machine(
-                name=machine.name, 
+            state_manager.add_instance(
+                name=instance.name, 
                 script_file=script_file,
                 setup_env=env_variables,
                 init_preserve_files=None)

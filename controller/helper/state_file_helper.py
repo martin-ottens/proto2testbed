@@ -28,7 +28,7 @@ from utils.settings import CommonSettings
 from utils.networking import InstanceInterface
 
 @dataclass
-class MachineStateFile():
+class InstanceStateFile():
     instance: str
     executor: int
     cmdline: str
@@ -50,14 +50,14 @@ class MachineStateFile():
 
         del json["interfaces"]
 
-        obj = MachineStateFile(**json)
+        obj = InstanceStateFile(**json)
         obj.interfaces = interfaces
         return obj
 
 
 @dataclass
 class StateFileEntry:
-    contents: Optional[MachineStateFile]
+    contents: Optional[InstanceStateFile]
     filepath: str
 
 
@@ -81,7 +81,7 @@ class StateFileReader():
             statefilepath = os.path.join(itempath, MACHINE_STATE_FILE)
             try:
                 with open(statefilepath, "r") as handle:
-                    state = MachineStateFile.from_json(json.load(handle))
+                    state = InstanceStateFile.from_json(json.load(handle))
                     self.files.append(StateFileEntry(state, statefilepath))
                     logger.trace(f"Loaded a state from '{statefilepath}'")
             except Exception as ex:
@@ -98,7 +98,7 @@ class StateFileReader():
             return str(uid)
 
     @staticmethod
-    def is_process_running(state: MachineStateFile) -> bool:
+    def is_process_running(state: InstanceStateFile) -> bool:
         import psutil
         try:
             proc = psutil.Process(state.main_pid)
@@ -159,4 +159,3 @@ class StateFileReader():
                 continue
 
             result.append(item.contents.experiment)
-

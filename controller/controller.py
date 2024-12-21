@@ -36,7 +36,7 @@ from utils.networking import *
 from utils.continue_mode import *
 from management_server import ManagementServer
 from cli import CLI
-from state_manager import MachineStateManager, AgentManagementState, WaitResult, MachineState
+from state_manager import InstanceStateManager, AgentManagementState, WaitResult, InstanceState
 from common.instance_manager_message import *
 from constants import SUPPORTED_INSTANCE_NUMBER
 
@@ -47,7 +47,7 @@ class Controller(Dismantable):
             raise Exception("No CLIParamaters class object was set before calling the controller")
 
         self.dismantables: List[Dismantable] = []
-        self.state_manager: MachineStateManager = MachineStateManager()
+        self.state_manager: InstanceStateManager = InstanceStateManager()
         self.dismantables.insert(0, self.state_manager)
         self.mgmt_bridge: Optional[ManagementNetworkBridge] = None
         self.mgmt_bridge_mapping: Optional[BridgeMapping] = None
@@ -169,27 +169,27 @@ class Controller(Dismantable):
         # Setup Instances
         wait_for_interfaces: List[str] = []
         diskimage_basepath = Path(TestbedSettingsWrapper.testbed_config.settings.diskimage_basepath)
-        for instance in TestbedSettingsWrapper.testbed_config.instances:
-            machine = self.state_manager.get_machine(instance.name)
+        for instance_config in TestbedSettingsWrapper.testbed_config.instances:
+            instance = self.state_manager.get_instance(instance_config.name)
 
-            for index, if_bridge in enumerate(instance.networks):
+            for index, if_bridge in enumerate(instance_config.networks):
                 tap_name = self.network_mapping.generate_tap_name()
                 bridge_mapping = self.network_mapping.get_bridge_mapping(if_bridge)
                 if bridge_mapping is None:
-                    logger.critical(f"Unable to map network '{if_bridge}' for Instance '{instance.name}': Not mapped.")
+                    logger.critical(f"Unable to map network '{if_bridge}' for Instance '{instance_config.name}': Not mapped.")
                     return False
 
                 wait_for_interfaces.append(tap_name)
-                instane_interface = InstanceInterface(
+                instance_interface = InstanceInterface(
                     tap_index=(index + 1 if self.mgmt_bridge is not None else index),
                     tap_dev=tap_name,
                     bridge=bridge_mapping,
-                    instance=machine
+                    instance=instance
                 )
-                machine.add_interface_mapping(instane_interface)
+                instance.add_interface_mapping(instance_interface)
 
             try:
-                diskimage_path = Path(instance.diskimage)
+                diskimage_path = Path(instance_config.diskimage)
 
                 if not diskimage_path.is_absolute():
                     diskimage_path =  diskimage_basepath / diskimage_path
@@ -201,7 +201,7 @@ class Controller(Dismantable):
                 if self.mgmt_bridge is not None:
                     intstance_mgmt_ip = self.mgmt_bridge.get_next_mgmt_ip()
                     tap_name = self.network_mapping.generate_tap_name()
-                    machine.set_mgmt_ip(intstance_mgmt_ip)
+                    instance.set_mgmt_ip(intstance_mgmt_ip)
 
                     wait_for_interfaces.append(tap_name)
                     instance_interface = InstanceInterface(
@@ -209,9 +209,9 @@ class Controller(Dismantable):
                         tap_dev=tap_name,
                         bridge=self.mgmt_bridge_mapping,
                         is_management_interface=True,
-                        instance=instance
+                        instance=instance_config
                     )
-                    machine.add_interface_mapping(instance_interface)
+                    instance.add_interface_mapping(instance_interface)
 
                     management_settings = InstanceManagementSettings(
                         interface=instance_interface,
@@ -220,19 +220,18 @@ class Controller(Dismantable):
                     )
 
 
-                # TODO rename machine to intstance here
-                helper = InstanceHelper(instance=machine,
+                helper = InstanceHelper(instance=instance,
                                     management=management_settings,
                                     testbed_package_path=self.base_path,
                                     image=str(diskimage_path),
-                                    cores=instance.cores,
-                                    memory=instance.memory,
+                                    cores=instance_config.cores,
+                                    memory=instance_config.memory,
                                     disable_kvm=TestbedSettingsWrapper.cli_paramaters.disable_kvm,
-                                    netmodel=instance.netmodel)
+                                    netmodel=instance_config.netmodel)
                 self.dismantables.insert(0, helper)
                 helper.start_instance()
             except Exception as ex:
-                logger.opt(exception=ex).critical(f"Unable to setup and start instance {instance.name}")
+                logger.opt(exception=ex).critical(f"Unable to setup and start instance {instance_config.name}")
                 return False
 
         # Wait for tap devices to become ready
@@ -249,32 +248,32 @@ class Controller(Dismantable):
 
         # Attach tap devices to bridges
         try:
-            for instance in self.state_manager.get_all_machines():
+            for instance_config in self.state_manager.get_all_instances():
                 interface: InstanceInterface
                 bridge_list: List[str] = []
-                for interface in instance.interfaces:
+                for interface in instance_config.interfaces:
                     interface.bridge.bridge.add_device(interface.tap_dev)
                     interface.bridge_attached = True
                     bridge_list.append(interface.bridge_name)
                 
                 if self.mgmt_bridge is not None:
-                    logger.info(f"{instance.name} ({instance.mgmt_ip_addr}, {instance.uuid}) attached to bridges: {', '.join(bridge_list)}")
+                    logger.info(f"{instance_config.name} ({instance_config.mgmt_ip_addr}, {instance_config.uuid}) attached to bridges: {', '.join(bridge_list)}")
                 else:
-                    logger.info(f"{instance.name} ({instance.uuid}) attached to bridges: {', '.join(bridge_list)}")
+                    logger.info(f"{instance_config.name} ({instance_config.uuid}) attached to bridges: {', '.join(bridge_list)}")
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to attach Instance interfaces to bridges.")
             return False
 
-        for instance in self.state_manager.get_all_machines():
-            if not instance.update_mgmt_socket_permission():
-                logger.warning(f"Unable to set socket permissions for {instance.name}")
+        for instance_config in self.state_manager.get_all_instances():
+            if not instance_config.update_mgmt_socket_permission():
+                logger.warning(f"Unable to set socket permissions for {instance_config.name}")
 
         self.state_manager.dump_states()
 
         return True
     
     def start_management_infrastructure(self, init_instances_instant: bool) -> bool:
-        for instance in self.state_manager.get_all_machines():
+        for instance in self.state_manager.get_all_instances():
             instance.prepare_interchange_dir()
         
         try:
@@ -302,15 +301,15 @@ class Controller(Dismantable):
     
     def send_finish_message(self):
         logger.info("Sending finish instructions to Instances")
-        for machine in self.state_manager.get_all_machines():
-            if not machine.is_connected():
+        for instance in self.state_manager.get_all_instances():
+            if not instance.is_connected():
                 continue
 
-            message = FinishInstanceMessageUpstream(machine.preserve_files, 
+            message = FinishInstanceMessageUpstream(instance.preserve_files, 
                                                     TestbedSettingsWrapper.cli_paramaters.preserve is not None)
-            machine.send_message(message.to_json().encode("utf-8"))
+            instance.send_message(message.to_json().encode("utf-8"))
 
-        result: WaitResult = self.state_manager.wait_for_machines_to_become_state([AgentManagementState.FILES_PRESERVED, 
+        result: WaitResult = self.state_manager.wait_for_instances_to_become_state([AgentManagementState.FILES_PRESERVED, 
                                                                                    AgentManagementState.DISCONNECTED],
                                                                                   timeout=30000)
         if result in [WaitResult.FAILED, WaitResult.TIMEOUT]:
@@ -357,7 +356,7 @@ class Controller(Dismantable):
 
     def wait_for_to_become(self, timeout: int, stage: str, waitstate: AgentManagementState, interact_on_failure: bool = True):
         logger.debug(f"Waiting a maximum of {timeout} seconds for action '{stage}' to finish.")
-        result: WaitResult = self.state_manager.wait_for_machines_to_become_state([waitstate], timeout)
+        result: WaitResult = self.state_manager.wait_for_instances_to_become_state([waitstate], timeout)
         if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
             logger.critical(f"Instances have reported failure during action '{stage}' or a timeout occured!")
             if interact_on_failure:
@@ -437,10 +436,10 @@ class Controller(Dismantable):
                 self.send_finish_message()
                 return True
             
-            for machine in self.state_manager.get_all_machines():
-                machine.send_message(InitializeMessageUpstream(
-                            machine.get_setup_env()[0], 
-                            machine.get_setup_env()[1]).to_json().encode("utf-8"))
+            for instance in self.state_manager.get_all_instances():
+                instance.send_message(InitializeMessageUpstream(
+                            instance.get_setup_env()[0], 
+                            instance.get_setup_env()[1]).to_json().encode("utf-8"))
         else:
             logger.info("Waiting for Instances to start and initialize ...")
 
@@ -450,12 +449,12 @@ class Controller(Dismantable):
             return False
 
         logger.info("Instances are initialized, invoking installtion of apps ...")
-        for config_machine in TestbedSettingsWrapper.testbed_config.instances:
-            machine = self.state_manager.get_machine(config_machine.name)
-            apps = config_machine.applications
-            machine.add_apps(apps)
-            machine.set_state(AgentManagementState.APPS_SENDED)
-            machine.send_message(InstallApplicationsMessageUpstream(apps).to_json().encode("utf-8"))
+        for config_instance in TestbedSettingsWrapper.testbed_config.instances:
+            instance = self.state_manager.get_instance(config_instance.name)
+            apps = config_instance.applications
+            instance.add_apps(apps)
+            instance.set_state(AgentManagementState.APPS_SENDED)
+            instance.send_message(InstallApplicationsMessageUpstream(apps).to_json().encode("utf-8"))
         
         if not self.wait_for_to_become(setup_timeout, 'App Installation', 
                                 AgentManagementState.APPS_READY, 
@@ -475,9 +474,9 @@ class Controller(Dismantable):
         
         logger.info("Startig applications on Instances.")
         message = RunApplicationsMessageUpstream().to_json().encode("utf-8")
-        for machine in self.state_manager.get_all_machines():
-            machine.send_message(message)
-            machine.set_state(AgentManagementState.IN_EXPERIMENT)
+        for instance in self.state_manager.get_all_instances():
+            instance.send_message(message)
+            instance.set_state(AgentManagementState.IN_EXPERIMENT)
             
         logger.info("Waiting for Instances to finish applications ...")
 

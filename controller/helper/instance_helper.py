@@ -31,7 +31,7 @@ from dataclasses import dataclass
 
 from utils.interfaces import Dismantable
 from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_relative_to, get_DNS_resolver
-from state_manager import MachineState
+from state_manager import InstanceState
 from utils.settings import CommonSettings
 from utils.networking import InstanceInterface
 from constants import SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE
@@ -70,7 +70,7 @@ class InstanceHelper(Dismantable):
                                    -joliet \
                                    -rock {input}"""
 
-    def __init__(self, instance: MachineState, 
+    def __init__(self, instance: InstanceState, 
                  management: Optional[InstanceManagementSettings],
                  image: str, testbed_package_path: str,
                  cores: int = 2, memory: int = 1024, debug: bool = False, 
