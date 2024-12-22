@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 #
 # This file is part of Proto²Testbed.
 #
@@ -15,8 +16,6 @@
 # You should have received a copy of the GNU General Public License 
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
-
-#!/usr/bin/python3
 
 import argparse
 import sys
