@@ -54,6 +54,7 @@ Example config:
             "port": 5201, // connect to port 5201
             "reverse": false, // transfer from client to server
             "udp": true, // use UDP for transfers
+            "length_bytes": 500, // buffer/transmit size bytes
             "streams": 1, // use one stream for transfers
             "bandwidth_kbps": 2000, // 2000kbps as UDP data rate
             "tcp_no_delay": false, // TCP_NO_DELAY is disabled
@@ -64,13 +65,15 @@ Example config:
 
 class IperfClientApplicationConfig(ApplicationSettings):
     def __init__(self, host: str, port: int = 5201, reverse: bool = None, 
-                 udp: bool = None, streams: int = None, report_interval: int = 1, 
-                 bandwidth_kbps: int = None, tcp_no_delay: bool = None) -> None:
+                 udp: bool = None, streams: int = None, length_bytes: int = None, 
+                 report_interval: int = 1, bandwidth_kbps: int = None, 
+                 tcp_no_delay: bool = None) -> None:
         self.host = host
         self.port = port
         self.reverse = reverse
         self.udp = udp
         self.streams = streams
+        self.length_bytes = length_bytes
         self.bandwidth_kbps = bandwidth_kbps
         self.tcp_no_delay = tcp_no_delay
         self.report_interval = report_interval
@@ -108,7 +111,11 @@ class IperfClientApplication(BaseApplication):
         
         if self.settings.bandwidth_kbps is not None:
             command.append("--bandwidth")
-            command.append(f"{self.settings.bandwidth_kbps}k")
+            command.append(f"{self.settings.bandwidth_kbps}K")
+
+        if self.settings.length_bytes is not None:
+            command.append("--length")
+            command.append(f"{self.settings.length_bytes}")
         
         if self.settings.streams is not None:
             command.append("--parallel")
