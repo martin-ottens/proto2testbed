@@ -146,7 +146,7 @@ class ManagementClientConnection(threading.Thread):
             
             case InstanceMessageType.SHUTDOWN:
                 logger.warning(f"Management: Client {self.client.name} requested testbed shutdown.")
-                restart = (message_obj.message is not None and bool(message_obj) == True)
+                restart = (message_obj.message is not None and bool(message_obj.message) == True)
                 self.manager.apply_shutdown_signal()
                 self.controller.stop_interaction(restart=restart)
                 return True

@@ -137,7 +137,7 @@ class RunExecutor(BaseExecutor):
             exit_code = 1
 
         if restart_requested:
-            logger.success("Testbed restart war requested, trying to restart ...")
+            logger.success("Testbed restart was requested, trying to restart ...")
             exit_code = 254
         
         return exit_code
