@@ -162,11 +162,11 @@ class PingApplication(BaseApplication):
             ExportResultMapping(
                 name="reachable",
                 type=ExportResultDataType.COUNT,
-                description="TTL of response packet"
+                description="is target reachable?"
             ),
             ExportResultMapping(
-                name="reachable",
+                name="ttl",
                 type=ExportResultDataType.COUNT,
-                description="Target reachable"
+                description="TTL of response packet"
             )
         ]
