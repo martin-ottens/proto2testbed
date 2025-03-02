@@ -61,7 +61,8 @@ def create_qemu_command(image: Path, deb_path: str,
 
 
 def wait_for_shell_on_vm(proc: pexpect.spawn, timeout: int = PEXPECT_TIMEOUT):
-    proc.expect(f"{PEXPECT_ROOT_USER}@{PEXPECT_VMNAME}:~#", timeout=timeout)
+    proc.expect(f"{PEXPECT_ROOT_USER}@{PEXPECT_VMNAME}:", timeout=timeout)
+    proc.expect(f"#", timeout=1)
 
 
 def run_one_command_on_vm(command: str, proc: pexpect.spawn, 
