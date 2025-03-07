@@ -302,4 +302,4 @@ class ResultExportHelper:
 
             return True
 
-        self._process_series(flatfile_export_callback)
+        return self._process_series(flatfile_export_callback)
