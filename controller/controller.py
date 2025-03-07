@@ -354,13 +354,17 @@ class Controller(Dismantable):
                 self.pause_after = contine_mode.pause
                 return True
 
-    def wait_for_to_become(self, timeout: int, stage: str, waitstate: AgentManagementState, interact_on_failure: bool = True):
+    def wait_for_to_become(self, timeout: int, stage: str, 
+                           waitstate: AgentManagementState, 
+                           interact_on_failure: bool = True,
+                           request_file_preservation: bool = True) -> bool:
         logger.debug(f"Waiting a maximum of {timeout} seconds for action '{stage}' to finish.")
         result: WaitResult = self.state_manager.wait_for_instances_to_become_state([waitstate], timeout)
         if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
             logger.critical(f"Instances have reported failure during action '{stage}' or a timeout occured!")
             if interact_on_failure:
                 self.start_interaction(PauseAfterSteps.DISABLE)
+            if request_file_preservation:
                 self.send_finish_message()
             return False
         elif result == WaitResult.INTERRUPTED:
@@ -429,7 +433,7 @@ class Controller(Dismantable):
             logger.info("Waiting for Instances to start ...")
 
             if not self.wait_for_to_become(setup_timeout, "Infrastructure Setup", 
-                                           AgentManagementState.STARTED, False):
+                                           AgentManagementState.STARTED, False, False):
                 return False
 
             if not self.start_interaction(PauseAfterSteps.SETUP):
@@ -445,7 +449,7 @@ class Controller(Dismantable):
 
         if not self.wait_for_to_become(setup_timeout, "Instance Initialization", 
                                        AgentManagementState.INITIALIZED, 
-                                       self.pause_after == PauseAfterSteps.INIT):
+                                       self.pause_after == PauseAfterSteps.INIT, True):
             return False
 
         logger.info("Instances are initialized, invoking installtion of apps ...")
@@ -458,7 +462,7 @@ class Controller(Dismantable):
         
         if not self.wait_for_to_become(setup_timeout, 'App Installation', 
                                 AgentManagementState.APPS_READY, 
-                                self.pause_after == PauseAfterSteps.INIT):
+                                self.pause_after == PauseAfterSteps.INIT, True):
             return False
         
         logger.success("All Instances reported up & ready!")
@@ -492,12 +496,13 @@ class Controller(Dismantable):
             logger.error("Maximum experiment duration could not be calculated -> No applications installed!")
             if self.pause_after == PauseAfterSteps.EXPERIMENT:
                 self.start_interaction(PauseAfterSteps.EXPERIMENT)
-                self.send_finish_message()
+            
+            self.send_finish_message()
             return False
         else:
             self.wait_for_to_become(experiment_timeout, 'Experiment', 
                                     AgentManagementState.FINISHED, 
-                                    self.pause_after == PauseAfterSteps.EXPERIMENT)
+                                    self.pause_after == PauseAfterSteps.EXPERIMENT, True)
             logger.success("All Instances reported finished applications!")
             
         if self.pause_after == PauseAfterSteps.EXPERIMENT:

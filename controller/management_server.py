@@ -122,14 +122,12 @@ class ManagementClientConnection(threading.Thread):
                     logger.error(f"Management: Client {self.client.name} reported failure with message: {message_obj.message}")
                 else:
                     logger.error(f"Management: Client {self.client.name} reported failure without message.")
-                if message_obj.get_status() == InstanceMessageType.FAILED:
-                    return False
-                else:
-                    return True
+                return True
                 
             case InstanceMessageType.APPS_INSTALLED:
                 self.client.set_state(AgentManagementState.APPS_READY)
                 logger.info(f"Management: Client {self.client.name} installed apps, ready for experiment.")
+                return True
 
             case InstanceMessageType.APPS_DONE:
                 self.client.set_state(AgentManagementState.FINISHED)

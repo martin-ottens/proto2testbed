@@ -88,11 +88,13 @@ class InstanceManager():
                 proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", TESTBED_PACKAGE_P9_DEV, GlobalState.testbed_package_path])
             except Exception as ex:
                 self.message_to_controller(InstanceMessageType.FAILED, f"Unable to mount testbed package!")
+                return False
 
             if proc is not None and proc.returncode != 0:
                 self.message_to_controller(InstanceMessageType.FAILED, 
                                                         f"Mounting of testbed package failed with code ({proc.returncode})\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {proc.stderr.decode('utf-8')}")
                 print(f"Testbed Package mounted to {TESTBED_PACKAGE_P9_DEV}", file=sys.stderr, flush=True)
+                return False
 
         # 3. Execute the setup script from mounted testbed package
         if init_message.script is not None:
@@ -108,12 +110,14 @@ class InstanceManager():
                     proc = subprocess.run(["/bin/bash", init_message.script], capture_output=True, shell=False)
                 except Exception as ex:
                     self.message_to_controller(InstanceMessageType.FAILED, f"Setup script failed:\nMESSAGE: {ex}")
-                    raise Exception(f"Unable to run setup_script") from ex
+                    print(f"Unable to run setup_script: {ex}", file=sys.stderr, flush=True)
+                    return False
 
                 if proc is not None and proc.returncode != 0:
                     self.message_to_controller(InstanceMessageType.FAILED, 
                                                     f"Setup script failed ({proc.returncode})\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {proc.stderr.decode('utf-8')}")
-                    raise Exception(f"Unable to run setup_script': {proc.stderr.decode('utf-8')}")
+                    print(f"Unable to run setup_script': {proc.stderr.decode('utf-8')}", file=sys.stderr, flush=True)
+                    return False
                 
                 print(f"Execution of setup script {init_message.script} completed", file=sys.stderr, flush=True)
             else:
@@ -161,7 +165,7 @@ class InstanceManager():
             print(f"File preservation completed, Instance ready for shut down", file=sys.stderr, flush=True)
             return True
         else:
-            self.message_to_controller(InstanceMessageType.FAILED)
+            self.message_to_controller(InstanceMessageType.FAILED, "File preservation failed")
             print(f"File preservation failed.", file=sys.stderr, flush=True)
             return False
         
@@ -172,6 +176,7 @@ class InstanceManager():
             self.message_to_controller(InstanceMessageType.MSG_ERROR, 
                                        f"Copy failed, no proc_id was provided to Instance.")
             print(f"Invalid copy instructin packet: proc_id missing!")
+            return True
 
         source = Path(copy_instructions.source)
         target = Path(copy_instructions.target)
@@ -265,23 +270,19 @@ class InstanceManager():
                     if self.state != IMState.INITIALIZED and self.state != IMState.APPS_READY:
                         print(f"Got 'install_apps' message from controller, but im in state {self.state.value}, skipping.")
                         self.message_to_controller(InstanceMessageType.MSG_ERROR, "Instance is not ready for app installation.")
-                        continue
-
-                    self.install_apps(data)
-                    self.state = IMState.APPS_READY
-                    continue
+                    else:
+                        self.install_apps(data)
+                        self.state = IMState.APPS_READY
                 case RunApplicationsMessageUpstream.status_name:
                     if self.state != IMState.APPS_READY:
                         print(f"Got 'run_apps' message from controller, but im in state {self.state.value}, skipping.")
                         self.message_to_controller(InstanceMessageType.MSG_ERROR, "Instance has not yet installed apps.")
-                        continue
-
-                    self.state = IMState.EXPERIMENT_RUNNING
-                    if self.run_apps():
-                        self.state = IMState.APPS_READY
                     else:
-                        self.state = IMState.FAILED
-                    continue
+                        self.state = IMState.EXPERIMENT_RUNNING
+                        if self.run_apps():
+                            self.state = IMState.APPS_READY
+                        else:
+                            self.state = IMState.FAILED
                 case CopyFileMessageUpstream.status_name:
                     if not self.handle_file_copy(data):
                         self.state = IMState.FAILED
@@ -290,12 +291,11 @@ class InstanceManager():
                         self.state = IMState.READY_FOR_SHUTDOWN
                     else:
                         self.state = IMState.FAILED
-                    continue
                 case _:
                     raise Exception(f"Invalid 'status' in message: {data.get('status')}")
             
             if self.state == IMState.FAILED:
-                raise Exception("Instance Manager has entered failed state.")
+                print("Instance Manager has entered FAILED state.")
 
     def run(self):
         try:
