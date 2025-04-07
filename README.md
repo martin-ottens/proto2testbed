@@ -8,6 +8,18 @@ The structure of the topology, the configuration and also experiments are define
 After a small amount of manual configuration, Proto²Testbed takes care of setting up and dismantling the topology and carrying out experiments, if desired, completely automated way.
 Proto²Testbed can be used for various workflows and can be extended with functions for specific projects thanks to its modular approach.
 
+Proto²Testbed was first introduced at the 12th Advanced Satellite Multimedia Systems Conference (ASMS) 2025, BibTeX citation:
+```
+@inproceedings{proto2testbed,
+    author={Ottens, Martin and Deutschmann, Jörg and Hielscher, Kai-Steffen and German, Reinhard},
+    booktitle={2025 12th Advanced Satellite Multimedia Systems Conference and the 18th Signal Processing for Space Communications Workshop (ASMS/SPSC)}, 
+    title={Proto2Testbed: Towards an Integrated Testbed for Evaluating End-to-End Security Protocols in Satellite Constellations}, 
+    year={2025},
+    pages={1-8},
+    doi={10.1109/ASMS/SPSC64465.2025.10946051}
+}
+```
+
 ## 1. Functional Overview & Terms
 - The main part of Proto²Testbed, the **Controller**, is installed on a *Debian 12* workstation, server or even desktop. This system is called the **Testbed Host**.
 - The Topology of a testbed and some configurations are defined in the testbed configuration file `testbed.json`, this file is bundled together with scripts and additional dependencies that are used during a testbed execution to form a **Testbed Package**.
