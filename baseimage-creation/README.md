@@ -78,6 +78,10 @@ Before the base-image created in the steps above can be used in a testbed run, t
      apt-get -y install my-dependency
      touch /etc/my-dependecy/installed
      ```
+   - `-m <directory>`: Mount a local direcotry with additional dependencies or packages to `/mnt/additional`. Can be used together with the extra command flag to install custom packages, e.g.:
+     ```
+     apt-get -y install /mnt/additional/my-package.deb
+     ```
    - `--debug`: Show serial terminal during installation (non-interactive)
    - `--timeout <seconds>`: Set timeout for all commands (defaults to `60`)
 3. The image at the path `<output>` (or `<input>` if modified in place) can now the used in a testbed.
