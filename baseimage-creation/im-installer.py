@@ -34,7 +34,7 @@ PEXPECT_VMNAME = "debian"
 PEXPECT_ROOT_USER = "root"
 PEXPECT_ROOT_PASSWD = "1"
 
-VIRTFS_COMMAND_TEMPLATE = "-virtfs local,path={local_mount},mount_tag={tag},security_model=passthrough,id={tag},readonly"
+VIRTFS_COMMAND_TEMPLATE = "-virtfs local,path={local_mount},mount_tag={tag},security_model=passthrough,id={tag},readonly=on"
 QEMU_COMMAND_TEMPLATE = """qemu-system-x86_64 -m 1G -hda {image} \
                             {kvm} {dry} -boot c \
                             -nographic -serial mon:stdio \
@@ -62,7 +62,7 @@ def create_qemu_command(image: Path, deb_path: str, additional_path: Optional[st
     return QEMU_COMMAND_TEMPLATE.format(
         image=str(image),
         virtfs_package=virtfs_package,
-        virtfs_additional=virtfs_additional,
+        virtfs_additional=virtfs_additional if virtfs_additional is not None else "",
         kvm=('-enable-kvm -cpu host' if not disable_kvm else ''),
         dry=('-snapshot' if dry_run else '')
     )

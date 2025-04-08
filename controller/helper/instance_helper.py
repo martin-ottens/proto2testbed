@@ -56,7 +56,7 @@ class InstanceHelper(Dismantable):
                                 -chardev socket,id=mgmtchardev,path={serial},server,nowait \
                                 -device pci-serial,chardev=mgmtchardev \
                                 -virtfs local,path={mount},mount_tag=exchange,security_model=passthrough,id=exchange \
-                                -virtfs local,path={testbed_package},mount_tag=tbp,security_model=passthrough,id=tbp,readonly \
+                                -virtfs local,path={testbed_package},mount_tag=tbp,security_model=passthrough,id=tbp,readonly=on \
                                 {nics} \
                                 -snapshot \
                                 -cdrom {cloud_init_iso} \
