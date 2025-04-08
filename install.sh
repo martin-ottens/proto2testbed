@@ -62,7 +62,7 @@ influx -execute 'CREATE DATABASE testbed'
 
 echo "Setting up default configs ..."
 chmod go+r -R /opt/proto-testbed
-mkdir -p -m 744 /etc/proto2testbed
+mkdir -p -m 755 /etc/proto2testbed
 cp proto2testbed_defaults.json /etc/proto2testbed/.
 chmod 744 /etc/proto2testbed/*
 
