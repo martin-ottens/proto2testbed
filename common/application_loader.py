@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -102,18 +102,22 @@ class ApplicationLoader():
             module = filename[:-3] # Skip "".py"
             self._load_single_app(module, filepath)
 
-    def load_app(self, application: str, reload: bool = False) -> Tuple[Optional[BaseApplication], str]:
+    def load_app(self, application: str, reload: bool = False, 
+                 absolute_path: bool = False) -> Tuple[Optional[BaseApplication], str]:
         if application in self.app_map.keys():
             return self.app_map[application], "Loaded packaged application"
         
         if reload is False:
-            return None, "Application not packaged and reload from testbed package disabled"
+            return None, "Application not packaged and reload is disabled"
     
         app_file = application
         if not app_file.endswith(".py"):
             app_file += ".py"
 
-        module_path = self.testbed_package_base / Path(app_file)
+        if absolute_path:
+            module_path = Path(app_file)
+        else:
+            module_path = self.testbed_package_base / Path(app_file)
 
         status, message = self._load_single_app(application, module_path, True)
 
@@ -123,7 +127,10 @@ class ApplicationLoader():
             return None, f"Unable to load app from {module_path}: {message}"
         
         app_cls = self.app_map.get(application, None)
-        return app_cls, "Loaded from testbed package" if app_cls is not None else "Unable to load requested app"
+        if absolute_path:
+            return app_cls, "Loaded from absolute path" if app_cls is not None else "Unable to load requested app"
+        else:
+            return app_cls, "Loaded from testbed package" if app_cls is not None else "Unable to load requested app"
     
     def loaded_apps_size(self) -> int:
         return len(self.app_map)

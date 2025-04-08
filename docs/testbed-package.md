@@ -92,6 +92,7 @@ Array of Applications installed on the Instance. Leave empty when the Instance s
 - **`delay`**: Delay in seconds for the start of Application after the Experiments are started on all Instances (defaults to *0* seconds)
 - **`runtime`**: Maximum runtime in seconds for the Application, after this time, the Application will be terminated. It is up to the Application, if this value is used or another runtime is defined (defaults to *30* seconds)
 - **`dont_store`**: Boolean value if the Application should be executed without pushing data to the InfluxDB (defaults to `false`)
+- **`load_from_instance`**: Load Application from an absolute path on the Instance's file system (cannot be used to export data, defaults to `false`)
 - **`settings`**: Application-specific configuration, this object is passed to the Application Type selected by `application`. See the documentation in each Application of in the `applications/` and `extra-applications/` directories for the specific settings.
 
 ## Integrations

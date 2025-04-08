@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -183,6 +183,10 @@ class ResultExportHelper:
             logger.debug(f"Processing instance '{instance.name}'")
 
             for application in instance.applications:
+                if application.load_from_instance:
+                    logger.warning(f"Skipping application '{application.name}'  of type '{application.application}' from instance '{instance.name}': Application was loaded from Instance file system.")
+                    continue
+
                 if self.exclude_applications is not None and application.application in self.exclude_applications:
                     logger.debug(f"Skipping application '{application.name}' of type '{application.application}' from instance '{instance.name}': Type in exclude list.")
                     continue

@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -16,12 +16,9 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
-import os
-import importlib.util
-import inspect
 import sys
 
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List
 from pathlib import Path
 from threading import Barrier
 
@@ -70,7 +67,7 @@ class ApplicationManager():
         self.barrier = Barrier(len(apps) + 1)
         
         for config in apps:
-            app_cls, message = self.loader.load_app(config.application, True)
+            app_cls, message = self.loader.load_app(config.application, True, config.load_from_instance)
 
             if app_cls is None:
                 if message is not None:

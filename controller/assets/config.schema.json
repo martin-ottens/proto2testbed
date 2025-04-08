@@ -171,6 +171,9 @@
                                 "dont_store": {
                                     "type": "boolean"
                                 },
+                                "load_from_instance": {
+                                    "type": "boolean"
+                                },
                                 "settings": {
                                     "type": "object"
                                 }

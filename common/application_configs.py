@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -27,10 +27,12 @@ class ApplicationSettings(ABC):
 
 class ApplicationConfig(JSONSerializer):
     def __init__(self, name: str, application: str, delay: int = 0, 
-                 runtime: int = 30, dont_store: bool = False, settings = Optional[Any]) -> None:
+                 runtime: int = 30, dont_store: bool = False, 
+                 load_from_instance: bool = False, settings = Optional[Any]) -> None:
         self.name: str = name
         self.delay: int = delay
         self.runtime: int = runtime
         self.dont_store: bool = dont_store
-        self.application = application
+        self.application: str = application
+        self.load_from_instance: bool = load_from_instance
         self.settings: ApplicationConfig = settings
