@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -137,14 +137,6 @@ class InstanceState():
                 break
         
         return found_interface
-
-    def set_interface_mac(self, bridge_name: str, mac: str) -> None:
-        mapping = self.get_interface_by_bridge_name(bridge_name)
-        
-        if mapping is None:
-            raise Exception(f"Unable to find interface mapping for bridge '{bridge_name}'")
-
-        mapping.tap_mac = mac
 
     def set_interface_bridge_attached(self, tap_dev: str) -> None:
         mapping = self.get_interface_by_tap_dev(tap_dev)

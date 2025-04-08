@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -51,6 +51,7 @@ class InstanceInterface():
     def __init__(self, tap_index: int, 
                  tap_dev: Optional[str] = None,
                  tap_mac: Optional[str] = None,
+                 netmodel: str = "virtio",
                  host_ports: Optional[List[str]] = None,
                  bridge_dev: Optional[str] = None,
                  bridge_name: Optional[str] = None,
@@ -61,6 +62,7 @@ class InstanceInterface():
         self.tap_index = tap_index
         self.tap_dev = tap_dev
         self.tap_mac = tap_mac
+        self.netmodel = netmodel
         self.bridge = bridge
         self.bridge_attached = False
         self.interface_on_instance = interface_on_instance

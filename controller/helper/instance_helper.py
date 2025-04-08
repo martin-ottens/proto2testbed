@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -74,7 +74,7 @@ class InstanceHelper(Dismantable):
                  management: Optional[InstanceManagementSettings],
                  image: str, testbed_package_path: str,
                  cores: int = 2, memory: int = 1024, debug: bool = False, 
-                 disable_kvm: bool = False, netmodel: str = "virtio") -> None:
+                 disable_kvm: bool = False) -> None:
         self.instance = instance
         self.debug = debug
         self.qemu_handle = None
@@ -97,23 +97,34 @@ class InstanceHelper(Dismantable):
 
             if management is not None:
                 mac = (base_mac + str(management.interface.tap_index))
-                instance.set_interface_mac(management.interface.bridge_name, mac)
+                instance_interface = instance.get_interface_by_bridge_name(management.interface.bridge_name)
+                instance_interface.tap_mac = mac
                 management.interface.interface_on_instance = "mgmt"
-                interfaces_command += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=management.interface.tap_dev, mac=mac)
+                
+                interfaces_command += InstanceHelper.__QEMU_NIC_TEMPLATE.format(
+                    model=instance_interface.netmodel, 
+                    tapname=management.interface.tap_dev, 
+                    mac=mac)
 
             eth_index = 1
             for interface in instance.interfaces:
                 if interface.is_management_interface:
                     continue
 
-                mac = (base_mac + str(interface.tap_index))
-                instance.set_interface_mac(interface.bridge_name, mac)
+                if interface.tap_mac is None:
+                    interface.tap_mac = (base_mac + str(interface.tap_index))
+
                 interface.interface_on_instance = f"eth{eth_index}"
                 experiment_interfaces.append({
                     "dev": interface.interface_on_instance,
-                    "mac": mac
+                    "mac": interface.tap_mac
                 })
-                interfaces_command += InstanceHelper.__QEMU_NIC_TEMPLATE.format(model=netmodel, tapname=interface.tap_dev, mac=mac)
+
+                interfaces_command += InstanceHelper.__QEMU_NIC_TEMPLATE.format(
+                    model=interface.netmodel, 
+                    tapname=interface.tap_dev, 
+                    mac=interface.tap_mac)
+
                 eth_index += 1
 
             # Generate cloud-init files

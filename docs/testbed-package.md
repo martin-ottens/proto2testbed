@@ -52,9 +52,13 @@ Array of all Instances in a testbed. At least, `name`, `diskimage` and `networks
     "cores": 2,
     "memory": 1024,
     "networks": [
-        "name"
+        "name", // Option: string
+        { // Option: object
+            "name": "name",
+            "mac": "AA:BB:CC:DD:EE:FF",
+            "netmodel": "virtio"
+        }
     ],
-    "netmodel": "virtio",
     "preserve_files": [ // or null
         "/path/to/preserve_files_or_directories"
     ],
@@ -69,8 +73,12 @@ Array of all Instances in a testbed. At least, `name`, `diskimage` and `networks
 - **`environment`**: Environment variables passed to the setup script as a `string:string` object. Can be `null` or omitted, when no variables are needed.
 - **`cores`**: CPU cores assigned to the Instance, optional (defaults to *2*)
 - **`memory`**: Memory assigned to the Instance in MB, optional (defaults to *1024MB*)
-- **`networks`**: List of networks the Instance will be attached to. All networks must be defined in the `networks` section. At most, an Instance can be attached to 4 networks (management network not included). The interfaces om the Instances will be assigned to networks by list positions and named `eth1` to `eth4`. The management network is always named `mgmt`, when enabled.
-- **`netmodel`**: Emulation model for all virtual network interfaces of an Instance from `virtio`, `e1000` and `rtl8139` (defaults to `virtio`)
+- **`networks`**: List of networks the Instance will be attached to. All networks must be defined in the `networks` section. At most, an Instance can be attached to 4 networks (management network not included). The interfaces on the Instances will be assigned to networks by list positions and named `eth1` to `eth4`. The management network is always named `mgmt`, when enabled. Two types are possible, both can be mixed in the array:
+    - **string**: Name of the attached network. A random MAC address will be assigned and `virtio` will be used as QEMU netmodel.
+    - **object**: For more precise control of the interface settings. At least `name` is required:
+        - **`name`**: Name of the attached network.
+        - **`mac`**: MAC address for the interface with `:` delimiter. Random generated if omitted.
+        - **`netmodel`**: QEMU emulation model for the virtual network interfaces from `virtio`, `e1000` and `rtl8139` (defaults to `virtio`)
 - **`preserve_files`**: List of files that are copied to the Testbed Host before the Instance is terminated, if enabled during the testbed run. Absolute paths from the root of the Instance's file system. Can be omitted if no files should be preserved.
 
 ### Applications

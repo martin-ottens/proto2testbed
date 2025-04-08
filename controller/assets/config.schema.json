@@ -121,14 +121,6 @@
                     "memory": {
                         "type": "number"
                     },
-                    "netmodel": {
-                        "type": "string",
-                        "enum": [
-                            "virtio",
-                            "e1000",
-                            "rtl8139"
-                        ]
-                    },
                     "networks": {
                         "oneOf": [
                             {
@@ -137,7 +129,34 @@
                             {
                                 "type": "array",
                                 "items": {
-                                    "type": "string"
+                                    "oneOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "mac": {
+                                                    "type": "string"
+                                                },
+                                                "netmodel": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "virtio",
+                                                        "e1000",
+                                                        "rtl8139"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "name"
+                                            ],
+                                            "additionalItems": false
+                                        }
+                                    ]
                                 }
                             }
                         ]

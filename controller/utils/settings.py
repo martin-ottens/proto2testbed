@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 
 import os
 import json
+import re
 
 from typing import List, Dict, Optional, Any
 from enum import Enum
@@ -70,23 +71,40 @@ class Integration():
         self.settings: IntegrationSettings = settings
 
 
+class AttachedNetwork():
+    def __init__(self, name: str, mac: Optional[str], netmodel: str = "virtio") -> None:
+        self.name: str = name
+        self.mac: Optional[str] = mac
+        self.netmodel: str = netmodel
+
+        if self.mac is not None:
+            if re.fullmatch(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$', self.mac) is None:
+                raise Exception(f"MAC address '{self.mac}' (attached to network {name}) is invalid!")
+
+    def __str__(self):
+        return self.name
+
+
 class TestbedInstance():
     def __init__(self, name: str, diskimage: str, setup_script: str = None, 
                  environment: Optional[Dict[str, str]] =  None, cores: int = 2, 
-                 memory: int = 1024, networks: Optional[List[str]] = None,
-                 netmodel: str = "virtio", applications = None, 
-                 preserve_files: Optional[List[str]] = None) -> None:
+                 memory: int = 1024, networks: Optional[List[Any]] = None,
+                 applications = None, preserve_files: Optional[List[str]] = None) -> None:
         self.name: str = name
         self.diskimage: str = diskimage
         self.setup_script: str = setup_script
         self.environment: Dict[str, str] = environment
         self.cores: int = cores
         self.memory: int = memory
-        self.networks: List[str] = networks
-        self.netmodel: str = netmodel
         self.preserve_files: List[str] = preserve_files
+        self.networks: List[AttachedNetwork] = []
 
         self.applications: List[ApplicationConfig] = []
+        for network in networks:
+            if isinstance(network, str):
+                self.networks.append(AttachedNetwork(network, None))
+            else:
+                self.networks.append(AttachedNetwork(**network))
 
         if applications is None:
             return

@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -172,17 +172,19 @@ class Controller(Dismantable):
         for instance_config in TestbedSettingsWrapper.testbed_config.instances:
             instance = self.state_manager.get_instance(instance_config.name)
 
-            for index, if_bridge in enumerate(instance_config.networks):
+            for index, attached_network in enumerate(instance_config.networks):
                 tap_name = self.network_mapping.generate_tap_name()
-                bridge_mapping = self.network_mapping.get_bridge_mapping(if_bridge)
+                bridge_mapping = self.network_mapping.get_bridge_mapping(attached_network.name)
                 if bridge_mapping is None:
-                    logger.critical(f"Unable to map network '{if_bridge}' for Instance '{instance_config.name}': Not mapped.")
+                    logger.critical(f"Unable to map network '{attached_network.name}' for Instance '{instance_config.name}': Not mapped.")
                     return False
 
                 wait_for_interfaces.append(tap_name)
                 instance_interface = InstanceInterface(
                     tap_index=(index + 1 if self.mgmt_bridge is not None else index),
                     tap_dev=tap_name,
+                    tap_mac=attached_network.mac,
+                    netmodel=attached_network.netmodel,
                     bridge=bridge_mapping,
                     instance=instance
                 )
@@ -226,8 +228,7 @@ class Controller(Dismantable):
                                     image=str(diskimage_path),
                                     cores=instance_config.cores,
                                     memory=instance_config.memory,
-                                    disable_kvm=TestbedSettingsWrapper.cli_paramaters.disable_kvm,
-                                    netmodel=instance_config.netmodel)
+                                    disable_kvm=TestbedSettingsWrapper.cli_paramaters.disable_kvm)
                 self.dismantables.insert(0, helper)
                 helper.start_instance()
             except Exception as ex:
