@@ -1,4 +1,10 @@
 {
+    "management_network": "172.16.0.0/12",
     "influx_database": "testbed",
-    "management_network": "172.16.0.0/12"
+    "influx_host": "127.0.0.1",
+    "influx_port": 8086,
+    "influx_user": null,
+    "influx_password": null,
+    "influx_timeout": 10,
+    "influx_retries": 4
 }

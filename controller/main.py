@@ -42,8 +42,6 @@ def main():
                                help="Prepend 'sudo' to all commands (non-interactive), root required otherwise")
     common_parser.add_argument( "-e", "--experiment", required=False, default=None, type=str, 
                                help="Name of experiment series, auto generated if omitted")
-    common_parser.add_argument("--influxdb", required=False, default=None, type=str, 
-                               help="Path to InfluxDB config, use defaults/environment if omitted")
 
     subparsers = parser.add_subparsers(title="subcommand", dest="mode", required=True,
                                      description="Subcommand for Proto²Testbed Controller")
@@ -107,7 +105,6 @@ def main():
     CommonSettings.app_base_path = app_base_path
     CommonSettings.log_verbose = args.verbose
     CommonSettings.sudo_mode = args.sudo
-    CommonSettings.influx_path = args.influxdb
 
     from utils.config_tools import DefaultConfigs
     CommonSettings.default_configs = DefaultConfigs("/etc/proto2testbed/proto2testbed_defaults.json")

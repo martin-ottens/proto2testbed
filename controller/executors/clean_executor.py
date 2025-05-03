@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -43,8 +43,7 @@ class CleanExecutor(BaseExecutor):
             logger.critical(f"No experiment tag was specified, use -e to specify an experiment tag.")
             return 1
         
-        adapter = InfluxDBAdapter(warn_on_no_database=True,
-                                  config_path=CommonSettings.influx_path)
+        adapter = InfluxDBAdapter(warn_on_no_database=True)
         client = adapter.get_access_client()
         if client is None:
             raise Exception("Unable to create InfluxDB access client")

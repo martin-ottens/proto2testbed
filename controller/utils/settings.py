@@ -140,10 +140,10 @@ class DefaultConfigs():
         with open(path, "r") as handle:
             self.defaults = json.load(handle)
 
-    def get_defaults(self, key: str):
+    def get_defaults(self, key: str, fallback: Any = None):
         if self.defaults is None or key not in self.defaults.keys():
             logger.debug(f"No default value for key '{key}' provided in config.")
-            return None
+            return fallback
         else:
             return self.defaults.get(key)
 
@@ -157,6 +157,7 @@ class RunCLIParameters():
     skip_integration: bool = False
     skip_substitution: bool = False
     preserve: Optional[str] = None
+
 
 class CommonSettings():
     executor: Optional[int] = None

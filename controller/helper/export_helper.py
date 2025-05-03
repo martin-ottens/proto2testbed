@@ -50,8 +50,7 @@ class ResultExportHelper:
         self.config = config
         self.exclude_instances = exclude_instances
         self.exclude_applications = exclude_applications
-        self.adapter = InfluxDBAdapter(warn_on_no_database=True, 
-                                       config_path=CommonSettings.influx_path)
+        self.adapter = InfluxDBAdapter(warn_on_no_database=True)
         self.reader = self.adapter.get_access_client()
         if self.reader is None:
             raise Exception("Unable to create InfluxDB data reader")
