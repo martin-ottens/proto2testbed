@@ -1,0 +1,22 @@
+FROM debian:12-slim
+
+VOLUME ["/images"]
+ENV EXPERIMENT_TAG=dockertag
+
+WORKDIR /opt/proto-testbed
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y qemu-utils qemu-system-x86 qemu-system-gui \
+                   bridge-utils iptables net-tools python3 iproute2 \
+                   python3-jinja2 python3-pexpect python3-loguru \
+                   python3-jsonschema python3-influxdb python3-psutil \
+                   python3-numpy python3-matplotlib socat genisoimage && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY . ./
+COPY proto2testbed_defaults.json /etc/proto2testbed/proto2testbed_defaults.json
+RUN ln -s /opt/proto-testbed/proto-testbed /usr/local/bin/p2t
+
+ENTRYPOINT ["p2t"]

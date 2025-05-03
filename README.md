@@ -69,6 +69,9 @@ Proto²Testbed currently has the following requirements:
 - **CPU**: Use any x86 CPU. Do not under provision. An Instance should use 2 Threads, so the maximum Number of Instances started in parallel should not exceed *#Threads / 2*. Remember, that parallel testbed executions are possible.
 - **Memory**: Plan around 1GB per Instance, depends on tested protocols and applications.
 
+### Using Docker
+Proto²Testbed can be used with Docker images. See `docs/docker.md` for details.
+
 ### Automated Installation
 Clone this repository to `/opt/proto-testbed` and run `sudo install.sh` to install Proto²Testbed system-wide with all dependencies. No additional manual steps are required.
 

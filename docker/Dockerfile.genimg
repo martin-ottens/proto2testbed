@@ -1,0 +1,32 @@
+FROM debian:12 AS builder
+
+ENV EXPERIMENT_TAG=dockertag
+WORKDIR /opt/proto-testbed
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt install -y make
+
+COPY . ./
+WORKDIR /opt/proto-testbed/instance-manager
+RUN make all
+
+
+FROM debian:12-slim
+
+VOLUME ["/images"]
+
+WORKDIR /opt/proto-testbed
+
+COPY --from=builder /opt/proto-testbed/instance-manager/instance-manager.deb /im.deb
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y qemu-utils qemu-system-x86 qemu-system-gui \
+                    python3 python3-pexpect python3-loguru && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY . ./
+RUN ln -s  /opt/proto-testbed/baseimage-creation/im-installer.py /usr/local/bin/p2t-genimg
+
+ENTRYPOINT ["p2t-genimg", "-p", "/im.deb"]

@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -47,6 +47,7 @@ def log_trace(func):
 
 @log_trace
 def invoke_subprocess(command: List[str] | str, capture_output: bool = True, shell: bool = False, needs_root: bool = False) -> subprocess.CompletedProcess:
+    needs_root = False if os.geteuid() == 0  else needs_root
     if isinstance(command, str) and needs_root:
         command = "sudo " + command
     elif isinstance(command, list) and needs_root:
@@ -57,6 +58,7 @@ def invoke_subprocess(command: List[str] | str, capture_output: bool = True, she
 
 @log_trace
 def invoke_pexpect(command: List[str] | str, timeout: int = None, encoding: str = "utf-8", needs_root: bool = False) -> pexpect.spawn:
+    needs_root = False if os.geteuid() == 0  else needs_root
     if isinstance(command, str) and needs_root:
         command = "sudo " + command
     elif isinstance(command, list) and needs_root:

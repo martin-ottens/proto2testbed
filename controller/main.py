@@ -2,7 +2,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -94,7 +94,9 @@ def main():
         original_uid = os.getuid()
 
     CommonSettings.experiment = args.experiment
-    if CommonSettings.experiment is None:
+    if CommonSettings.experiment is None and "EXPERIMENT_TAG" in os.environ:
+        CommonSettings.experiment = os.environ.get("EXPERIMENT_TAG")
+    else:
         CommonSettings.experiment = "".join(random.choices(string.ascii_letters + string.digits, k=8))
         CommonSettings.experiment_generated = True
 
