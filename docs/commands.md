@@ -8,8 +8,9 @@ It is invoked with the command `p2t <subcommand> <arguments>` (or `proto-testbed
 *Arguments* can be common for all subcommands or subcommand specific. The following arguments can be used for all subcommands:
 - **`--verbose`/`-v`**: Increase verbosity of log outputs for debugging (`-vv` to show even more log messages)
 - **`--sudo`**: Prepend `sudo` to all commands executed by Proto²Testbed that require privileges (Note: No interactive authentication is possible)
-- **`--influxdb <path>`**: Path to an InfluxDB JSON config (e.g., for using an external database with authentication). See `controller/assets/influxdb.schema.json` for a schema of that config. InfluxDB's parameters can also be changed by setting the environment variables `INFLUXDB_DATABASE`, `INFLUXDB_HOST`, `INFLUXDB_PORT`, `INFLUXDB_USER` and `INFLUXDB_PASSWORD`.
 - **`--experiment`/`-e <experiment tag>`**: Experiment Tag used for the subcommand (e.g., for labeling data produced by a testbed run or exporting specific data from the database)
+
+Results are stored in the InfluxDB specified in `/etc/proto2testbed/proto2testbed_defaults.json`. InfluxDB's parameters can also be changed by setting the environment variables `INFLUXDB_DATABASE`, `INFLUXDB_HOST`, `INFLUXDB_PORT`, `INFLUXDB_USER` and `INFLUXDB_PASSWORD`.
 
 The following subcommands are available in Proto²Testbed, some of them require privileges for execution. You can always append `-h` to see all available subcommands.
 
@@ -38,7 +39,7 @@ Attach to the console of the Instance `INSTANCE_NAME` (e.g., when the testbed is
 - **`--other`/`-o`**: Normally, only Instances from testbeds started by the current user can be attached. Use this argument to allow the attachment of all Instances running on the host.
 
 ### `export image|csv <TESTBED_CONFIG>`
-Export the data stored in the InfluxDB to Matplotlib plots (= `image`) or CSV files (= `csv`). The Applications described in `TESTBED_CONFIG` will be exported. The following additional arguments can be used:
+Export the data stored in the InfluxDB to Matplotlib plots (= `image`) or CSV files (= `csv`). The Applications described in `TESTBED_CONFIG` will be exported. The default InfluxDB database from `/etc/proto2testbed/proto2testbed_defaults.json` is used, or a connection defined using the `INFLUXDB_DATABASE`, `INFLUXDB_HOST`, `INFLUXDB_PORT`, `INFLUXDB_USER` and `INFLUXDB_PASSWORD` environment variables. The following additional arguments can be used:
 - **`--output`/`-o <path>`**: The output path for the exports (defaults to `./out`)
 - **`--format`/`-f pdf|svg|png|jpeg`**: Select the export format for Matplotlib plots (= `image`) (defaults to `pdf`)
 - **`--exclude-instance`/`-ei <instance>`**: Exclude `instance` from the exports. Can be repeated multiple times to exclude multiple Instances.
@@ -47,7 +48,7 @@ Export the data stored in the InfluxDB to Matplotlib plots (= `image`) or CSV fi
 
 ### `clean`
 Delete data from the InfluxDB for a specific experiment tag (specified using the `-e` argument). 
-Use `--all` to delete all data from the database (which is the default database from `/etc/proto2testbed/proto2testbed_defaults.json`, the database specified by the `--influxdb` config or via the `INFLUXDB_DATABASE` environment variable).
+Use `--all` to delete all data from the database (which is the default database from `/etc/proto2testbed/proto2testbed_defaults.json` or the database connection defined using the `INFLUXDB_DATABASE`, `INFLUXDB_HOST`, `INFLUXDB_PORT`, `INFLUXDB_USER` and `INFLUXDB_PASSWORD` environment variables).
 
 ### `prune`
 If unwanted remnants of testbed runs remain on the Testbed Host (files or network interfaces), as can happen after a crash, for example, this subcommand can be used to perform a cleanup. This subcommand requires privileges. The following arguments can be used:
