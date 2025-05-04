@@ -3,6 +3,7 @@ stages:
 
 build-manager-package:
   stage: build
+  needs: []
   image: debian:latest
   rules:
     - changes:
@@ -18,3 +19,26 @@ build-manager-package:
     name: "Instance Manager .deb Package"
     paths:
       - ./instance-manager/instance-manager.deb
+
+.build-docker: &build-docker
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - echo "{\"auths\":{\"https://index.docker.io/v1/\":{\"username\":\"$DOCKER_USERNAME\",\"password\":\"$DOCKER_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/docker/$DOCKER_FILE --destination $IMAGE_DEST
+
+p2t-container:
+  <<: *build-docker
+  needs: []
+  variables:
+    IMAGE_DEST: "$DOCKER_USERNAME/proto2testbed:p2t"
+    DOCKER_FILE: "Dockerfile.p2t"
+
+genimg-container:
+  <<: *build-docker
+  needs: []
+  variables:
+    IMAGE_DEST: "$DOCKER_USERNAME/proto2testbed:genimg"
+    DOCKER_FILE: "Dockerfile.genimg"

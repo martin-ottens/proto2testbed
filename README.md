@@ -70,7 +70,8 @@ Proto²Testbed currently has the following requirements:
 - **Memory**: Plan around 1GB per Instance, depends on tested protocols and applications.
 
 ### Using Docker
-Proto²Testbed can be used with Docker images. See `docs/docker.md` for details.
+Proto²Testbed can be used with Docker images. See [`docs/docker.md`](docs/docker.md) for details.
+Images are available in the [Docker Hub](https://hub.docker.com/r/martinottens/proto2testbed).
 
 ### Automated Installation
 Clone this repository to `/opt/proto-testbed` and run `sudo install.sh` to install Proto²Testbed system-wide with all dependencies. No additional manual steps are required.

@@ -4,6 +4,6 @@ __pycache__
 *.iso
 *.img
 .git
-Dockerfile
+docker/
 .dockerignore
 .gitlab-ci.yml
