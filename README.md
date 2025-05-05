@@ -156,10 +156,10 @@ The Testbed Package is made available in the file system of all Instances during
 - A setup script, that is called during testbed startup to make the Instance ready for an experiment (e.g., setting up network interfaces, performing configurations)
 - Configuration files, binaries or additional scripts used by the setup scripts
 - Scripts that are executes during automated experiments (and there dependencies)
-- Experiment-specific Python source files of Applications or Integrations (not packaged in the Instance Manager or Testbed Controller and dynamically loaded during testbed execution from within the Testbed Package), see [`docs/extenstions.md`](docs/extenstions.md) for further details
+- Experiment-specific Python source files of Applications or Integrations (not packaged in the Instance Manager or Testbed Controller and dynamically loaded during testbed execution from within the Testbed Package), see [`docs/extensions.md`](docs/extensions.md) for further details
 
 ## 8. Hacking & Extension
-Proto²Testbed can be easily extended for special requirements, see [`docs/extenstions.md`](docs/extenstions.md) for further details:
+Proto²Testbed can be easily extended for special requirements, see [`docs/extensions.md`](docs/extensions.md) for further details:
 - With the development of own **Applications** (packaged in the Instance Manager (see `applications/`) or dynamically loaded (see `extra-applications/`))
 - With the development of own **Integrations** (packages in the Testbed Controller (see `controller/integrations/`) or dynamically loaded)
 - Own top-level commands for the Testbed Controller (see `controller/executors/`)
