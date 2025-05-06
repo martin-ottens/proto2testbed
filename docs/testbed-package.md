@@ -139,7 +139,7 @@ Any number of Integrations can be executed on the Testbed Host, definitions are 
 All files contained in the Testbed Package are made available in the file system of all Instances at `/opt/testbed` in a read only way. The Testbed Package should contain only files that can be checked out in a version control system, so binaries etc. should be copied to the Testbed Package before execution.
 
 ### Dynamically Loaded Applications and Integrations
-The Testbed Package can contain Python files for Applications and Integrations that are dynamically loaded during the testbed execution. See [`docs/extenstions.py`](docs/extension.py) for further details.
+The Testbed Package can contain Python files for Applications and Integrations that are dynamically loaded during the testbed execution. See [`docs/extensions.md`](docs/extensions.md) for further details.
 
 ### Setup Script
 The setup script is executed on an Instance once at the startup, before any experiments are started. It should perform the Instance-specific configuration and installation of additional dependencies in a one-shot way. Foreground programs used on the Instances should be handled using Applications. Startup scripts need to be executable.
