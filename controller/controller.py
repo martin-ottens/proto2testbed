@@ -47,7 +47,7 @@ class Controller(Dismantable):
     def _check_vsock_status(cls) -> bool:
         if CommonSettings.default_configs.get_defaults("enable_vsock", True):
             if not os.path.exists("/dev/vsock"):
-                logger.warn("VSOCK was requested, but Testbed Host lacks support.")
+                logger.warning("VSOCK was requested, but Testbed Host lacks support, falling back to serial.")
                 return False
             else:
                 logger.trace("VSOCK will be used for management connections.")

@@ -66,8 +66,18 @@ mkdir -p -m 755 /etc/proto2testbed
 cp proto2testbed_defaults.json /etc/proto2testbed/.
 chmod 744 /etc/proto2testbed/*
 
+if [[ ! -f "/dev/vsock" ]]; then
+    read -r -p "Enable VSOCK support by loading kernel modules? (y/N): " response
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+        modprobe vhost_vsock
+        echo "vhost_vsock" >> /etc/modules
+    else
+        sed -i 's/"enable_vsock": true,/"enable_vsock": false,/' /etc/proto2testbed/proto2testbed_defaults.json
+    fi
+fi
+
 read -r -p "Link scripts and programs? (y/N): " response
-    
+
 if [[ "$response" =~ ^[Yy]$ ]]; then
     ln -s /opt/proto-testbed/proto-testbed /usr/local/bin/p2t
     ln -s /opt/proto-testbed/baseimage-creation/im-installer.py /usr/local/bin/p2t-genimg

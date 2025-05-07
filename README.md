@@ -108,6 +108,13 @@ ln -s /opt/proto-testbed/proto-testbed /usr/local/bin/p2t
 ln -s /opt/proto-testbed/baseimage-creation/im-installer.py /usr/local/bin/p2t-genimg
 ```
 
+If desired, VSOCK can be used to communicate with the Instances. For this the `vhost_vsock` kernel module must be loaded, see `lsmod | grep vsock`. To persistently load this module:
+```bash
+modprobe vhost_vsock
+echo "vhost_vsock" >> /etc/modules
+```
+To deactivate VSOCK completely, `enable_vsock` can be set to *false* in the config `/etc/proto2testbed/proto2testbed_defaults.json`.
+
 ## 4. Quick Start Checklist
 1. Install Proto²Testbed
 2. Generate a base disk image with basic OS installation, see [`baseimage-creation/README.md`](baseimage-creation/README.md)

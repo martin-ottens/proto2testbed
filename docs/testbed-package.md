@@ -20,7 +20,8 @@ The following settings are possible via the testbed configuration. All settings 
     "management_network": "auto",
     "diskimage_basepath": "/images/",
     "startup_init_timeout": 120,
-    "experiment_timeout": 120
+    "experiment_timeout": 120,
+    "file_preservation_timeout": 30
 }
 ```
 - **`management_network`**: The subnet for the management network. If omitted, the management network is disabled for all Instances - they are not reachable via SSH or have automatic internet access. Values:
@@ -29,6 +30,7 @@ The following settings are possible via the testbed configuration. All settings 
 - **`diskimage_basepath`**: Base path for the disk images for the Instances. If relative path are given for the Instances, they are relative to this value (defaults to */*)
 - **`startup_init_timeout`**: Timeout in seconds for startup and setup of the Instances (defaults to *30* seconds)
 - **`experiment_timeout`**: Timeout for the experiments in seconds. Select *-1* so that the timeout is calculated based on the application with the longest duration (defaults to *-1*)
+- **`file_preservation_timeout`**: Timeout for the file preservation stage (before testbed shutdown, defaults to *30* seconds)
 
 ## Networks
 Array of all networks used to build the virtual topology. Each network needs a **`name`**. Optionally, physical interfaces of the Testbed Host (**`host_ports`**) can be attached to a network.
