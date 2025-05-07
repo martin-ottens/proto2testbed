@@ -104,19 +104,12 @@ def load_vm_initialization(config: TestbedConfig, base_path: Path, state_manager
                 if not isinstance(env_variables, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in env_variables.items()):
                     logger.critical(f"Unable to load environment dict for VM {instance.name}")
                     return False
-        
-        if instance.preserve_files is not None:
-            state_manager.add_instance(
-                name=instance.name, 
-                script_file=script_file, 
-                setup_env=env_variables, 
-                init_preserve_files=instance.preserve_files)
-        else:
-            state_manager.add_instance(
-                name=instance.name, 
-                script_file=script_file,
-                setup_env=env_variables,
-                init_preserve_files=None)
+
+        state_manager.add_instance(
+            name=instance.name, 
+            script_file=script_file, 
+            setup_env=env_variables, 
+            init_preserve_files=instance.preserve_files)
 
     return True
 

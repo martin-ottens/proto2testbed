@@ -22,6 +22,8 @@ import string
 import os
 import shutil
 import json
+import socket
+import errno
 
 from enum import Enum
 from pathlib import Path
@@ -78,10 +80,14 @@ class InstanceState():
 
     def __init__(self, name: str, script_file: str, 
                  setup_env: Optional[dict[str, str]], manager,
-                 init_preserve_files: Optional[List[str]] = None):
+                 init_preserve_files: Optional[List[str]], numeric_id: int,
+                 enable_vsock: bool = False) -> None:
         self.name: str = name
         self.script_file: str = script_file
         self.uuid = ''.join(random.choices(string.ascii_letters, k=8))
+        self.numeric_id = numeric_id
+        self.vsock_enabled = enable_vsock
+        self.vsock_cid: Optional[int] = None
         
         if setup_env == None:
             self.setup_env = {}
@@ -146,6 +152,33 @@ class InstanceState():
 
         mapping.bridge_attached = True
     
+    def generate_vsock_cid(self) -> Optional[int]:
+        if not self.vsock_enabled:
+            return None
+        
+        if self.vsock_cid is not None:
+            return self.vsock_cid
+        
+        potential_cid = os.getpid() + self.numeric_id
+
+        while True:
+            s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+            s.settimeout(0.1)
+            try:
+                s.connect((potential_cid, 1))
+                s.close()
+                logger.debug(f"Searching VSOCK CID for '{self.name}': Connection succeeded with CID {potential_cid}, looking for new one")
+            except OSError as ex:
+                if ex.errno in (errno.ENODEV, errno.EHOSTUNREACH):
+                    self.vsock_cid = potential_cid
+                    logger.trace(f"Using VSOCK CID {self.vsock_cid} for Instance '{self.name}'")
+                    return potential_cid
+            except Exception:
+                logger.debug(f"Searching VSOCK CID for '{self.name}': Error using CID {potential_cid}: {ex}, in use?")
+            
+            potential_cid = random.randint(3, 0xFFFFFFFF)
+
+    
     def set_mgmt_ip(self, ip_addr: str):
         self.mgmt_ip_addr = ip_addr
     
@@ -206,7 +239,7 @@ class InstanceState():
         self.interchange_ready = False
 
     def get_mgmt_socket_path(self) -> None | Path:
-        if not self.interchange_ready:
+        if not self.interchange_ready or self.vsock_enabled:
             return None
         return self.interchange_dir / INSTANCE_MANAGEMENT_SOCKET_PATH
     
@@ -224,20 +257,23 @@ class InstanceState():
         if not self.interchange_ready:
             return False
         
+        scope_sockets = [self.get_mgmt_tty_path()]
+        if not self.vsock_enabled:
+            scope_sockets.append(self.get_mgmt_socket_path())
+        
         wait_until = time.time() + 20
         while time.time() <= wait_until:
-            if os.path.exists(self.get_mgmt_socket_path()) and os.path.exists(self.get_mgmt_tty_path()):
-                process = invoke_subprocess(["chmod", "777", str(self.get_mgmt_socket_path())], needs_root=True)
+            for scope in scope_sockets:
+                if os.path.exists(scope):
+                    process = invoke_subprocess(["chmod", "777", str(scope)], needs_root=True)
 
                 if process.returncode != 0:
-                    raise Exception("Unable to change permissions of management server socket")
+                    raise Exception(f"Unable to change permissions of socket {scope}")
                 
-                process = invoke_subprocess(["chmod", "777", str(self.get_mgmt_tty_path())], needs_root=True)
+                scope_sockets = [x for x in scope_sockets if x != scope]
 
-                if process.returncode != 0:
-                    raise Exception("Unable to change permissions of management tty socket")
-
-                return True
+                if len(scope_sockets) == 0:
+                    return True
 
             time.sleep(1)
         
@@ -287,7 +323,7 @@ class InstanceState():
 
 
 class InstanceStateManager(Dismantable):
-    def __init__(self):
+    def __init__(self, enable_vsock: bool = False):
         self.map: dict[str, InstanceState] = {}
         self.state_change_lock: Lock = Lock()
         self.file_preservation: Optional[Path] = None
@@ -298,6 +334,8 @@ class InstanceStateManager(Dismantable):
         self.has_shutdown_signal.clear()
         self.external_interrupt_signal = Event()
         self.external_interrupt_signal.clear()
+        self.instance_counter: int = 0
+        self.enable_vsock = enable_vsock
 
     def enable_file_preservation(self, preservation_path: Optional[Path]):
         self.file_preservation = preservation_path
@@ -311,9 +349,16 @@ class InstanceStateManager(Dismantable):
         if name in self.map:
             raise Exception(f"Instance {name} was already configured")
         
-        instance = InstanceState(name, script_file, setup_env, self, 
-                               init_preserve_files)
+        instance = InstanceState(name=name, 
+                                 script_file=script_file, 
+                                 setup_env=setup_env, 
+                                 manager=self, 
+                                 init_preserve_files=init_preserve_files, 
+                                 numeric_id=self.instance_counter,
+                                 enable_vsock=self.enable_vsock)
+
         instance.set_setup_env_entry("INSTANCE_NAME", name)
+        self.instance_counter += 1
         self.map[name] = instance
 
     def dump_states(self) -> None:
@@ -378,6 +423,7 @@ class InstanceStateManager(Dismantable):
     
     def wait_for_instances_to_become_state(self, expected_states: List[AgentManagementState], 
                                           timeout = None) -> WaitResult:
+        waited = False
         wait_for_count = 0
         with self.state_change_lock:
             self.state_change_semaphore = Semaphore(0)

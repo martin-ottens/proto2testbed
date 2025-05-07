@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -20,10 +20,12 @@ import socket
 import threading
 import json
 import time
+import os
+import errno
 
 from loguru import logger
 from jsonschema import validate
-import os
+from pathlib import Path
 
 from utils.interfaces import Dismantable
 from utils.system_commands import get_asset_relative_to
@@ -38,14 +40,17 @@ class ManagementClientConnection(threading.Thread):
 
     message_schema = None
 
-    def __init__(self, socket_path, controller,
+    def __init__(self, controller,
                  manager: state_manager.InstanceStateManager, 
                  instance: state_manager.InstanceState,
                  influx_adapter: InfluxDBAdapter,
                  timeout: int,
-                 init_instant: bool):
+                 init_instant: bool,
+                 socket_path: Optional[Path] = None,
+                 vsock_cid: Optional[int] = None):
         threading.Thread.__init__(self)
         self.socket_path = socket_path
+        self.vsock_cid = vsock_cid
         self.controller = controller
         self.expected_instance = instance
         self.influx_adapter = influx_adapter
@@ -55,6 +60,7 @@ class ManagementClientConnection(threading.Thread):
         self.daemon = True
         self.stop_event = threading.Event()
         self.client = None
+        self.connected = False
 
         if ManagementClientConnection.message_schema is None:
             with open(get_asset_relative_to(__file__, "assets/statusmsg.schema.json"), "r") as handle:
@@ -182,26 +188,58 @@ class ManagementClientConnection(threading.Thread):
             return False
 
     def run(self):
-        started_waiting = time.time()
-
-        while True:
-            if os.path.exists(self.socket_path):
-                logger.debug(f"Management: Socket '{self.socket_path}' for Instance {self.expected_instance.name} ready")
-                break
-
-            if ((started_waiting + self.timeout) < time.time()) or self.stop_event.is_set():
-                logger.error(f"Management: Client connection error: Socket '{self.socket_path}' does not exist after timeout or waiting was interrupted!")
-                return
-
-        try:
-            self.client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.client_socket.settimeout(0.5)
-            self.client_socket.connect(str(self.socket_path))
-            logger.debug(f"Management: Client '{self.expected_instance.name}': Socket connection created.")
-        except Exception as ex:
-            logger.opt(exception=ex).error(f"Management: Unable to bind socket for '{self.expected_instance.name}'")
+        if self.vsock_cid is None and self.socket_path is None:
+            logger.critical("Management: Unable to connect: No VSOCK CID or Management Socket Path defined.")
             return
 
+        if self.socket_path:
+            started_waiting = time.time()
+            while True:
+                if os.path.exists(self.socket_path):
+                    logger.debug(f"Management: Socket '{self.socket_path}' for Instance {self.expected_instance.name} ready")
+                    break
+
+                if ((started_waiting + self.timeout) < time.time()) or self.stop_event.is_set():
+                    logger.error(f"Management: Client connection error: Socket '{self.socket_path}' does not exist after timeout or waiting was interrupted!")
+                    return
+
+            try:
+                self.client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self.client_socket.settimeout(0.5)
+                self.client_socket.connect(str(self.socket_path))
+                logger.debug(f"Management: Client '{self.expected_instance.name}': Socket connection created.")
+            except Exception as ex:
+                logger.opt(exception=ex).error(f"Management: Unable to bind socket for '{self.expected_instance.name}'")
+                return
+        else:
+            started_waiting = time.time()
+            while True:
+                if ((started_waiting + self.timeout) < time.time()) or self.stop_event.is_set():
+                    logger.error(f"Management: Client connection error: VSOCK with CID '{self.vsock_cid}' does not exist after timeout or waiting was interrupted!")
+                    return
+
+                try:
+                    self.client_socket = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+                    self.client_socket.settimeout(0.1)
+                    self.client_socket.connect((self.vsock_cid, 424242))
+                    logger.debug(f"Management: Client '{self.expected_instance.name}': VSOCK connection established.")
+                    break
+                except socket.timeout:
+                    logger.trace(f"Management: VSOCK for Instance '{self.expected_instance.name}' is not ready yet (timeout)")
+                    sleep = 2
+                except OSError as ex:
+                    if ex.errno == errno.ENODEV:
+                        logger.trace(f"Management: VSOCK for Instance '{self.expected_instance.name}' is not ready yet (ENODEV)")
+                        sleep = 2
+                    else:
+                        sleep = 0.1
+                except Exception as ex:
+                    logger.opt(exception=ex).trace(f"Management: VSOCK exists for '{self.expected_instance.name}', but client not yet available.")
+                    sleep = 0.1
+                
+                time.sleep(sleep)
+
+        self.connected = True
         partial_data = ""
 
         while not self.stop_event.is_set():
@@ -263,8 +301,12 @@ class ManagementClientConnection(threading.Thread):
     def stop(self):
         self.stop_event.set()
 
-    def send_message(self, message: bytes):
-        self.client_socket.sendall(message + b'\n')
+    def send_message(self, message: bytes) -> bool:
+        if not self.connected:
+            return False
+        else:
+            self.client_socket.sendall(message + b'\n')
+            return True
 
 class ManagementServer(Dismantable):
     def __init__(self, controller, 
@@ -289,13 +331,14 @@ class ManagementServer(Dismantable):
                 raise Exception(f"Interchange files of instance {instance.name} not ready!")
 
             try:
-                client_connection = ManagementClientConnection(instance.get_mgmt_socket_path(), 
-                                                               self.controller,
-                                                               self.manager, 
-                                                               instance, 
-                                                               self.influx_adapter, 
-                                                               self.startup_init_timeout,
-                                                               self.init_instant)
+                client_connection = ManagementClientConnection(controller=self.controller,
+                                                               manager=self.manager, 
+                                                               instance=instance, 
+                                                               influx_adapter=self.influx_adapter, 
+                                                               timeout=self.startup_init_timeout,
+                                                               init_instant=self.init_instant,
+                                                               socket_path=instance.get_mgmt_socket_path(),
+                                                               vsock_cid=instance.generate_vsock_cid())
                 client_connection.start()
                 self.client_threads.append(client_connection)
             except Exception as ex:

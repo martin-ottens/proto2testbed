@@ -1,5 +1,6 @@
 {
     "management_network": "172.16.0.0/12",
+    "enable_vsock": true,
     "influx_database": "testbed",
     "influx_host": "127.0.0.1",
     "influx_port": 8086,

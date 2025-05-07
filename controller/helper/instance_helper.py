@@ -53,8 +53,7 @@ class InstanceHelper(Dismantable):
                                 -machine q35 \
                                 -hda {image} \
                                 -serial unix:{tty},server,nowait \
-                                -chardev socket,id=mgmtchardev,path={serial},server,nowait \
-                                -device pci-serial,chardev=mgmtchardev \
+                                {im_comm_setting} \
                                 -virtfs local,path={mount},mount_tag=exchange,security_model=passthrough,id=exchange \
                                 -virtfs local,path={testbed_package},mount_tag=tbp,security_model=passthrough,id=tbp,readonly=on \
                                 {nics} \
@@ -64,6 +63,11 @@ class InstanceHelper(Dismantable):
                                 -monitor stdio"""
     __QEMU_KVM_OPTIONS = """-enable-kvm \
                             -cpu host"""
+    __QEMU_IM_COMM_SERIAL = """-chardev socket,id=mgmtchardev,path={serial},server,nowait \
+                               -device pci-serial,chardev=mgmtchardev"""
+
+    __QEMU_IM_COMM_VSOCK = "-device vhost-vsock-pci,guest-cid={cid} "
+
     __CLOUD_INIT_ISO_TEMPLATE = """genisoimage \
                                    -output {output} \
                                    -volid cidata \
@@ -173,6 +177,14 @@ class InstanceHelper(Dismantable):
             
             if process.returncode != 0:
                 raise Exception(f"Unbale to run genisoimage: {process.stderr.decode('utf-8')}")
+            
+            cid = instance.generate_vsock_cid()
+            if not cid:
+                im_comm_args = InstanceHelper.__QEMU_IM_COMM_SERIAL.format(
+                    serial=self.instance.get_mgmt_socket_path()
+                )
+            else:
+                im_comm_args = InstanceHelper.__QEMU_IM_COMM_VSOCK.format(cid=cid)
 
             # Prepare qemu command
             self.qemu_command = InstanceHelper.__QEMU_COMMAND_TEMPLATE.format(
@@ -181,7 +193,7 @@ class InstanceHelper(Dismantable):
                 image=image,
                 nics=interfaces_command,
                 cloud_init_iso=cloud_init_iso,
-                serial=self.instance.get_mgmt_socket_path(),
+                im_comm_setting=im_comm_args,
                 tty=self.instance.get_mgmt_tty_path(),
                 mount=self.instance.get_p9_data_path(),
                 testbed_package=self.testbed_package_path,

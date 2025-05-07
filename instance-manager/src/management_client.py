@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -20,9 +20,11 @@ import socket
 import time
 import sys
 import serial
+import os
 
 from typing import Any, Dict, Optional
 from threading import Lock
+from abc import ABC, abstractmethod
 
 from common.instance_manager_message import *
 
@@ -31,9 +33,15 @@ MGMT_SERVER_WAITRETRY = 5
 MGMT_SERVER_MAXLEN = 4096
 MGMT_SERVER_SERIAL = "/dev/ttyS1"
 MGMT_SERVER_SERIAL_BAUDRATE = 256000 # Speeeed. All we got with pci-serial.
+MGMT_SERVER_SERIAL_TIMEOUT = 1
+
+MGMT_SERVER_VSOCK_PORT = 424242
+MGMT_SERVER_VSOCK_TIMEOUT = 30
+
 
 def get_hostname() -> str:
     return socket.getfqdn()
+
 
 class DownstreamMassage():
     def __init__(self, status: InstanceMessageType, message = None):
@@ -45,7 +53,127 @@ class DownstreamMassage():
     def get_json_bytes(self) -> bytes:
         return self.message.to_json().encode("utf-8") + b'\n'
 
+
+class ManagementServerConnection(ABC):
+    @abstractmethod
+    def connect(self) -> bool:
+        pass
+
+    @abstractmethod
+    def close(self):
+        pass
+
+    @abstractmethod
+    def read(self) -> bytes:
+        pass
+
+    @abstractmethod
+    def write(self, data: bytes):
+        pass
+
+    @abstractmethod
+    def settimeout(self, timeout: Optional[int]):
+        pass
+
+
+class SerialServerConnection(ManagementServerConnection):
+    def __init__(self, device: str, baudrate: int, timeout: float, 
+                 retries: int, waitretry: int) -> None:
+        super().__init__()
+        self.device = device
+        self.baudrate = baudrate
+        self.timeout = timeout
+        self.retries = retries
+        self.waitretry = waitretry
+        self.socket = None
+
+    def connect(self) -> bool:
+        retries_left = self.retries
+        while True:
+            try:
+                self.socket = serial.Serial(self.device, self.baudrate, timeout=self.timeout)
+                print(f"Opened serial connection to Management Server {self.device}", file=sys.stderr, flush=True)
+                return True
+            except Exception as ex:
+                print(f"Unable to connect to {self.device}: {ex}", file=sys.stderr, flush=True)
+
+                if retries_left == 0:
+                    raise Exception("Unable to connect to managemt server in timeout") from ex
+
+                time.sleep(self.waitretry)
+                self.socket.close()
+                self.socket = None
+
+                retries_left -= 1
+    
+    def close(self):
+        if self.socket is not None:
+            self.socket.close()
+            self.socket = None
+
+    def read(self) -> bytes:
+        if self.socket is None:
+            return None
+        return self.socket.readline()
+
+    def write(self, data: bytes):
+        if self.socket is None:
+            return
+        return self.socket.write(data)
+    
+    def settimeout(self, timeout: Optional[int]):
+        if self.socket is None:
+            return
+        self.socket.timeout = timeout
+    
+
+class VsockServerConnection(ManagementServerConnection):
+    def __init__(self, port: int, timeout: int):
+        super().__init__()
+        self.port = port
+        self.timeout = timeout
+        self.socket = None
+        self.connection = None
+
+    def connect(self) -> bool:
+        self.socket = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+        self.socket.settimeout(self.timeout)
+        self.socket.bind((socket.VMADDR_CID_ANY, self.port))
+        self.socket.listen(1)
+        self.connection, addr = self.socket.accept()
+        print(f"VSOCK connection established to {addr}", file=sys.stderr, flush=True)
+        return True
+    
+    def close(self):
+        if self.connection is not None:
+            self.connection.close()
+            self.connection = None
+
+        if self.socket is not None:
+            self.socket.close()
+            self.socket = None
+    
+    def write(self, data):
+        if self.connection is None:
+            return
+        self.connection.sendall(data)
+    
+    def read(self) -> bytes:
+        if self.connection is None:
+            return None
+        return self.connection.recv(4096)
+    
+    def settimeout(self, timeout):
+        if self.connection is None:
+            return
+        self.connection.settimeout(timeout)
+
+
 class ManagementClient():
+
+    @classmethod
+    def check_vsock_enabled(cls) -> bool:
+        return os.path.exists("/dev/vsock")
 
     def __init__(self, instance_name: str):
         self.socket = None
@@ -53,32 +181,23 @@ class ManagementClient():
         self.sendlock = Lock()
         self.partial_data = ""
 
+        self.connection: ManagementServerConnection
+        if ManagementClient.check_vsock_enabled():
+            self.connection = VsockServerConnection(MGMT_SERVER_VSOCK_PORT, MGMT_SERVER_VSOCK_TIMEOUT)
+        else:
+            self.connection = SerialServerConnection(MGMT_SERVER_SERIAL, MGMT_SERVER_SERIAL_BAUDRATE, 
+                                                     MGMT_SERVER_SERIAL_TIMEOUT, MGMT_SERVER_RETRY, 
+                                                     MGMT_SERVER_WAITRETRY)
+
     def __del__(self):
         self.stop()
     
     def start(self) -> None:
-        retries_left = MGMT_SERVER_RETRY
-        while True:
-            try:
-                self.socket = serial.Serial(MGMT_SERVER_SERIAL, MGMT_SERVER_SERIAL_BAUDRATE, timeout=1)
-                print(f"Opened serial connection to Management Server {MGMT_SERVER_SERIAL}", file=sys.stderr, flush=True)
-                return
-            except Exception as ex:
-                print(f"Unable to connect to {MGMT_SERVER_SERIAL}: {ex}", file=sys.stderr, flush=True)
-
-                if retries_left == 0:
-                    raise Exception("Unable to connect to managemt server in timeout") from ex
-
-                time.sleep(MGMT_SERVER_WAITRETRY)
-                self.socket.close()
-                self.socket = None
-
-                retries_left -= 1
+        if not self.connection.connect():
+            raise Exception("Unable to connect to management server")
 
     def stop(self) -> None:
-        if self.socket != None:
-            self.socket.close()
-            self.socket = None
+        self.connection.close()
 
     def send_data_point(self, measurement: str, points: Dict[str, int | float], tags: Optional[Dict[str, str]] = None):
         if points is None:
@@ -105,7 +224,7 @@ class ManagementClient():
     def send_to_server(self, downstream_message: DownstreamMassage):
         try:
             with self.sendlock:
-                self.socket.write(downstream_message.get_json_bytes())
+                self.connection.write(downstream_message.get_json_bytes())
         except Exception as ex:
             raise Exception("Unable to send message to management server") from ex
     
@@ -124,8 +243,8 @@ class ManagementClient():
                 return json.loads(tmp)
 
         try:
-            self.socket.timeout = None
-            result = self.socket.readline()
+            self.connection.settimeout(None)
+            result = self.connection.read()
             if len(result) == 0:
                 raise Exception("Management server has disconnected")
             

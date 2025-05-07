@@ -18,10 +18,11 @@
 
 import ipaddress
 import time
+import os
 
 from pathlib import Path
 from loguru import logger
-from typing import List, Dict
+from typing import List
 from threading import Event, Thread
 
 from helper.network_helper import *
@@ -42,12 +43,24 @@ from constants import SUPPORTED_INSTANCE_NUMBER
 
 
 class Controller(Dismantable):
+    @classmethod
+    def _check_vsock_status(cls) -> bool:
+        if CommonSettings.default_configs.get_defaults("enable_vsock", True):
+            if not os.path.exists("/dev/vsock"):
+                logger.warn("VSOCK was requested, but Testbed Host lacks support.")
+                return False
+            else:
+                logger.trace("VSOCK will be used for management connections.")
+                return True
+        else:
+            return False
+
     def __init__(self):
         if TestbedSettingsWrapper.cli_paramaters is None:
             raise Exception("No CLIParamaters class object was set before calling the controller")
 
         self.dismantables: List[Dismantable] = []
-        self.state_manager: InstanceStateManager = InstanceStateManager()
+        self.state_manager: InstanceStateManager = InstanceStateManager(Controller._check_vsock_status())
         self.dismantables.insert(0, self.state_manager)
         self.mgmt_bridge: Optional[ManagementNetworkBridge] = None
         self.mgmt_bridge_mapping: Optional[BridgeMapping] = None
@@ -310,9 +323,12 @@ class Controller(Dismantable):
                                                     TestbedSettingsWrapper.cli_paramaters.preserve is not None)
             instance.send_message(message.to_json().encode("utf-8"))
 
-        result: WaitResult = self.state_manager.wait_for_instances_to_become_state([AgentManagementState.FILES_PRESERVED, 
-                                                                                   AgentManagementState.DISCONNECTED],
-                                                                                  timeout=30000)
+        result: WaitResult = self.state_manager.wait_for_instances_to_become_state([AgentManagementState.STARTED,
+                                                                                    AgentManagementState.APPS_SENDED,
+                                                                                    AgentManagementState.FILES_PRESERVED, 
+                                                                                    AgentManagementState.DISCONNECTED,
+                                                                                    AgentManagementState.UNKNOWN],
+                                                                                  timeout=TestbedSettingsWrapper.testbed_config.settings.file_preservation_timeout)
         if result in [WaitResult.FAILED, WaitResult.TIMEOUT]:
             logger.critical("Instances have reported failed during file preservation or a timeout occured!")
         elif result == WaitResult.SHUTDOWN:
