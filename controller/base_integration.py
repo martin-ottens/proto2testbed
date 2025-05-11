@@ -86,7 +86,7 @@ class BaseIntegration(ABC):
         self.name = name
         self.environment = environment
         self.status = status_container
-        self.base_path = Path(TestbedSettingsWrapper.cli_paramaters.config)
+        self.base_path = Path(TestbedSettingsWrapper.cli_parameters.config)
         self.settings = None
 
     # Helper function to kill a process with all of its child. Do not overwrite.

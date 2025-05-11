@@ -1,7 +1,8 @@
+#!/usr/bin/python3
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -15,8 +16,6 @@
 # You should have received a copy of the GNU General Public License 
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
-
-#!/usr/bin/python3
 
 import subprocess
 import os
@@ -34,6 +33,7 @@ from application_manager import ApplicationManager
 from global_state import GlobalState
 
 from common.instance_manager_message import *
+
 
 FILE_SERVER_PORT = 4242
 STATE_FILE = "/tmp/im-setup-succeeded"
@@ -53,7 +53,7 @@ class IMState(Enum):
     FAILED = auto()
 
 
-class InstanceManager():
+class InstanceManager:
     
     def __init__(self):
         self.instance_name = get_hostname()
@@ -63,8 +63,8 @@ class InstanceManager():
         self.state = IMState.STARTED
         self.application_manager: Optional[ApplicationManager] = None
 
-    def message_to_controller(self, type: InstanceMessageType, payload = None):
-        self.manager.send_to_server(DownstreamMassage(type, payload))
+    def message_to_controller(self, message_type: InstanceMessageType, payload = None):
+        self.manager.send_to_server(DownstreamMassage(message_type, payload))
 
     def handle_initialize(self, data) -> bool:
         # 1. Check initialization data from management server
@@ -87,7 +87,7 @@ class InstanceManager():
             try:
                 proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", TESTBED_PACKAGE_P9_DEV, GlobalState.testbed_package_path])
             except Exception as ex:
-                self.message_to_controller(InstanceMessageType.FAILED, f"Unable to mount testbed package!")
+                self.message_to_controller(InstanceMessageType.FAILED, f"Unable to mount testbed package: {ex}")
                 return False
 
             if proc is not None and proc.returncode != 0:
@@ -175,7 +175,7 @@ class InstanceManager():
         if copy_instructions.proc_id is None:
             self.message_to_controller(InstanceMessageType.MSG_ERROR, 
                                        f"Copy failed, no proc_id was provided to Instance.")
-            print(f"Invalid copy instructin packet: proc_id missing!")
+            print(f"Invalid copy instruction packet: proc_id missing!")
             return True
 
         source = Path(copy_instructions.source)

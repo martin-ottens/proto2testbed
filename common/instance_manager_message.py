@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -53,14 +53,10 @@ class InstanceMessageType(Enum):
             return InstanceMessageType.UNKNOWN
         
         
-class JSONSerializable():
+class JSONSerializable:
     def as_json_bytes(self) -> bytes:
         return json.dumps(vars(self)).encode("utf-8")
 
-
-class JSONSerializable():
-    def as_json_bytes(self) -> bytes:
-        return json.dumps(vars(self)).encode("utf-8")
 
 # Downstream: Instance -> Controller
 # Upstream:   Controller -> Instance
@@ -78,7 +74,7 @@ class InstanceManagerDownstream(JSONSerializer):
 class InitializeMessageUpstream(JSONSerializer):
     status_name =  "initialize"
 
-    def __init__(self, script: str, environment: Dict[str, str], status = None):
+    def __init__(self, script: Optional[str], environment: Optional[Dict[str, str]]):
         self.status = InitializeMessageUpstream.status_name
         self.script = script
         self.environment = environment
@@ -87,14 +83,13 @@ class InitializeMessageUpstream(JSONSerializer):
 class InstallApplicationsMessageUpstream(JSONSerializer):
     status_name = "install_apps"
 
-    def __init__(self, applications: Optional[List[ApplicationConfig]] = None, 
-                 status = None) -> None:
+    def __init__(self, applications: Optional[List[ApplicationConfig]] = None) -> None:
         self.status = InstallApplicationsMessageUpstream.status_name
         self.applications = applications
 
     @staticmethod
-    def from_json(json):
-        obj = InstallApplicationsMessageUpstream(**json)
+    def from_json(json_dict):
+        obj = InstallApplicationsMessageUpstream(**json_dict)
 
         if obj.applications is None:
             return obj
@@ -109,14 +104,14 @@ class InstallApplicationsMessageUpstream(JSONSerializer):
 class RunApplicationsMessageUpstream(JSONSerializer):
     status_name = "run_apps"
 
-    def __init__(self, status = None):
+    def __init__(self):
         self.status = RunApplicationsMessageUpstream.status_name
     
 
 class CopyFileMessageUpstream(JSONSerializer):
     status_name = "copy"
 
-    def __init__(self, source: str, target: str, source_renameto: str, proc_id: str, status=None):
+    def __init__(self, source: str, target: str, source_renameto: Optional[str], proc_id: str):
         self.status = CopyFileMessageUpstream.status_name
         self.source = source
         self.source_renameto = source_renameto
@@ -127,7 +122,7 @@ class CopyFileMessageUpstream(JSONSerializer):
 class FinishInstanceMessageUpstream(JSONSerializer):
     status_name = "finish"
 
-    def __init__(self, preserve_files: Optional[List[str]] = None, do_preserve: bool = True, status = None):
+    def __init__(self, preserve_files: Optional[List[str]] = None, do_preserve: bool = True):
         self.status = FinishInstanceMessageUpstream.status_name
         self.preserve_files = preserve_files
         self.do_preserve = do_preserve

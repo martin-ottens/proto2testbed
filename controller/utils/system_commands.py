@@ -26,6 +26,7 @@ from typing import List
 from loguru import logger
 from pathlib import Path
 
+
 def get_asset_relative_to(base, file) -> str:
     return f"{Path(base).parent.resolve()}/{file}"
 
@@ -67,7 +68,7 @@ def invoke_pexpect(command: List[str] | str, timeout: int = None, encoding: str 
     return pexpect.spawn(command, timeout=timeout, encoding=encoding)
 
 
-def get_DNS_resolver() -> str:
+def get_dns_resolver() -> str:
     pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
     process = invoke_subprocess("grep -oP '^\s*nameserver\s+\K\d{1,3}(\.\d{1,3}){3}' /etc/resolv.conf | head -n 1", shell=True, needs_root=False)
 
@@ -91,7 +92,7 @@ def set_owner(path: Path | str, owner: int) -> bool:
     return True
 
 
-def copy_file_or_directory(source: Path, target: Path, set_owner: bool = False) -> bool:
+def copy_file_or_directory(source: Path, target: Path, change_owner: bool = False) -> bool:
     try:
         destination = target
         if target.is_dir():
@@ -105,7 +106,7 @@ def copy_file_or_directory(source: Path, target: Path, set_owner: bool = False) 
 
         logger.trace(f"Copied {'directory' if source.is_dir() else 'file'} from {source} to {destination}")
 
-        if set_owner:
+        if change_owner:
             from utils.settings import CommonSettings
             if CommonSettings.executor is None:
                 logger.warning("Unable to change owner after copy: No executor is set!")
@@ -119,7 +120,7 @@ def copy_file_or_directory(source: Path, target: Path, set_owner: bool = False) 
         return False
 
 
-def rename_file_or_direcory(file_or_directory: Path, new_name: str) -> bool:
+def rename_file_or_directory(file_or_directory: Path, new_name: str) -> bool:
     try:
         os.rename(file_or_directory, new_name)
         return True
@@ -128,7 +129,7 @@ def rename_file_or_direcory(file_or_directory: Path, new_name: str) -> bool:
         return False
 
 
-def remove_file_or_direcory(to_delete: Path):
+def remove_file_or_directory(to_delete: Path):
     try:
         if to_delete.is_dir():
             shutil.rmtree(to_delete, ignore_errors=True)

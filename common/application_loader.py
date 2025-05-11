@@ -16,7 +16,6 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
-import sys
 import importlib.util
 import inspect
 import os
@@ -26,7 +25,8 @@ from pathlib import Path
 
 from applications.base_application import BaseApplication
 
-class ApplicationLoader():
+
+class ApplicationLoader:
     __COMPATIBLE_API_VERSION = "1.0"
     __PACKAGED_APPS = "applications/"
 
@@ -49,7 +49,7 @@ class ApplicationLoader():
             return False, "NAME missing"
         
         if cls.API_VERSION != ApplicationLoader.__COMPATIBLE_API_VERSION:
-            return False, f"Incomatible API version: {cls.API_VERSION}, but {ApplicationLoader.__COMPATIBLE_API_VERSION} required"
+            return False, f"Incompatible API version: {cls.API_VERSION}, but {ApplicationLoader.__COMPATIBLE_API_VERSION} required"
         
         if cls.NAME == BaseApplication.NAME:
             return False, None

@@ -18,10 +18,10 @@
 
 import os
 
-from typing import List, Optional, Callable, Any
+from typing import Callable, Any
 from loguru import logger
-from dataclasses import dataclass
 from pathlib import Path
+from dataclasses import dataclass
 
 import dateutil.parser as dateparser
 
@@ -55,7 +55,7 @@ class ResultExportHelper:
         if self.reader is None:
             raise Exception("Unable to create InfluxDB data reader")
 
-        self.loader = ApplicationLoader(CommonSettings.app_base_path, testbed_package_path, 
+        self.loader = ApplicationLoader(CommonSettings.app_base_path, Path(testbed_package_path),
                                         ["exports_data", "get_export_mapping"])
         self.loader.read_packaged_apps()
 
@@ -146,7 +146,7 @@ class ResultExportHelper:
                     logger.warning(f"Query for '{series.name}' from '{subtype.name}' has not yield any results")
                     continue
 
-                t_0 = min(map(lambda x: x[0], data_points))
+                t_0 = min(map(lambda _x: _x[0], data_points))
                 x = []
                 y = []
                 for data_point in data_points:
@@ -235,7 +235,7 @@ class ResultExportHelper:
 
         return True
 
-    def output_to_plot(self, output_path: str, format: str = "pdf") -> bool:
+    def output_to_plot(self, output_path: str, format_type: str = "pdf") -> bool:
         path = Path(output_path)
 
         try:
@@ -266,7 +266,7 @@ class ResultExportHelper:
                 logger.debug(f"Creating output path '{basepath}'")
                 os.makedirs(basepath, exist_ok=True)
 
-            filename = basepath / f"{container.app_config.application}_{container.export_mapping.name}.{format}"
+            filename = basepath / f"{container.app_config.application}_{container.export_mapping.name}.{format_type}"
 
             plt.title(title, fontsize=7)
             plt.tight_layout()

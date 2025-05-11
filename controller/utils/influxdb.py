@@ -17,7 +17,6 @@
 #
 
 import os
-import json
 import threading
 import queue
 import base64
@@ -25,13 +24,13 @@ import hashlib
 
 from typing import Optional, Any
 from loguru import logger
-from pathlib import Path
 from jsonschema import validate
 from influxdb import InfluxDBClient
 
 from utils.interfaces import Dismantable
 from utils.system_commands import get_asset_relative_to
 from utils.settings import CommonSettings
+
 
 class InfluxDBAdapter(Dismantable):
     def _get_client(self) -> InfluxDBClient:
@@ -51,7 +50,7 @@ class InfluxDBAdapter(Dismantable):
             client = self._get_client()
             client.switch_database(self.database)
         except Exception as ex:
-            logger.opt(exception=ex).error("InfluxDBAdapter: Unable to connect to databse")
+            logger.opt(exception=ex).error("InfluxDBAdapter: Unable to connect to database")
             return
         
         logger.debug("InfluxDBAdapter: InfluxDB Insert Thread started.")
@@ -101,7 +100,7 @@ class InfluxDBAdapter(Dismantable):
         if "INFLUXDB_DATABASE" not in os.environ.keys():
             default_database = CommonSettings.default_configs.get_defaults("influx_database")
             if default_database is None:
-                logger.critical("InfluxDBAdapter: INFLUXDB_DATABASE not set in environment. Set varaible or specify config.")
+                logger.critical("InfluxDBAdapter: INFLUXDB_DATABASE not set in environment. Set variable or specify config.")
                 raise Exception("INFLUXDB_DATABASE not set in environment")
             else:
                 self.database = default_database
@@ -125,7 +124,7 @@ class InfluxDBAdapter(Dismantable):
         self._queue = queue.Queue()
         self._lock = threading.Lock()
         self._running = False
-        self._thread = False
+        self._thread = None
         self._reader = None
 
     def get_selected_database(self) -> str:
@@ -159,8 +158,8 @@ class InfluxDBAdapter(Dismantable):
             hashstr = ""
             for tag_value in point[0]["tags"].values():
                 hashstr += str(tag_value)
-            hash = hashlib.sha256(hashstr.encode("utf-8"))
-            point[0]["tags"]["hash"] = base64.urlsafe_b64encode(hash.digest())[0:16]
+            hash_value = hashlib.sha256(hashstr.encode("utf-8"))
+            point[0]["tags"]["hash"] = base64.urlsafe_b64encode(hash_value.digest())[0:16]
         except Exception:
             logger.warning("InfluxDBAdapter: Unable to add experiment tag to data point, skipping insert.")
             return False

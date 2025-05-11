@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -23,12 +23,13 @@ import sys
 from typing import Dict, Optional
 
 from applications.generic_application_interface import LogMessageLevel, GenericApplicationInterface
-from global_state import GlobalState
 
 
 class ApplicationInterface(GenericApplicationInterface):
     def __init__(self, app_name: str, socket_path: str):
         super().__init__(app_name, socket_path)
+        self.socket = None
+        self.is_connected = False
 
     def connect(self):
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

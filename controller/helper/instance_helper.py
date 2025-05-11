@@ -36,8 +36,9 @@ from utils.settings import CommonSettings
 from utils.networking import InstanceInterface
 from constants import SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE
 
+
 @dataclass
-class InstanceManagementSettings():
+class InstanceManagementSettings:
     interface: InstanceInterface
     ip_interface: ipaddress.IPv4Interface
     gateway: str
@@ -85,7 +86,7 @@ class InstanceHelper(Dismantable):
         self.testbed_package_path = testbed_package_path
 
         if len(instance.interfaces) > (SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE + 1):
-            raise Exception(f"Error during creation, {SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE} interfaces are allowed, but {len(extra_interfaces)} were added!")
+            raise Exception(f"Error during creation, {SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE} interfaces are allowed, but {len(instance.interfaces)} were added!")
         
         if not instance.interchange_ready:
             raise Exception("Unable to set up interchange directory for p9 an mgmt socket!")
@@ -205,15 +206,15 @@ class InstanceHelper(Dismantable):
             self.qemu_command = None
             raise ex
 
-    def destory_instance(self, force: bool = False):
+    def destroy_instance(self, force: bool = False):
         self.stop_instance(force)
         self.tempdir.cleanup()
 
     def __del__(self):
-        self.destory_instance(True)
+        self.destroy_instance(True)
     
     def dismantle(self, force: bool = False) -> None:
-        self.destory_instance(force)
+        self.destroy_instance(force)
 
     def dismantle_parallel(self) -> bool:
         return True
@@ -276,4 +277,4 @@ class InstanceHelper(Dismantable):
             return status
         except Exception as ex:
             logger.opt(exception=ex).warning(f"Instance '{self.instance.name}': Unable to get status")
-            return "VM status: unkown"
+            return "VM status: unknown"

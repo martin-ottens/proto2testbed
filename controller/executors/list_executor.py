@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ from loguru import logger
 
 from utils.settings import CommonSettings
 from executors.base_executor import BaseExecutor
+
 
 class ListExecutor(BaseExecutor):
     SUBCOMMAND = "list"

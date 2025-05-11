@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 import argparse
 
 from abc import ABC, abstractmethod
+
 
 class BaseExecutor(ABC):
     SUBCOMMAND = "##DONT_LOAD##"

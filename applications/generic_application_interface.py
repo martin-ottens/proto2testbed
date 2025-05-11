@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@ class LogMessageLevel(Enum):
         return LogMessageLevel(level)
 
 
-# For data export, the Testbed Controller needs to instanciate all Application - 
+# For data export, the Testbed Controller needs to instantiate all Application -
 # in this case the ApplicationInterface is not used inside the Application, so this
 # generic version can be used. In the Instance Manager, the functionality of the 
 # ApplicationInterface is required, therefore an implementation can be found at
@@ -76,7 +76,7 @@ class GenericApplicationInterface(ABC):
                    additional_tags: Optional[Dict[str, str]] = None) -> bool:
         pass
 
-    # Mark a file or directroy for preservation. See the `im preserve` command
+    # Mark a file or directory for preservation. See the `im preserve` command
     # for reference.
     @abstractmethod
     def preserve_file(self, path: str) -> bool:

@@ -23,9 +23,11 @@ import traceback
 
 from multiprocessing import Process, Manager
 from threading import Event, Thread, Barrier
+from typing import cast
 
 from common.application_configs import ApplicationConfig
 from common.instance_manager_message import InstanceMessageType
+from controller.applications.generic_application_interface import GenericApplicationInterface
 from management_client import ManagementClient, DownstreamMassage
 from application_interface import ApplicationInterface
 from applications.base_application import BaseApplication
@@ -58,7 +60,7 @@ class ApplicationController(Thread):
         """
         Important: This method will be forked away from main instance_manager
         process. In order to communicate back to the main process, the
-        shared_state has to be used! Only the main process has a connection to
+        shared_state has to be used! Only the main process has a connection
         to the management server!
         """
 
@@ -66,7 +68,7 @@ class ApplicationController(Thread):
             try:
                 interface = ApplicationInterface(self.config.name, GlobalState.im_daemon_socket_path)
                 interface.connect()
-                self.app.attach_interface(interface)
+                self.app.attach_interface(cast(GenericApplicationInterface, interface))
             except Exception as ex:
                 raise "Unable to connect to Instance Manager Daemon" from ex
             
@@ -90,7 +92,7 @@ class ApplicationController(Thread):
         process.start()
 
         # If no runtime is specified, the Application is a daemon process. 
-        # It will remain running in backgroud, but the testbed execution is not delayed by this Application
+        # It will remain running in background, but the testbed execution is not delayed by this Application
         if self.config.runtime is not None:
             process.join(self.app.get_runtime_upper_bound(self.config.runtime) + 10)
 
@@ -104,12 +106,12 @@ class ApplicationController(Thread):
                         try: child.send_signal(signal.SIGTERM)
                         except Exception as ex:
                             message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
-                                                        f"Application {self.config.name}:\n Unable to kill childs: {ex}")
+                                                        f"Application {self.config.name}:\n Unable to kill children: {ex}")
                             self.mgmt_client.send_to_server(message)
                             continue
                 except Exception as ex:
                     message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
-                                                f"Application {self.config.name}:\n Unable get childs: {ex}")
+                                                f"Application {self.config.name}:\n Unable get children: {ex}")
                     self.mgmt_client.send_to_server(message)
                     pass
 
@@ -135,7 +137,7 @@ class ApplicationController(Thread):
     def has_terminated(self) -> bool:
         return self.is_terminated.is_set()
     
-    def error_occured(self) -> bool:
+    def error_occurred(self) -> bool:
         return self.shared_state["error_flag"]
     
     def get_application_name(self) -> str:

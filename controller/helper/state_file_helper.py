@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -27,8 +27,9 @@ from constants import INTERCHANGE_BASE_PATH, MACHINE_STATE_FILE
 from utils.settings import CommonSettings
 from utils.networking import InstanceInterface
 
+
 @dataclass
-class InstanceStateFile():
+class InstanceStateFile:
     instance: str
     executor: int
     cmdline: str
@@ -39,18 +40,18 @@ class InstanceStateFile():
     interfaces: Optional[List[InstanceInterface | Any]] = None
 
     @staticmethod
-    def from_json(json):
+    def from_json(json_dict):
         interfaces = []
-        for mapping in json["interfaces"]:
+        for mapping in json_dict["interfaces"]:
             interface = InstanceInterface(**mapping)
             status = interface.check_export_values()
             if status is not None:
                 raise Exception(f"Invalid interface: {status}")
             interfaces.append(interface)
 
-        del json["interfaces"]
+        del json_dict["interfaces"]
 
-        obj = InstanceStateFile(**json)
+        obj = InstanceStateFile(**json_dict)
         obj.interfaces = interfaces
         return obj
 
@@ -61,7 +62,7 @@ class StateFileEntry:
     filepath: str
 
 
-class StateFileReader():
+class StateFileReader:
     def __init__(self) -> None:
         self.files: List[StateFileEntry] = []
         self.reload()
@@ -138,12 +139,12 @@ class StateFileReader():
         return result
 
     def get_other_experiments(self, experiment_tag: str) -> Dict[str, int]:
-        all = self.get_states(filter_owned_by_executor=False,
-                              filter_experiment_tag=experiment_tag,
-                              filter_running=True)
+        all_states = self.get_states(filter_owned_by_executor=False,
+                                     filter_experiment_tag=experiment_tag,
+                                     filter_running=True)
         
         result = {}
-        for entry in all:
+        for entry in all_states:
             ui = StateFileReader.get_name(entry.contents.executor)
             if ui not in result.keys():
                 result[ui] = entry.contents.main_pid
@@ -151,11 +152,13 @@ class StateFileReader():
         return result
 
     def get_running_experiments(self, filter_owned_by_executor: bool = False) -> List[str]:
-        all = self.get_states(filter_owned_by_executor=filter_owned_by_executor, running=True)
+        all_states = self.get_states(filter_owned_by_executor=filter_owned_by_executor, filter_running=True)
 
         result: List[str] = []
-        for item in all:
+        for item in all_states:
             if item.contents is None:
                 continue
 
             result.append(item.contents.experiment)
+
+        return result

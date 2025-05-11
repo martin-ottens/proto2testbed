@@ -27,9 +27,11 @@ import inspect
 
 from loguru import logger
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
+from controller.utils.settings import DefaultConfigs
 from executors.base_executor import BaseExecutor
+
 
 def main():
     parser = argparse.ArgumentParser(prog=os.environ.get("CALLER_SCRIPT", sys.argv[0]), 
@@ -108,13 +110,12 @@ def main():
     CommonSettings.log_verbose = args.verbose
     CommonSettings.sudo_mode = args.sudo
 
-    from utils.config_tools import DefaultConfigs
     CommonSettings.default_configs = DefaultConfigs("/etc/proto2testbed/proto2testbed_defaults.json")
 
     mode = args.mode
     if mode in aliases.keys():
         mode = aliases.get(mode)
-    executor: BaseExecutor = subcommands.get(mode, None)
+    executor: Optional[BaseExecutor] = subcommands.get(mode, None)
 
     if executor is None:
         logger.critical(f"Unable to get implementation for subcommand '{mode}'")

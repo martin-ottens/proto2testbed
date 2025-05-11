@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -45,6 +45,7 @@ class NS3Integration(BaseIntegration):
                  environment: Optional[Dict[str, str]] = None) -> None:
         super().__init__(name, status_container, environment)
         self.process = None
+        self.settings = None
 
     def set_and_validate_config(self, config: IntegrationSettings) -> Tuple[bool, Optional[str]]:
         try:

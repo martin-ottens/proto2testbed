@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 
 from enum import Enum
 
+
 class PauseAfterSteps(Enum):
     SETUP = 1
     INIT = 2
@@ -31,7 +32,7 @@ class ContinueMode(Enum):
     CONTINUE_TO = "continue_to"
 
 
-class CLIContinue():
+class CLIContinue:
     def __init__(self, stopped_at: PauseAfterSteps):
         self.stopped_at = stopped_at
         self.mode = ContinueMode.EXIT

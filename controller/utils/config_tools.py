@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -24,11 +24,13 @@ import re
 from pathlib import Path
 from loguru import logger
 from jsonschema import validate
+from typing import Optional
 
 import state_manager
 from utils.settings import *
 from utils.system_commands import get_asset_relative_to, set_owner
 from utils.settings import TestbedConfig, CommonSettings
+
 
 def load_config(config_path: Path, skip_substitution: bool = False) -> TestbedConfig:
     if not config_path.exists():
@@ -125,7 +127,7 @@ def check_preserve_dir(preserve_dir: Optional[str]) -> bool:
             return False
         
         if len(os.listdir(preserve_dir)) != 0:
-            logger.warning(f"File Preservation direcotry {preserve_dir} is not empty, possible overwrite")
+            logger.warning(f"File Preservation directory {preserve_dir} is not empty, possible overwrite")
     else:
         logger.debug(f"File Preservation directory {preserve_dir} does not exist, creating it.")
         os.mkdir(preserve_dir)

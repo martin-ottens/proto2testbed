@@ -56,8 +56,8 @@ class Controller(Dismantable):
             return False
 
     def __init__(self):
-        if TestbedSettingsWrapper.cli_paramaters is None:
-            raise Exception("No CLIParamaters class object was set before calling the controller")
+        if TestbedSettingsWrapper.cli_parameters is None:
+            raise Exception("No CLIParameters class object was set before calling the controller")
 
         self.dismantables: List[Dismantable] = []
         self.state_manager: InstanceStateManager = InstanceStateManager(Controller._check_vsock_status())
@@ -66,13 +66,15 @@ class Controller(Dismantable):
         self.mgmt_bridge_mapping: Optional[BridgeMapping] = None
         self.network_mapping = NetworkMappingHelper()
         self.request_restart = False
+        self.influx_db = None
 
-        self.base_path = Path(TestbedSettingsWrapper.cli_paramaters.config)
+        self.base_path = Path(TestbedSettingsWrapper.cli_parameters.config)
         self.config_path = self.base_path / "testbed.json"
-        self.pause_after: PauseAfterSteps = TestbedSettingsWrapper.cli_paramaters.interact
+        self.pause_after: PauseAfterSteps = TestbedSettingsWrapper.cli_parameters.interact
         self.interact_finished_event: Optional[Event] = None
 
         self.interrupted_event = Event()
+        self.interaction_event = None
         self.interrupted_event.clear()
 
         try:
@@ -80,15 +82,15 @@ class Controller(Dismantable):
             self.cli.start()
             self.dismantables.insert(0, self.cli)
 
-            TestbedSettingsWrapper.testbed_config = load_config(self.config_path, 
-                                                         TestbedSettingsWrapper.cli_paramaters.skip_substitution)
-            self.integration_helper = IntegrationHelper(TestbedSettingsWrapper.cli_paramaters.config,
-                                                        CommonSettings.app_base_path)
+            TestbedSettingsWrapper.testbed_config = load_config(self.config_path,
+                                                                TestbedSettingsWrapper.cli_parameters.skip_substitution)
+            self.integration_helper = IntegrationHelper(TestbedSettingsWrapper.cli_parameters.config,
+                                                        str(CommonSettings.app_base_path))
         except Exception as ex:
             logger.opt(exception=ex).critical("Internal error loading config!")
             raise Exception("Internal config loading error!")
     
-    def _destory(self, spawn_threads: bool = True, force: bool = False) -> None:
+    def _destroy(self, spawn_threads: bool = True, force: bool = False) -> None:
         self.setup_env = None
         self.networks = None
 
@@ -112,10 +114,10 @@ class Controller(Dismantable):
             thread.join()
 
     def __del__(self):
-        self._destory(spawn_threads=False, force=True)
+        self._destroy(spawn_threads=False, force=True)
 
     def dismantle(self, force: bool = False) -> None:
-        self._destory(spawn_threads=(not force), force=force)
+        self._destroy(spawn_threads=(not force), force=force)
     
     def get_name(self) -> str:
         return f"Controller"
@@ -168,14 +170,14 @@ class Controller(Dismantable):
                                        bridge_mapping.name)
                 bridge_mapping.bridge = bridge
                 self.dismantables.insert(0, bridge)
-                for pyhsical_port in network.host_ports:
-                    bridge.add_device(pyhsical_port, is_host_port=True)
+                for physical_port in network.host_ports:
+                    bridge.add_device(physical_port, is_host_port=True)
                 bridge.start_bridge()
             except Exception as ex:
                 logger.opt(exception=ex).critical(f"Unable to setup additional network {network.name}")
                 return False
         
-        if self.integration_helper.handle_stage_start(InvokeIntegrationAfter.NETWORK) == False :
+        if not self.integration_helper.handle_stage_start(InvokeIntegrationAfter.NETWORK):
             logger.critical("Critical error during integration start!")
             return False
             
@@ -214,9 +216,9 @@ class Controller(Dismantable):
                 
                 management_settings = None
                 if self.mgmt_bridge is not None:
-                    intstance_mgmt_ip = self.mgmt_bridge.get_next_mgmt_ip()
+                    instance_mgmt_ip = self.mgmt_bridge.get_next_mgmt_ip()
                     tap_name = self.network_mapping.generate_tap_name()
-                    instance.set_mgmt_ip(intstance_mgmt_ip)
+                    instance.set_mgmt_ip(str(instance_mgmt_ip))
 
                     wait_for_interfaces.append(tap_name)
                     instance_interface = InstanceInterface(
@@ -230,18 +232,18 @@ class Controller(Dismantable):
 
                     management_settings = InstanceManagementSettings(
                         interface=instance_interface,
-                        ip_interface=intstance_mgmt_ip,
+                        ip_interface=instance_mgmt_ip,
                         gateway=self.mgmt_bridge.mgmt_gateway,
                     )
 
 
                 helper = InstanceHelper(instance=instance,
-                                    management=management_settings,
-                                    testbed_package_path=self.base_path,
-                                    image=str(diskimage_path),
-                                    cores=instance_config.cores,
-                                    memory=instance_config.memory,
-                                    disable_kvm=TestbedSettingsWrapper.cli_paramaters.disable_kvm)
+                                        management=management_settings,
+                                        testbed_package_path=str(self.base_path),
+                                        image=str(diskimage_path),
+                                        cores=instance_config.cores,
+                                        memory=instance_config.memory,
+                                        disable_kvm=TestbedSettingsWrapper.cli_parameters.disable_kvm)
                 self.dismantables.insert(0, helper)
                 helper.start_instance()
             except Exception as ex:
@@ -291,14 +293,14 @@ class Controller(Dismantable):
             instance.prepare_interchange_dir()
         
         try:
-            magamenet_server = ManagementServer(self, self.state_manager, 
+            management_server = ManagementServer(self, self.state_manager,
                                                 TestbedSettingsWrapper.testbed_config.settings.startup_init_timeout, 
                                                 self.influx_db,
                                                 init_instances_instant)
-            magamenet_server.start()
-            self.dismantables.insert(0, magamenet_server)
+            management_server.start()
+            self.dismantables.insert(0, management_server)
         except Exception as ex:
-            logger.opt(exception=ex).critical("Unable to start managenent server")
+            logger.opt(exception=ex).critical("Unable to start management server")
             return False
 
         return True
@@ -322,8 +324,8 @@ class Controller(Dismantable):
             if not instance.is_connected():
                 continue
 
-            message = FinishInstanceMessageUpstream(instance.preserve_files, 
-                                                    TestbedSettingsWrapper.cli_paramaters.preserve is not None)
+            message = FinishInstanceMessageUpstream(instance.preserve_files,
+                                                    TestbedSettingsWrapper.cli_parameters.preserve is not None)
             instance.send_message(message.to_json().encode("utf-8"))
 
         result: WaitResult = self.state_manager.wait_for_instances_to_become_state([AgentManagementState.STARTED,
@@ -333,45 +335,45 @@ class Controller(Dismantable):
                                                                                     AgentManagementState.UNKNOWN],
                                                                                   timeout=TestbedSettingsWrapper.testbed_config.settings.file_preservation_timeout)
         if result in [WaitResult.FAILED, WaitResult.TIMEOUT]:
-            logger.critical("Instances have reported failed during file preservation or a timeout occured!")
+            logger.critical("Instances have reported failed during file preservation or a timeout occurred!")
         elif result == WaitResult.SHUTDOWN:
             logger.critical("Testbed was shut down due to an external request.")
 
     def stop_interaction(self, restart: bool = False):
         self.request_restart = restart
-        if self.event is not None:
+        if self.interaction_event is not None:
             self.cli.unblock_input()
 
     def start_interaction(self, at_step: PauseAfterSteps) -> bool:
-        self.event = Event()
-        contine_mode = CLIContinue(at_step)
-        self.event.clear()
+        self.interaction_event = Event()
+        continue_mode = CLIContinue(at_step)
+        self.interaction_event.clear()
 
-        if TestbedSettingsWrapper.cli_paramaters.interact is not PauseAfterSteps.DISABLE:
-            self.cli.start_cli(self.event, contine_mode)
+        if TestbedSettingsWrapper.cli_parameters.interact is not PauseAfterSteps.DISABLE:
+            self.cli.start_cli(self.interaction_event, continue_mode)
             logger.success(f"Testbed paused after stage {self.pause_after.name}, Interactive mode enabled (CRTL+C to exit).")
         else:
             logger.success(f"Testbed paused after stage {self.pause_after.name} (CRTL+C to exit).")
        
         try: 
-            status = self.event.wait()
+            status = self.interaction_event.wait()
         except KeyboardInterrupt:
             self.interrupted_event.set()
             status = False
 
-        if TestbedSettingsWrapper.cli_paramaters.interact is not PauseAfterSteps.DISABLE:
+        if TestbedSettingsWrapper.cli_parameters.interact is not PauseAfterSteps.DISABLE:
             self.cli.stop_cli()
         
         if not status:
             return False
         else:
-            if contine_mode.mode == ContinueMode.EXIT:
+            if continue_mode.mode == ContinueMode.EXIT:
                 return False
-            if contine_mode.mode == ContinueMode.RESTART:
+            if continue_mode.mode == ContinueMode.RESTART:
                 self.request_restart = True
                 return False
             else: # ContinueMode.CONTINUE_TO
-                self.pause_after = contine_mode.pause
+                self.pause_after = continue_mode.pause
                 return True
 
     def wait_for_to_become(self, timeout: int, stage: str, 
@@ -381,7 +383,7 @@ class Controller(Dismantable):
         logger.debug(f"Waiting a maximum of {timeout} seconds for action '{stage}' to finish.")
         result: WaitResult = self.state_manager.wait_for_instances_to_become_state([waitstate], timeout)
         if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
-            logger.critical(f"Instances have reported failure during action '{stage}' or a timeout occured!")
+            logger.critical(f"Instances have reported failure during action '{stage}' or a timeout occurred!")
             if interact_on_failure:
                 self.start_interaction(PauseAfterSteps.DISABLE)
             if request_file_preservation:
@@ -406,20 +408,20 @@ class Controller(Dismantable):
         self.dismantables.insert(0, self.integration_helper)
 
         try:
-            self.influx_db = InfluxDBAdapter(CommonSettings.experiment, 
-                                             TestbedSettingsWrapper.cli_paramaters.dont_use_influx)
+            self.influx_db = InfluxDBAdapter(CommonSettings.experiment,
+                                             TestbedSettingsWrapper.cli_parameters.dont_use_influx)
             self.influx_db.start()
             self.dismantables.insert(0, self.influx_db)
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to load InfluxDB data!")
             return False
         
-        if not check_preserve_dir(TestbedSettingsWrapper.cli_paramaters.preserve):
+        if not check_preserve_dir(TestbedSettingsWrapper.cli_parameters.preserve):
             logger.critical("Unable to set up File Preservation")
             return False
-        self.state_manager.enable_file_preservation(TestbedSettingsWrapper.cli_paramaters.preserve)
+        self.state_manager.enable_file_preservation(TestbedSettingsWrapper.cli_parameters.preserve)
 
-        if self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP) == False :
+        if not self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP):
             logger.critical("Critical error during integration start!")
             return False
 
@@ -471,7 +473,7 @@ class Controller(Dismantable):
                                        self.pause_after == PauseAfterSteps.INIT, True):
             return False
 
-        logger.info("Instances are initialized, invoking installtion of apps ...")
+        logger.info("Instances are initialized, invoking installation of apps ...")
         for config_instance in TestbedSettingsWrapper.testbed_config.instances:
             instance = self.state_manager.get_instance(config_instance.name)
             apps = config_instance.applications
@@ -486,7 +488,7 @@ class Controller(Dismantable):
         
         logger.success("All Instances reported up & ready!")
 
-        if self.integration_helper.handle_stage_start(InvokeIntegrationAfter.INIT) == False :
+        if not self.integration_helper.handle_stage_start(InvokeIntegrationAfter.INIT):
             logger.critical("Critical error during integration start!")
             return False
 
@@ -495,7 +497,7 @@ class Controller(Dismantable):
                 self.send_finish_message()
                 return True
         
-        logger.info("Startig applications on Instances.")
+        logger.info("Starting applications on Instances.")
         message = RunApplicationsMessageUpstream().to_json().encode("utf-8")
         for instance in self.state_manager.get_all_instances():
             instance.send_message(message)
@@ -529,4 +531,4 @@ class Controller(Dismantable):
         
         self.send_finish_message()
 
-        return True # Dismantling handeled by main
+        return True # Dismantling handled by main

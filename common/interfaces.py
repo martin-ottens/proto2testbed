@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -21,10 +21,12 @@ import dataclasses
 
 from abc import ABC
 
+
 class JSONSerializer(ABC):
     def to_json(self) -> str:
         return json.dumps(self.__dict__, default=lambda obj: obj.__dict__)
-    
+
+
 class DataclassJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if dataclasses.is_dataclass(obj):

@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -65,6 +65,13 @@ class RunProgramApplicationConfig(ApplicationSettings):
 
 class RunProgramApplication(BaseApplication):
     NAME = "run-program"
+
+    def __init__(self):
+        super().__init__()
+        self.relative_command = None
+        self.args = None
+        self.command = None
+        self.from_tbp = None
 
     def set_and_validate_config(self, config: ApplicationSettings) -> Tuple[bool, Optional[str]]:
         try:

@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -41,6 +41,8 @@ class AwaitIntegration(BaseIntegration):
                  environment: Optional[Dict[str, str]] = None) -> None:
         super().__init__(name, status_container, environment)
         self.process = None
+        self.settings = None
+        self.start_script = None
 
     def set_and_validate_config(self, config: IntegrationSettings) -> Tuple[bool, Optional[str]]:
         try:
@@ -81,7 +83,7 @@ class AwaitIntegration(BaseIntegration):
 
     def stop(self) -> bool:
         # WaitIntegration#stop is always async, so stop is only called after
-        # successfull start, timeout or at forceful shutdown. Possible race
+        # successfully start, timeout or at forceful shutdown. Possible race
         # conditions here, but any errors due to that can be ignored. 
         try:
             if self.process is not None and self.process.is_alive():

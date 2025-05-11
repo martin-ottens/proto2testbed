@@ -75,17 +75,13 @@ class PingApplication(BaseApplication):
         if self.settings is None:
             return False
         
-        command = ["/usr/bin/ping", "-O", "-B", "-D"]
+        command = ["/usr/bin/ping", "-O", "-B", "-D",
+                   "-W", str(self.settings.timeout),
+                   "-i", str(self.settings.interval)]
 
         if runtime is not None:
             command.append("-w")
             command.append(str(runtime))
-
-        command.append("-W")
-        command.append(str(self.settings.timeout))
-
-        command.append("-i")
-        command.append(str(self.settings.interval))
 
         if self.settings.source is not None:
             command.append("-I")

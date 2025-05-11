@@ -23,6 +23,7 @@ from loguru import logger
 from executors.base_executor import BaseExecutor
 from utils.settings import CommonSettings
 
+
 class CleanExecutor(BaseExecutor):
     SUBCOMMAND = "clean"
     ALIASES = ["c"]
@@ -63,8 +64,8 @@ class CleanExecutor(BaseExecutor):
         else:
             logger.info(f"Deleting ALL data from database '{adapter.get_selected_database()}'")
             try:
-                for measurment in client.get_list_measurements():
-                    name = measurment["name"]
+                for measurement in client.get_list_measurements():
+                    name = measurement["name"]
                     logger.debug(f"Deleting measurement '{name}'")
                     client.drop_measurement(name)
             except Exception as ex:

@@ -25,6 +25,7 @@ from common.interfaces import JSONSerializer
 class ApplicationSettings(ABC):
     pass
 
+
 class ApplicationConfig(JSONSerializer):
     def __init__(self, name: str, application: str, delay: int = 0, 
                  runtime: int = 30, dont_store: bool = False, 

@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -28,7 +28,8 @@ from management_client import ManagementClient, DownstreamMassage
 from common.instance_manager_message import InstanceMessageType
 from global_state import GlobalState
 
-class PreserveHandler():
+
+class PreserveHandler:
     def __init__(self, manager: ManagementClient, exchange_p9_dev: str):
         self.manager = manager
         self.exchange_mount = GlobalState.exchange_mount_path
@@ -52,7 +53,7 @@ class PreserveHandler():
         try:
             proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", self.exchange_p9_dev, self.exchange_mount])
         except Exception as ex:
-            message = DownstreamMassage(InstanceMessageType.FAILED, f"Unable to mount exchange direcory!")
+            message = DownstreamMassage(InstanceMessageType.FAILED, f"Unable to mount exchange directory!")
             self.manager.send_to_server(message)
             raise Exception("Unable to mount exchange directory!") from ex
         
@@ -69,7 +70,7 @@ class PreserveHandler():
         self.check_and_add_exchange_mount()
 
         for preserve_file in self.files:
-            print(f"Preserving file or direcory '{preserve_file}'", file=sys.stderr, flush=True)
+            print(f"Preserving file or directory '{preserve_file}'", file=sys.stderr, flush=True)
             try:
                 path = Path(preserve_file)
                 if not path.is_absolute():
@@ -98,7 +99,8 @@ class PreserveHandler():
             except Exception as ex:
                 print(f"Preservation of '{preserve_file}' failed: Unhandled error: {ex}", file=sys.stderr, flush=True)
                 message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
-                                                f"Unable to preserve '{preserve_file}': Unhandeled error: {ex}")
+                                                f"Unable to preserve '{preserve_file}': Unhandled error: {ex}")
+                self.manager.send_to_server(message)
                 print(f"Error during preservation of '{preserve_file}': {ex}", flush=True, file=sys.stderr)
         
         return True

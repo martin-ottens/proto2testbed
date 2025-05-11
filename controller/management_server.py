@@ -35,6 +35,7 @@ from utils.influxdb import InfluxDBAdapter
 import state_manager
 from state_manager import AgentManagementState
 
+
 class ManagementClientConnection(threading.Thread):
     __MAX_FRAME_LEN = 8192
 
@@ -61,6 +62,7 @@ class ManagementClientConnection(threading.Thread):
         self.stop_event = threading.Event()
         self.client = None
         self.connected = False
+        self.client_socket = None
 
         if ManagementClientConnection.message_schema is None:
             with open(get_asset_relative_to(__file__, "assets/statusmsg.schema.json"), "r") as handle:
@@ -156,7 +158,7 @@ class ManagementClientConnection(threading.Thread):
                 return True
             
             case _:
-                logger.warning(f"Management: Client {self.client.name}: Unkown message type '{message_obj.status}'")
+                logger.warning(f"Management: Client {self.client.name}: Unknown message type '{message_obj.status}'")
 
         if message_obj.message is not None:
             if message_obj.get_status() == InstanceMessageType.DATA_POINT:
@@ -180,9 +182,9 @@ class ManagementClientConnection(threading.Thread):
         
         return True
     
-    def _check_if_valid_json(self, str) -> bool:
+    def _check_if_valid_json(self, json_str: str) -> bool:
         try:
-            json.loads(str)
+            json.loads(json_str)
             return True
         except Exception as _:
             return False
@@ -365,4 +367,4 @@ class ManagementServer(Dismantable):
         return "ManagementServer"
     
     def is_started(self) -> bool:
-        return self.is_started()
+        return self.is_started

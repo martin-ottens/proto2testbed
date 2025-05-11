@@ -180,7 +180,7 @@ class CLI(Dismantable):
                     logger.log("CLI", f"Unable to get Instance with name '{instance}'")
                     return True
                 
-                if TestbedSettingsWrapper.cli_paramaters.preserve is None:
+                if TestbedSettingsWrapper.cli_parameters.preserve is None:
                     logger.log("CLI", f"File preservation is not enabled in this testbed run.")
                     return True
                 

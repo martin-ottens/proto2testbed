@@ -1,7 +1,8 @@
+#!/usr/bin/python3
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -16,8 +17,6 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
-#!/usr/bin/python3
-
 import argparse
 import re
 import sys
@@ -27,6 +26,7 @@ import json
 from pathlib import Path
 
 IM_SOCKET_PATH = "/tmp/im.sock"
+
 
 def main():
     parser = argparse.ArgumentParser(prog="im", description="Instance Manager CLI Tool")
@@ -48,7 +48,7 @@ def main():
 
     parser_data = subparsers.add_parser("data", help="Save a data point to the Time Series Database")
     parser_data.add_argument("--measurement", "-m", type=str, required=True, help="Name of the measurement")
-    parser_data.add_argument("--tag", "-t", action="append", help="Additonal tags in format NAME:VALUE, instance name and experiment tag will be added automatically")
+    parser_data.add_argument("--tag", "-t", action="append", help="Additional tags in format NAME:VALUE, instance name and experiment tag will be added automatically")
     parser_data.add_argument("points", nargs="+", help="Data points in format NAME:VALUE")
 
     args = parser.parse_args()
@@ -61,7 +61,7 @@ def main():
             pass
         case "preserve":
             if not Path(args.path).exists():
-                print(f"Error: Invalid Path '{args.path}': No such file or direcory.", file=sys.stderr)
+                print(f"Error: Invalid Path '{args.path}': No such file or directory.", file=sys.stderr)
                 sys.exit(1)
                 
             payload["path"] = str(Path(args.path).resolve())
@@ -77,8 +77,8 @@ def main():
                     if not re.match(r"^[a-zA-Z]+:[\S]+$", tag):
                         print(f"Invalid tag: '{tag}' (Required format: <TAG>:<VALUE>)", file=sys.stderr)
                         sys.exit(1)
-                name, value = tag.split(":")
-                tags[name] = value
+                    name, value = tag.split(":")
+                    tags[name] = value
             payload["tags"] = tags
             
             points = {}

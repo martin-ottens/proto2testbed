@@ -16,7 +16,7 @@ The script `make-baseimage.sh` can create base-images with AMD64 Debian 12 "Book
    ```
    Optionally, use the `--size` parameter to set a size for the disk image (defaults to `4G`)
 3. After some minutes, the disk base-image was written to `</path/to/output-image.qcow2>`. 
-   The created image can used with the `im-installer.py` script to install additional dependencies and make executable in a testbed.
+   The created image can be used with the `im-installer.py` script to install additional dependencies and make executable in a testbed.
 
 ### Manual Base-Image Creation via Serial Mode
 
@@ -53,10 +53,10 @@ The script `make-baseimage.sh` can create base-images with AMD64 Debian 12 "Book
    ```bash
    sudo umount /tmp/isomount
    ```
-6. The created image can used with the `im-installer.py` script to install additional dependencies and make executable in a testbed.
+6. The created image can be used with the `im-installer.py` script to install additional dependencies and make executable in a testbed.
 
 ## Installation of the Instance Manager and Additional Dependencies
-Before the base-image created in the steps above can be used in a testbed run, the Instance Manager has to be installed. The Instance Manager handles the communication with the testbed controller, installs additional experiments and applies some configuration changes to the image. During the installation of the Instance Manager, users could install additional common dependencies to create a experiment-specific base-image where, e.g. kernel modules that do not change between testbed runs, are installed. 
+Before the base-image created in the steps above can be used in a testbed run, the Instance Manager has to be installed. The Instance Manager handles the communication with the testbed controller, installs additional experiments and applies some configuration changes to the image. During the installation of the Instance Manager, users could install additional common dependencies to create an experiment-specific base-image where, e.g. kernel modules that do not change between testbed runs, are installed. 
 
 **Please note:** After the `instance-manager.deb` package is installed, the image is finalized and can (due to optimizations) no longer be used with the `im-installer.py` script to install additional dependencies.
 
@@ -78,7 +78,7 @@ Before the base-image created in the steps above can be used in a testbed run, t
      apt-get -y install my-dependency
      touch /etc/my-dependecy/installed
      ```
-   - `-m <directory>`: Mount a local direcotry with additional dependencies or packages to `/mnt/additional`. Can be used together with the extra command flag to install custom packages, e.g.:
+   - `-m <directory>`: Mount a local directory with additional dependencies or packages to `/mnt/additional`. Can be used together with the extra command flag to install custom packages, e.g.:
      ```
      apt-get -y install /mnt/additional/my-package.deb
      ```
@@ -88,7 +88,7 @@ Before the base-image created in the steps above can be used in a testbed run, t
 
 ### Manually Install the Instance Manager
 
-**Please note:** This can also be handeled automatically by the `im-installer.py` script if the installation was configured as mentioned above. This section is intended for base-images that are configured in a different way during installation (e.g., use of another OS) and the `im-installer.py` script is not applicable.
+**Please note:** This can also be handled automatically by the `im-installer.py` script if the installation was configured as mentioned above. This section is intended for base-images that are configured in a different way during installation (e.g., use of another OS) and the `im-installer.py` script is not applicable.
 
 1. Build the Instance Manager Debian package `instance`:
    ```bash

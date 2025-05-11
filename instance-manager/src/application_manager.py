@@ -31,7 +31,7 @@ from common.application_loader import ApplicationLoader
 from global_state import GlobalState
 
 
-class ApplicationManager():
+class ApplicationManager:
     def __init__(self, main, manager: ManagementClient, instance_name: str) -> None:
         self.main = main
         self.manager = manager
@@ -140,7 +140,7 @@ class ApplicationManager():
         failed = 0
         for t in threads:
             t.join()
-            if t.error_occured():
+            if t.error_occurred():
                 failed += 1
 
         if failed != 0:

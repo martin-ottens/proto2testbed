@@ -32,7 +32,7 @@ from utils.continue_mode import PauseAfterSteps
 
 
 @dataclass
-class TestbedSettings():
+class TestbedSettings:
     management_network: Optional[str] = None
     diskimage_basepath: str = "./"
     startup_init_timeout: int = 30
@@ -41,7 +41,7 @@ class TestbedSettings():
 
 
 @dataclass
-class TestbedNetwork():
+class TestbedNetwork:
     name: str
     host_ports: List[str] = None
 
@@ -59,7 +59,7 @@ class InvokeIntegrationAfter(Enum):
         return str(self.value)
     
 
-class Integration():
+class Integration:
     def __init__(self, name: str, type: str, environment: Optional[Dict[str, str]] = None,
                  invoke_after: str = str(InvokeIntegrationAfter.STARTUP), wait_after_invoke: int = 0,
                  settings: Optional[Any] = None) -> None:
@@ -72,7 +72,7 @@ class Integration():
         self.settings: IntegrationSettings = settings
 
 
-class AttachedNetwork():
+class AttachedNetwork:
     def __init__(self, name: str, mac: Optional[str], netmodel: str = "virtio") -> None:
         self.name: str = name
         self.mac: Optional[str] = mac
@@ -86,7 +86,7 @@ class AttachedNetwork():
         return self.name
 
 
-class TestbedInstance():
+class TestbedInstance:
     def __init__(self, name: str, diskimage: str, setup_script: str = None, 
                  environment: Optional[Dict[str, str]] =  None, cores: int = 2, 
                  memory: int = 1024, networks: Optional[List[Any]] = None,
@@ -114,24 +114,24 @@ class TestbedInstance():
             self.applications.append(ApplicationConfig(**application))
 
 
-class TestbedConfig():
-    def __init__(self, json) -> None:
-        self.settings: TestbedSettings = TestbedSettings(**json["settings"])
+class TestbedConfig:
+    def __init__(self, json_dict) -> None:
+        self.settings: TestbedSettings = TestbedSettings(**json_dict["settings"])
         self.networks: List[TestbedNetwork] = []
         self.instances: List[TestbedInstance] = []
         self.integrations: List[Integration] = []
 
-        for network in json["networks"]:
+        for network in json_dict["networks"]:
             self.networks.append(TestbedNetwork(**network))
         
-        for integration in json["integrations"]:
+        for integration in json_dict["integrations"]:
             self.integrations.append(Integration(**integration))
 
-        for instance in json["instances"]:
+        for instance in json_dict["instances"]:
             self.instances.append(TestbedInstance(**instance))
 
 
-class DefaultConfigs():
+class DefaultConfigs:
     def __init__(self, path: str) -> None:
         self.defaults = {}
         if not os.path.exists(path):
@@ -150,7 +150,7 @@ class DefaultConfigs():
 
 
 @dataclass
-class RunCLIParameters():
+class RunCLIParameters:
     config: Optional[str] = None
     interact: PauseAfterSteps = PauseAfterSteps.DISABLE
     disable_kvm: bool = False
@@ -160,7 +160,7 @@ class RunCLIParameters():
     preserve: Optional[str] = None
 
 
-class CommonSettings():
+class CommonSettings:
     executor: Optional[int] = None
     cmdline: Optional[str] = None
     main_pid: Optional[int] = None
@@ -176,7 +176,7 @@ class CommonSettings():
     default_configs: Optional[DefaultConfigs] = None
 
 
-class TestbedSettingsWrapper():
-    cli_paramaters: Optional[RunCLIParameters] = None
+class TestbedSettingsWrapper:
+    cli_parameters: Optional[RunCLIParameters] = None
     testbed_config: Optional[TestbedConfig] = None
     

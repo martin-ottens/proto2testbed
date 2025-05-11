@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ from loguru import logger
 
 from executors.base_executor import BaseExecutor
 from utils.settings import CommonSettings
+
 
 class PruneExecutor(BaseExecutor):
     SUBCOMMAND = "prune"
@@ -46,25 +47,25 @@ class PruneExecutor(BaseExecutor):
         CLI(CommonSettings.log_verbose, None)
 
         statefile_reader = StateFileReader()
-        all = statefile_reader.get_states(filter_owned_by_executor=(not args.all))
+        all_states = statefile_reader.get_states(filter_owned_by_executor=(not args.all))
 
         running_interfaces = NetworkBridge.get_running_interfaces()
 
-        def delete_interface(interface: str, fail_silent: bool = False):
-            if interface not in running_interfaces:
+        def delete_interface(target: str, fail_silent: bool = False):
+            if target not in running_interfaces:
                 logger.debug(f"Interface '{interface}' does not exist.")
                 return
             
             try:
-                if NetworkBridge.cleanup_interface(interface, fail_silent):
-                    logger.info(f"Deleted Interface '{interface}' from non-running testbed.")
+                if NetworkBridge.cleanup_interface(target, fail_silent):
+                    logger.info(f"Deleted Interface '{target}' from non-running testbed.")
             except Exception as ex:
-                logger.opt(exception=ex).error(f"Unable to delete interface '{interface}'")
+                logger.opt(exception=ex).error(f"Unable to delete interface '{target}'")
 
         logger.info("Deleting orphaned testbeds ...")
         # Clear interchange dir of invalid testbeds and interchange dir and 
         # interfaces of non-running testbeds 
-        for entry in all:
+        for entry in all_states:
             if entry.contents is None:
                 if InstanceState.clean_interchange_dir(os.path.dirname(entry.filepath)):
                     logger.info(f"Deleted interchange dir without contents: '{entry.filepath}'")
@@ -85,12 +86,12 @@ class PruneExecutor(BaseExecutor):
             return 0
         
         logger.info("Deleting dangling interfaces ...")
-        # Reload updatetd states -> Cleaned up all "unwanted" states before
+        # Reload updated states -> Cleaned up all "unwanted" states before
         statefile_reader.reload()
-        all = statefile_reader.get_states()
+        all_states = statefile_reader.get_states()
 
         known_interfaces = set()
-        for entry in all:
+        for entry in all_states:
             for interface in entry.contents.interfaces:
                 known_interfaces.add(interface.tap_dev)
                 known_interfaces.add(interface.bridge_dev)
@@ -100,7 +101,8 @@ class PruneExecutor(BaseExecutor):
                 continue
 
             delete_interface(interface, True)
-    
-    
+
+        return 0
+
     def requires_priviledges(self) -> bool:
         return True

@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -19,12 +19,11 @@
 import ipaddress
 import json
 import random
-import string
 import ipaddress
 import psutil
 import socket
 
-from typing import Dict, List, Optional
+from typing import List, Optional
 from loguru import logger
 
 from utils.interfaces import Dismantable
@@ -96,7 +95,6 @@ class NetworkBridge(Dismantable):
             subnet = random.choice(possible_subnets)
             if NetworkBridge.is_network_in_use(subnet):
                 tries_left -= 1
-                continue
 
             return subnet
         

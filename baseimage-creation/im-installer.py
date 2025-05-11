@@ -52,12 +52,12 @@ COMMANDS = {
 }
 
 
-def create_qemu_command(image: Path, deb_path: str, additional_path: Optional[str], 
+def create_qemu_command(image: Path, use_deb_path: str, use_additional_path: Optional[str],
                         disable_kvm: bool = False, dry_run: bool = False) -> str:
-    virtfs_package = VIRTFS_COMMAND_TEMPLATE.format(local_mount=deb_path, tag="package")
+    virtfs_package = VIRTFS_COMMAND_TEMPLATE.format(local_mount=use_deb_path, tag="package")
     virtfs_additional = None
     if additional_path is not None:
-        virtfs_additional = VIRTFS_COMMAND_TEMPLATE.format(local_mount=additional_path, tag="additional")
+        virtfs_additional = VIRTFS_COMMAND_TEMPLATE.format(local_mount=use_additional_path, tag="additional")
 
     return QEMU_COMMAND_TEMPLATE.format(
         image=str(image),
@@ -73,10 +73,10 @@ def wait_for_shell_on_vm(proc: pexpect.spawn, timeout: int = PEXPECT_TIMEOUT):
     proc.expect(f"#", timeout=1)
 
 
-def run_one_command_on_vm(command: str, proc: pexpect.spawn, 
+def run_one_command_on_vm(bash_command: str, proc: pexpect.spawn,
                           expected_rc: int = 0, timeout: int = PEXPECT_TIMEOUT) -> bool:
-    logger.info(f"Exceuting command '{command}' on VM ...")
-    proc.sendline(command)
+    logger.info(f"Executing command '{bash_command}' on VM ...")
+    proc.sendline(bash_command)
     wait_for_shell_on_vm(proc, timeout=timeout)
     proc.sendline("echo $?")
     proc.readline()
@@ -86,18 +86,18 @@ def run_one_command_on_vm(command: str, proc: pexpect.spawn,
         rc = int(proc.readline().strip().split("\r")[1])
     wait_for_shell_on_vm(proc)
     if rc != expected_rc:
-        logger.error(f"Command '{command}' finished with unexpected exit code: {rc} != {expected_rc}")
+        logger.error(f"Command '{bash_command}' finished with unexpected exit code: {rc} != {expected_rc}")
         return False
     else:
-        logger.success(f"Sucessfully executed command '{command}'.")
+        logger.success(f"Successfully executed command '{bash_command}'.")
         return True
 
 
-def main(command: str, deb_file: str, additional_path: Optional[str], 
+def main(qemu_command: str, use_deb_file: str, use_additional_path: Optional[str],
          extra: Optional[List[str]], debug: bool = False, 
          timeout: int = PEXPECT_TIMEOUT) -> bool:
     proc: pexpect.spawn
-    with pexpect.spawn(command, timeout=timeout, encoding="utf-8") as proc:
+    with pexpect.spawn(qemu_command, timeout=timeout, encoding="utf-8") as proc:
         if debug:
             proc.logfile = sys.stdout
 
@@ -122,29 +122,29 @@ def main(command: str, deb_file: str, additional_path: Optional[str],
             if not run_one_command_on_vm(COMMANDS["prepare"], proc, timeout=timeout):
                 logger.critical("Unable to prepare for installation of instance-manager.deb package")
                 proc.kill(signal.SIGTERM)
-                return
+                return False
 
             if not run_one_command_on_vm(COMMANDS["mount"].format(tag="package", mount=PACKAGE_MOUNTPOINT), proc, timeout=timeout):
                 logger.critical("Unable to mount instance-manager.deb package")
                 proc.kill(signal.SIGTERM)
-                return
+                return False
             
-            if additional_path is not None:
+            if use_additional_path is not None:
                 if not run_one_command_on_vm(COMMANDS["mount"].format(tag="additional", mount=ADDITIONAL_MOUNTPOINT), proc, timeout=timeout):
                     logger.critical("Unable to mount additional mount path")
                     proc.kill(signal.SIGTERM)
-                    return
+                    return False
             
             if not run_one_command_on_vm(COMMANDS["update"], proc, timeout=timeout):
                 logger.critical("Unable to update apt packet sources")
                 proc.kill(signal.SIGTERM)
-                return
+                return False
 
-            if not run_one_command_on_vm(COMMANDS["install"].format(package=deb_file), 
+            if not run_one_command_on_vm(COMMANDS["install"].format(package=use_deb_file),
                                          proc, timeout=2 * timeout):
                 logger.critical("Unable to install instance-manager.deb package")
                 proc.kill(signal.SIGTERM)
-                return
+                return False
             
             extra_error = False
             if extra is not None:
@@ -158,7 +158,7 @@ def main(command: str, deb_file: str, additional_path: Optional[str],
 
             return not extra_error
         except pexpect.TIMEOUT as ex:
-            logger.opt(exception=ex).critical("Timeout occured running command on VM!")
+            logger.opt(exception=ex).critical("Timeout occurred running command on VM!")
             proc.kill(signal.SIGTERM)
             sys.exit(1)
 
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     input_path = Path(args.input)
 
     if not input_path.exists():
-        logger.critical(f"Imput image '{args.input}' does not exist.")
+        logger.critical(f"Input image '{args.input}' does not exist.")
         sys.exit(1)
 
     mod_path = input_path

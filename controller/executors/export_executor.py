@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ from loguru import logger
 
 from executors.base_executor import BaseExecutor
 from utils.settings import CommonSettings
+
 
 class ExportExecutor(BaseExecutor):
     SUBCOMMAND = "export"
@@ -95,5 +96,5 @@ class ExportExecutor(BaseExecutor):
                 logger.success("Data export completed.")
                 return 0
         except Exception as ex:
-            logger.opt(exception=ex).critical("Unhadeled error during data export")
+            logger.opt(exception=ex).critical("Unhandled error during data export")
             return 1

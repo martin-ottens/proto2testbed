@@ -2,7 +2,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
 
 # Proto²Testbed Base Image Creation Script
 # 
-# This script installes a Debian 12 amd64 OS to a base diskimage in a fully 
+# This script installs a Debian 12 amd64 OS to a base diskimage in a fully
 # automated way.
 
 # Bash strict mode.
@@ -33,7 +33,7 @@ usage() {
   echo "Usage: $0 <OS NETINSTALL ISO> <BASEIMAGE OUTPUT NAME>"
   echo
   echo "Arguments:"
-  echo "  <OS NETINSTALL ISO>     Path to the downloaded Debain 12 ISO"
+  echo "  <OS NETINSTALL ISO>     Path to the downloaded Debian 12 ISO"
   echo "  <BASEIMAGE OUTPUT NAME> Path to the output baseimage file (overwrites existing)"
   echo
   echo "Options:"

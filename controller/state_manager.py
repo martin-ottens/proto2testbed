@@ -63,7 +63,7 @@ class WaitResult(Enum):
     SHUTDOWN = 4
 
 
-class InstanceState():
+class InstanceState:
     @staticmethod
     def clean_interchange_dir(path: str) -> bool:
         prefix = INTERCHANGE_BASE_PATH
@@ -75,21 +75,22 @@ class InstanceState():
                 logger.debug(f"Skipping deletion of '{path}': Not a directory or invalid name.")
                 return False
         except Exception as ex:
-            logger.opt(exception=ex).error(f"Error deleting interchange direcory '{path}'")
+            logger.opt(exception=ex).error(f"Error deleting interchange directory '{path}'")
             return False
 
     def __init__(self, name: str, script_file: str, 
-                 setup_env: Optional[dict[str, str]], manager,
+                 setup_env: Optional[Dict[str, str]], manager,
                  init_preserve_files: Optional[List[str]], numeric_id: int,
                  enable_vsock: bool = False) -> None:
         self.name: str = name
         self.script_file: str = script_file
         self.uuid = ''.join(random.choices(string.ascii_letters, k=8))
         self.numeric_id = numeric_id
+        self.interchange_dir = None
         self.vsock_enabled = enable_vsock
         self.vsock_cid: Optional[int] = None
         
-        if setup_env == None:
+        if setup_env is None:
             self.setup_env = {}
         else:
             self.setup_env = setup_env
@@ -267,8 +268,8 @@ class InstanceState():
                 if os.path.exists(scope):
                     process = invoke_subprocess(["chmod", "777", str(scope)], needs_root=True)
 
-                if process.returncode != 0:
-                    raise Exception(f"Unable to change permissions of socket {scope}")
+                    if process.returncode != 0:
+                        raise Exception(f"Unable to change permissions of socket {scope}")
                 
                 scope_sockets = [x for x in scope_sockets if x != scope]
 

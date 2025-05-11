@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -34,8 +34,8 @@ The server only performs one test and terminates (one-off) and will not
 terminate by itself when no client connected. For the runtime and delay, select 
 the following values to prevent problems:
 
-DELAYserver = DELAYclient - 1 // Start server 1 second before the client
-TIMEOUTserver = max(TIMEOUTclient * 1.1, TIMEOUTclient + 5) // Allow the server to run longer
+DELAY_server = DELAY_client - 1 // Start server 1 second before the client
+TIMEOUT_server = max(TIMEOUTclient * 1.1, TIMEOUTclient + 5) // Allow the server to run longer
 
 See 'iperf_client_application.py' for the corresponding client config. If only 
 the client- or server-report-output should be stored, use the "dont_store"
@@ -82,15 +82,9 @@ class IperfServerApplication(BaseApplication):
         if self.settings is None:
             return False
         
-        command = ["/usr/bin/iperf3", "--forceflush", "--one-off"]
-
-        command.append("--interval")
-        command.append(str(self.settings.report_interval))
-
-        command.append("--port")
-        command.append(str(self.settings.port))
-        command.append("--server")
-        command.append(self.settings.host)
+        command = ["/usr/bin/iperf3", "--forceflush", "--one-off", "--interval",
+                   str(self.settings.report_interval), "--port", str(self.settings.port),
+                   "--server", self.settings.host]
 
         try:
            return run_iperf(command, self.interface) == 0

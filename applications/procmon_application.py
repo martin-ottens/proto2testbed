@@ -156,7 +156,7 @@ class ProcmonApplication(BaseApplication):
                 if found in processes.keys():
                     raise Exception(f"Process cmdline identifier '{cmdline}' is ambiguous!")
 
-                processes[config_process] = {
+                processes[found] = {
                     "pid": psutil_proc.info["pid"],
                     "offset": proc_to_dict(psutil_proc),
                     "proc": psutil_proc

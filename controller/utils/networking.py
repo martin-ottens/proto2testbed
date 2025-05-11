@@ -25,7 +25,7 @@ from constants import TAP_PREFIX, BRIDGE_PREFIX
 from helper.network_helper import NetworkBridge
 
 
-class BridgeMapping():
+class BridgeMapping:
     def __init__(self, name: str, dev_name: str) -> None:
         self.name = name
         self.dev_name: str = dev_name
@@ -35,7 +35,7 @@ class BridgeMapping():
         return f"{self.name} ({self.dev_name})"
 
 
-class InstanceInterface():
+class InstanceInterface:
 
     _EXPORT_ATTRIBUTES = [
         "tap_index",
@@ -96,7 +96,7 @@ class InstanceInterface():
         return result
 
 
-class NetworkMappingHelper():
+class NetworkMappingHelper:
     def __init__(self) -> None:
         self.bridge_map: Dict[str, BridgeMapping] = {}
 
@@ -104,9 +104,14 @@ class NetworkMappingHelper():
         return "".join(random.choices(string.ascii_letters + string.digits, k=8))
     
     def generate_tap_name(self) -> str:
+        tries = 0
         while True:
             choice = TAP_PREFIX + self._generate_name()
             if NetworkBridge.check_interfaces_available([choice]):
+                if tries > 100:
+                    raise Exception("Unable to generate TAP name")
+
+                tries += 1
                 continue
             
             return choice
@@ -115,9 +120,14 @@ class NetworkMappingHelper():
         if config_name in self.bridge_map.keys():
             raise Exception(f"Bridge {config_name} already mapped.")
 
+        tries = 0
         while True:
             choice = BRIDGE_PREFIX + self._generate_name()
             if NetworkBridge.check_interfaces_available([choice]):
+                if tries > 100:
+                    raise Exception("Unable to generate BRIDGE name")
+
+                tries += 1
                 continue
             
             mapping = BridgeMapping(config_name, choice)

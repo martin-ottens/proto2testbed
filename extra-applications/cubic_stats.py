@@ -180,8 +180,8 @@ class CubicStatsApplication(BaseApplication):
 
         return results
     
-    def __get_one_datapoint(self, input: str):
-        contexts = self.__parse_output(input)
+    def __get_one_datapoint(self, input_str: str):
+        contexts = self.__parse_output(input_str)
 
         if len(contexts) == 0:
             return
@@ -252,7 +252,7 @@ class CubicStatsApplication(BaseApplication):
             ExportResultMapping(
                 name="rto",
                 type=ExportResultDataType.MILLISECONDS,
-                description="Retramsmit Timeout",
+                description="Retransmit Timeout",
                 additional_selectors={"fd": subtype.options["fd"]},
                 title_suffix=f'Process: {subtype.options["prog"]}'
             ),

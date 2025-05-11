@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -29,10 +29,13 @@ from management_client import ManagementClient, DownstreamMassage
 from common.instance_manager_message import InstanceMessageType
 from global_state import GlobalState
 
+
 class IMClientThread(Thread):
     client_id: int = 0
     id_lock = Lock()
-    def next_client() -> int:
+
+    @classmethod
+    def next_client(cls) -> int:
         with IMClientThread.id_lock:
             IMClientThread.client_id += 1
             return IMClientThread.client_id
@@ -73,25 +76,25 @@ class IMClientThread(Thread):
         if "level" not in data or "message" not in data:
             return self._respond_to_client(False, "'message' or 'level' missing for log")
         
-        type = None
+        level = None
         match data["level"]:
             case "SUCCESS":
-                type = InstanceMessageType.MSG_SUCCESS
+                level = InstanceMessageType.MSG_SUCCESS
             case "INFO":
-                type = InstanceMessageType.MSG_INFO
+                level = InstanceMessageType.MSG_INFO
             case "WARNING":
-                type = InstanceMessageType.MSG_WARNING
+                level = InstanceMessageType.MSG_WARNING
             case "ERROR":
-                type = InstanceMessageType.MSG_ERROR
+                level = InstanceMessageType.MSG_ERROR
             case "DEBUG":
-                type = InstanceMessageType.MSG_DEBUG
+                level = InstanceMessageType.MSG_DEBUG
             case _:
                 return self._respond_to_client(False, f"Invalid log level '{data['level']}'")
             
         if not isinstance(data["message"], str):
             return self._respond_to_client(False, f"Field 'message' is not a string")
         
-        message: DownstreamMassage = DownstreamMassage(type, data["message"])
+        message: DownstreamMassage = DownstreamMassage(level, data["message"])
         self.manager.send_to_server(message)
         return self._respond_to_client(True)
     
@@ -160,9 +163,9 @@ class IMClientThread(Thread):
         else:
             return status
 
-    def _check_if_valid_json(self, str) -> bool:
+    def _check_if_valid_json(self, json_str: str) -> bool:
         try:
-            json.loads(str)
+            json.loads(json_str)
             return True
         except Exception as _:
             return False
@@ -228,7 +231,8 @@ class IMClientThread(Thread):
     def stop(self):
         self.shut_down.set()
 
-class IMDaemonServer():
+
+class IMDaemonServer:
     def __init__(self, manager: ManagementClient, preserver: PreserveHandler):
         self.manager = manager
         self.socket_path = GlobalState.im_daemon_socket_path
@@ -236,6 +240,8 @@ class IMDaemonServer():
         self.shut_down = Event()
         self.client_threads: List[IMClientThread] = []
         self.is_started = False
+        self.server_sock = None
+        self.server_thread = None
 
     def _accept_thread(self):
         while True:
@@ -248,7 +254,7 @@ class IMDaemonServer():
                     client_thread = IMClientThread(client_socket, self.manager, self.preserver)
                     client_thread.start()
                     self.client_threads.append(client_thread)
-                except:
+                except Exception:
                     pass
             except socket.timeout:
                 pass

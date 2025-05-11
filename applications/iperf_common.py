@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@ from applications.generic_application_interface import GenericApplicationInterfa
 
 
 class IPerfMode(Enum):
-    UNKONWN = 0,
+    UNKNOWN = 0,
     TCP_CLIENT = 1,
     TCP_SERVER = 2,
     UDP_CLIENT = 3,
@@ -149,7 +149,7 @@ def run_iperf(cli: List[str], interface: GenericApplicationInterface) -> int:
                                stdout=subprocess.PIPE, 
                                stderr=subprocess.PIPE)
     
-    mode = IPerfMode.UNKONWN
+    mode = IPerfMode.UNKNOWN
     pos = LogPosition.PREAMBLE
     next_could_be_delimiter = False
     preamble_finished = False
@@ -183,7 +183,7 @@ def run_iperf(cli: List[str], interface: GenericApplicationInterface) -> int:
         if pos == LogPosition.RUNNING:
             if not line.startswith("["):
                 raise Exception("Invalid iperf3 log output!")
-            if mode == IPerfMode.UNKONWN:
+            if mode == IPerfMode.UNKNOWN:
                 if "ID]" in line:
                     if "Jitter" in line: # Order matters!
                         mode = IPerfMode.UDP_SERVER
@@ -235,7 +235,7 @@ def run_iperf(cli: List[str], interface: GenericApplicationInterface) -> int:
     if rc != 0:
         raise Exception(process.stderr.readline().decode("utf-8"))
     
-    if mode == IPerfMode.UNKONWN:
+    if mode == IPerfMode.UNKNOWN:
         raise Exception("Unable to complete iperf log parsing!")
     
     return rc

@@ -102,7 +102,7 @@ class BaseApplication(ABC):
     # API version of the Application, currently only 1.0 is used (optional)
     API_VERSION = "1.0"
 
-    # Name of the Applicaton. Used to referenced bundeled Applications, for logging and data labling.
+    # Name of the Application. Used to referenced bundled Applications, for logging and data labeling.
     NAME = "##DONT_LOAD##"
 
     def __init__(self):
@@ -116,13 +116,13 @@ class BaseApplication(ABC):
 
     # The config from the Application-specific part of the Application config from the Testbed Package
     # is passed to this method. This method needs to validate this config and store it for later use 
-    # (e.g., in the start method). It returns, wether the validation was successful, optionally, an 
-    # error message can be added, that is send to the Controllers log (use "None" for no message) 
+    # (e.g., in the start method). It returns whether the validation was successful, optionally, an
+    # error message can be added, that is sent to the Controllers log (use "None" for no message)
     @abstractmethod
     def set_and_validate_config(self, config: ApplicationSettings) -> Tuple[bool, Optional[str]]:
         pass
 
-    # The Application can overrwrite the runtime specified in the common Application settings in the
+    # The Application can overwrite the runtime specified in the common Application settings in the
     # Testbed configuration. "runtime" is the setting from the config. This method is called after the
     # config has been set, so access to the Application Settings are possible to calculate the value.
     # This method should never change the object's state resorting on the "runtime" argument.
@@ -132,14 +132,14 @@ class BaseApplication(ABC):
 
     # Start the Application and run for "runtime" seconds, which is the value from the common 
     # Application settings in the Testbed Package. "runtime" can be null when the Application is
-    # used as a daemon proesses. Must be implemented in a blocking way and returns wether the 
+    # used as a daemon process. Must be implemented in a blocking way and returns whether the
     # execution was successful. This method may be interrupted when the upper runtime bound 
     # returned by get_runtime_upper_bound is exceeded.
     @abstractmethod
     def start(self, runtime: Optional[int]) -> bool:
         pass
 
-    # Return wether this Application exports any data to the InfluxDB. Used for data export, self.interface
+    # Return whether this Application exports any data to the InfluxDB. Used for data export, self.interface
     # is not set.
     def exports_data(self) -> bool:
         return True

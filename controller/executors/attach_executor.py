@@ -23,6 +23,7 @@ from loguru import logger
 from executors.base_executor import BaseExecutor
 from utils.settings import CommonSettings
 
+
 class AttachExecutor(BaseExecutor):
     SUBCOMMAND = "attach"
     ALIASES = ["a"]
@@ -47,19 +48,19 @@ class AttachExecutor(BaseExecutor):
         cli_handler = CLI(CommonSettings.log_verbose, None)
 
         statefile_reader = StateFileReader()
-        all = statefile_reader.get_states(filter_running=True, 
+        all_states = statefile_reader.get_states(filter_running=True,
                                           filter_owned_by_executor=(not args.others))
-        
+
         connect_to = None
         if CommonSettings.experiment_generated:
             available = []
-            for entry in all:
+            for entry in all_states:
                 if entry.contents is None:
                     continue
 
                 if entry.contents.instance == args.INSTANCE:
                     available.append(entry)
-            
+
             if len(available) == 1:
                 connect_to = available[0]
             elif len(available) > 1:
@@ -68,30 +69,30 @@ class AttachExecutor(BaseExecutor):
                     logger.error(f"- {other.contents.experiment} (Owner: {StateFileReader.get_name(other.contents.executor)})")
                 return 1
         else:
-            for entry in all:
+            for entry in all_states:
                 if entry.contents is None:
                     continue
 
                 if entry.contents.instance != args.INSTANCE:
                     continue
-                
+
                 if entry.contents.experiment == CommonSettings.experiment:
                     connect_to = entry
                     break
-        
+
         if connect_to is None:
             logger.warning(f"No instance found matching that search criteria.")
             return 1
-    
+
         if args.ssh:
             mgmt_ip = connect_to.contents.mgmt_ip
             if mgmt_ip is None or mgmt_ip == "":
                 logger.error(f"Unable to attach to instance '{connect_to.contents.instance}': Management network not enabled.")
                 return 1
-            
+
             if "/" in mgmt_ip:
-                mgmt_ip, _ = mgmt_ip.split("/", maxsplit=1) 
-            
+                mgmt_ip, _ = mgmt_ip.split("/", maxsplit=1)
+
             logger.success(f"Attaching to instance '{connect_to.contents.instance}' from experiment '{connect_to.contents.experiment}' via SSH")
             logger.success(f"Use CRTL + D or 'exit' in shell to detach from instance.")
             logger.debug(f"Using IP address for connection: {mgmt_ip}, User: {args.user}")
@@ -109,3 +110,5 @@ class AttachExecutor(BaseExecutor):
             logger.debug(f"Using UDS file for connection: {uds_path}")
             cli_handler.attach_to_tty(uds_path)
             print("")
+
+        return 0

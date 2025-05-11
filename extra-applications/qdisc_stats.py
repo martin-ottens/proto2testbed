@@ -74,7 +74,7 @@ class QdiscStatsApplication(BaseApplication):
         except Exception as ex:
             return False, f"Config validation failed: {ex}"
         
-    def __interpret_number(self, input: str):
+    def __interpret_number(self, input_str: str):
         units = {
             "k": 1_000,
             "K": 1_000,
@@ -86,21 +86,21 @@ class QdiscStatsApplication(BaseApplication):
             "p": 1
         }
 
-        if input[-1].isalpha():
-            number_part = float(input[:-1])
+        if input_str[-1].isalpha():
+            number_part = float(input_str[:-1])
 
-            if input[-1] in units:
-                return int(number_part * units[input[-1]])
+            if input_str[-1] in units:
+                return int(number_part * units[input_str[-1]])
             else:
-                raise Exception(f"Unsupported Unit: {input[-1]}")
+                raise Exception(f"Unsupported Unit: {input_str[-1]}")
         else:
-            return int(input)
+            return int(input_str)
         
-    def __parse_single_stat(self, input: str):
+    def __parse_single_stat(self, input_str: str):
         result = {}
 
         # Sent %i bytes %s pkt
-        _, sent_bytes, _, sent_packets, _, remain = input.split(" ", maxsplit=5)
+        _, sent_bytes, _, sent_packets, _, remain = input_str.split(" ", maxsplit=5)
         result["sent_bytes"] = self.__interpret_number(sent_bytes)
         result["sent_packets"] = self.__interpret_number(sent_packets)
 
@@ -122,10 +122,10 @@ class QdiscStatsApplication(BaseApplication):
 
         return result
     
-    def __get_one_datapoint(self, input: str):
+    def __get_one_datapoint(self, input_str: str):
         results = []
         context = None
-        for line in input.split("\n"):
+        for line in input_str.split("\n"):
             if line.startswith("qdisc"):
                 if context is not None:
                     results.append(context)
@@ -233,14 +233,14 @@ class QdiscStatsApplication(BaseApplication):
             ExportResultMapping(
                 name="backlog_bytes",
                 type=ExportResultDataType.DATA_SIZE,
-                description="Bytes held by Qdisc and childs",
+                description="Bytes held by Qdisc and children",
                 additional_selectors={"dev": subtype.options["dev"], "qdisc": subtype.options["qdisc"]},
                 title_suffix=f'Interface: {subtype.options["dev"]}, Qdisc: {subtype.options["qdisc"]}'
             ),
             ExportResultMapping(
                 name="backlog_packets",
                 type=ExportResultDataType.COUNT,
-                description="Packets held by Qdisc and childs",
+                description="Packets held by Qdisc and children",
                 additional_selectors={"dev": subtype.options["dev"], "qdisc": subtype.options["qdisc"]},
                 title_suffix=f'Interface: {subtype.options["dev"]}, Qdisc: {subtype.options["qdisc"]}'
             ),

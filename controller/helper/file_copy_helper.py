@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -28,13 +28,15 @@ from loguru import logger
 from common.instance_manager_message import CopyFileMessageUpstream
 from utils.system_commands import copy_file_or_directory, remove_file_or_direcory, rename_file_or_direcory
 
-class FileCopyAction():
+
+class FileCopyAction:
     def __init__(self, source: Path, destination: Path, copy_to_instance: bool):
         self.source = source
         self.destination = destination
         self.copy_to_instance = copy_to_instance
 
-class FileCopyHelper():
+
+class FileCopyHelper:
     def __init__(self, instance):
         self.instance = instance
         self.pending: Dict[str, FileCopyAction] = {}
@@ -86,7 +88,7 @@ class FileCopyHelper():
         
         if action.copy_to_instance:
             # All is done, just print a message.
-            logger.info(f"Sucessfully copied from '{action.source}' to '{self.instance.name}:{action.destination}'")
+            logger.info(f"Successfully copied from '{action.source}' to '{self.instance.name}:{action.destination}'")
             del action
         else:
             # File is in exchange mount, copy it to our file system
@@ -109,7 +111,7 @@ class FileCopyHelper():
                 success = False
             
             if not remove_file_or_direcory(source):
-                logger.error(f"Unable to clean up '{source}' after sucesful copy!")
+                logger.error(f"Unable to clean up '{source}' after successful copy!")
                 success = False
 
             if action.destination.is_dir():
@@ -117,11 +119,11 @@ class FileCopyHelper():
                 rename_to = action.destination / Path(os.path.basename(action.source))
 
                 if not rename_file_or_direcory(rename_path, str(rename_to)):
-                    logger.error(f"Unable to rename '{rename_path}' to '{rename_to}' after sucesful copy!")
+                    logger.error(f"Unable to rename '{rename_path}' to '{rename_to}' after successful copy!")
                     success = False
 
             if success:
-                logger.info(f"Sucessfully copied from '{self.instance.name}:{action.source}' to '{action.destination}'")
+                logger.info(f"Successfully copied from '{self.instance.name}:{action.source}' to '{action.destination}'")
 
             del action
 

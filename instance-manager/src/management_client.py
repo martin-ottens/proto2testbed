@@ -43,7 +43,7 @@ def get_hostname() -> str:
     return socket.getfqdn()
 
 
-class DownstreamMassage():
+class DownstreamMassage:
     def __init__(self, status: InstanceMessageType, message = None):
         self.message = InstanceManagerDownstream(get_hostname(), str(status), message)
     
@@ -64,7 +64,7 @@ class ManagementServerConnection(ABC):
         pass
 
     @abstractmethod
-    def read(self) -> bytes:
+    def read(self) -> Optional[bytes]:
         pass
 
     @abstractmethod
@@ -98,7 +98,7 @@ class SerialServerConnection(ManagementServerConnection):
                 print(f"Unable to connect to {self.device}: {ex}", file=sys.stderr, flush=True)
 
                 if retries_left == 0:
-                    raise Exception("Unable to connect to managemt server in timeout") from ex
+                    raise Exception("Unable to connect to Management Server in timeout") from ex
 
                 time.sleep(self.waitretry)
                 self.socket.close()
@@ -111,7 +111,7 @@ class SerialServerConnection(ManagementServerConnection):
             self.socket.close()
             self.socket = None
 
-    def read(self) -> bytes:
+    def read(self) -> Optional[bytes]:
         if self.socket is None:
             return None
         return self.socket.readline()
@@ -119,7 +119,7 @@ class SerialServerConnection(ManagementServerConnection):
     def write(self, data: bytes):
         if self.socket is None:
             return
-        return self.socket.write(data)
+        self.socket.write(data)
     
     def settimeout(self, timeout: Optional[int]):
         if self.socket is None:
@@ -158,7 +158,7 @@ class VsockServerConnection(ManagementServerConnection):
             return
         self.connection.sendall(data)
     
-    def read(self) -> bytes:
+    def read(self) -> Optional[bytes]:
         if self.connection is None:
             return None
         return self.connection.recv(4096)
@@ -228,9 +228,9 @@ class ManagementClient():
         except Exception as ex:
             raise Exception("Unable to send message to management server") from ex
     
-    def _check_if_valid_json(self, str) -> bool:
+    def _check_if_valid_json(self, json_str: str) -> bool:
         try:
-            json.loads(str)
+            json.loads(json_str)
             return True
         except Exception as _:
             return False

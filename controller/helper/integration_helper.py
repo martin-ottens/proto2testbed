@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ import inspect
 import os
 
 from loguru import logger
-from typing import List, Optional
+from typing import List, Optional, Dict
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -37,12 +37,13 @@ class IntegrationExecutionWrapper:
     obj: Integration
     impl: BaseIntegration
     status: IntegrationStatusContainer
-    thread: threading.Thread = None
+    thread: Optional[threading.Thread] = None
     started: bool = False
     started_at: float = 0
     is_shutdown: bool = False
 
-class IntegrationLoader():
+
+class IntegrationLoader:
     __COMPATIBLE_API_VERSION = "1.0"
     __PACKAGED_INTEGRATIONS = "integrations/"
 
@@ -171,7 +172,7 @@ class IntegrationHelper(Dismantable):
                         integration_status))
         
         scheduled = ", ".join(map(lambda x: f"Stage {x[0].name}: {len(x[1])}", self.mapped_integrations.items()))
-        logger.debug(f"Integrations loaded: {len(self.loader.integration_map)}; Scheduled for exceution: {scheduled}")
+        logger.debug(f"Integrations loaded: {len(self.loader.integration_map)}; Scheduled for execution: {scheduled}")
             
     def __del__(self) -> None:
         self.force_shutdown()
@@ -245,12 +246,12 @@ class IntegrationHelper(Dismantable):
         if fire_integrations is None or len(fire_integrations) == 0:
             return None
         
-        if TestbedSettingsWrapper.cli_paramaters.skip_integration:
+        if TestbedSettingsWrapper.cli_parameters.skip_integration:
             for integration in fire_integrations:
                 logger.warning(f"Integration: Start of '{integration.obj.name}' integration at stage {str(stage).upper()} skipped.")
             return None
 
-        # 2. Find blocking/non blocking integrations, find largest wait_after_invoke value
+        # 2. Find blocking/non-blocking integrations, find the largest wait_after_invoke value
         sync_integrations: List[IntegrationExecutionWrapper] = []
         async_integrations: List[IntegrationExecutionWrapper] = []
         wait_after_invoked: int = 0
@@ -342,7 +343,7 @@ class IntegrationHelper(Dismantable):
     def graceful_shutdown(self) -> None:
         logger.debug("Integration: Gracefully stopping all started integrations")
 
-        # 1. Wait for async integrations to finish. They have to deal with timeouts themself.
+        # 1. Wait for async integrations to finish. They have to deal with timeouts themselves.
         for integration in self._get_all_integration_wrappers():
             logger.trace(f"Checking start status of async integration '{integration.obj.name}'")
 

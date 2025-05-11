@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@ from executors.base_executor import BaseExecutor
 from utils.continue_mode import PauseAfterSteps
 from utils.settings import CommonSettings, RunCLIParameters, TestbedSettingsWrapper
 
+
 class RunExecutor(BaseExecutor):
     SUBCOMMAND = "run"
     ALIASES = ["r"]
@@ -37,7 +38,7 @@ class RunExecutor(BaseExecutor):
         self.subparser.add_argument("TESTBED_CONFIG", type=str, help="Path to testbed package")
         self.subparser.add_argument("--interact", "-i", choices=[p.name for p in PauseAfterSteps], 
                                     required=False, default=PauseAfterSteps.DISABLE.name, type=str.upper,
-                                    help="Interact with Conctroller after step is completed")
+                                    help="Interact with Controller after step is completed")
         self.subparser.add_argument("--no_kvm", action="store_true", required=False, default=False,
                                     help="Disable KVM virtualization in QEMU")
         self.subparser.add_argument("-s", "--skip_integrations", action="store_true", required=False, default=False,
@@ -81,7 +82,7 @@ class RunExecutor(BaseExecutor):
         else:
             parameters.preserve = None
 
-        TestbedSettingsWrapper.cli_paramaters = parameters
+        TestbedSettingsWrapper.cli_parameters = parameters
 
         from helper.state_file_helper import StateFileReader
         reader = StateFileReader()

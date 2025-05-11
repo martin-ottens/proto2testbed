@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -16,9 +16,7 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
-from pathlib import Path
-
-class GlobalState():
+class GlobalState:
     testbed_package_path: str = None
     im_daemon_socket_path: str = None
     exchange_mount_path: str = None
