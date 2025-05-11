@@ -137,7 +137,7 @@ class ManagementClientConnection(threading.Thread):
 
             case InstanceMessageType.APPS_DONE:
                 self.client.set_state(AgentManagementState.FINISHED)
-                logger.info(f"Management: Client {self.client.name} reported finished applications.")
+                logger.info(f"Management: Client {self.client.name} completed its applications.")
 
             case InstanceMessageType.FINISHED:
                 self.client.set_state(AgentManagementState.FILES_PRESERVED)

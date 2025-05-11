@@ -185,7 +185,7 @@
                                     "type": "number"
                                 },
                                 "runtime": {
-                                    "type": "number"
+                                    "type": ["number", "null"]
                                 },
                                 "dont_store": {
                                     "type": "boolean"

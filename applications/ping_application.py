@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -71,14 +71,15 @@ class PingApplication(BaseApplication):
         except Exception as ex:
             return False, f"Config validation failed: {ex}"
 
-    def start(self, runtime: int) -> bool:
+    def start(self, runtime: Optional[int]) -> bool:
         if self.settings is None:
             return False
         
         command = ["/usr/bin/ping", "-O", "-B", "-D"]
 
-        command.append("-w")
-        command.append(str(runtime))
+        if runtime is not None:
+            command.append("-w")
+            command.append(str(runtime))
 
         command.append("-W")
         command.append(str(self.settings.timeout))

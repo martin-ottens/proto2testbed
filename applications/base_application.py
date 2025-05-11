@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -125,16 +125,18 @@ class BaseApplication(ABC):
     # The Application can overrwrite the runtime specified in the common Application settings in the
     # Testbed configuration. "runtime" is the setting from the config. This method is called after the
     # config has been set, so access to the Application Settings are possible to calculate the value.
+    # This method should never change the object's state resorting on the "runtime" argument.
     # Optional, when omitted, "runtime" is returned.
     def get_runtime_upper_bound(self, runtime: int) -> int:
         return runtime
 
     # Start the Application and run for "runtime" seconds, which is the value from the common 
-    # Application settings in the Testbed Package. Must be implemented in a blocking way and returns
-    # wether the execution was successful. This method may be interrupted when the upper runtime
-    # bound returned by get_runtime_upper_bound is exceeded.
+    # Application settings in the Testbed Package. "runtime" can be null when the Application is
+    # used as a daemon proesses. Must be implemented in a blocking way and returns wether the 
+    # execution was successful. This method may be interrupted when the upper runtime bound 
+    # returned by get_runtime_upper_bound is exceeded.
     @abstractmethod
-    def start(self, runtime: int) -> bool:
+    def start(self, runtime: Optional[int]) -> bool:
         pass
 
     # Return wether this Application exports any data to the InfluxDB. Used for data export, self.interface

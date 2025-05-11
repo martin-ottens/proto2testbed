@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -181,9 +181,9 @@ class QdiscStatsApplication(BaseApplication):
             if not len(list(filter(lambda x: x["qdisc"] == "tbf" and x["dev"] == dev, results))):
                 raise Exception(f"Interface '{dev}' not found for qdisc tbf.")
 
-    def start(self, runtime: int) -> bool:
+    def start(self, runtime: Optional[int]) -> bool:
         end_at = time.time() + runtime
-        while end_at > time.time():
+        while runtime is None or end_at > time.time():
             proc = subprocess.run(["/usr/sbin/tc", "-s", "qdisc", "sh"], capture_output=True, shell=False)
             if proc.returncode != 0:
                 raise Exception(f"Unable to run 'tc' command: {proc.stderr.decode('utf-8')}")

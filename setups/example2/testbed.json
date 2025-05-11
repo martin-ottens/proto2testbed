@@ -57,7 +57,7 @@
                     "application": "iperf3-server",
                     "name": "a-iperf-server",
                     "delay": 0,
-                    "runtime": 100,
+                    "runtime": null,
                     "settings": {}
                 }
             ]

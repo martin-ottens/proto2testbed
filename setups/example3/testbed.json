@@ -80,7 +80,7 @@
                     "application": "iperf3-server",
                     "name": "a1-iperf-server",
                     "delay": 0,
-                    "runtime": 100,
+                    "runtime": null,
                     "settings": {}
                 }
             ]
@@ -103,7 +103,7 @@
                     "application": "iperf3-server",
                     "name": "a2-iperf-server",
                     "delay": 0,
-                    "runtime": 100,
+                    "runtime": null,
                     "settings": {}
                 },
                 {

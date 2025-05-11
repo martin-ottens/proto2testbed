@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -75,7 +75,7 @@ class ProcmonApplication(BaseApplication):
     def get_runtime_upper_bound(self, runtime: int) -> int:
         return runtime + 2 * self.settings.interval
 
-    def start(self, runtime: int) -> bool:
+    def start(self, runtime: Optional[int]) -> bool:
         import psutil
 
         if self.settings is None:
@@ -222,13 +222,17 @@ class ProcmonApplication(BaseApplication):
                 if print_cant_keep_up:
                     self.interface.log(LogMessageLevel.WARNING, "Can't keep up with logging interval!")
                     print_cant_keep_up = False
-                time_left -= took
+                if runtime is not None:
+                    time_left -= took
             else:
-                sleep_for = min(time_left - took, self.settings.interval - took)
-                time.sleep(sleep_for)
-                time_left -= sleep_for
+                if runtime is not None:
+                    sleep_for = min(time_left - took, self.settings.interval - took)
+                    time.sleep(sleep_for)
+                    time_left -= sleep_for
+                else:
+                    time.sleep(self.settings.interval - took)
             
-            if time_left < self.settings.interval:
+            if runtime is not None and time_left < self.settings.interval:
                 break
             
         return tracking_error_flag == 0

@@ -34,7 +34,7 @@
                     "application": "iperf3-server",
                     "name": "a-iperf-server",
                     "delay": 0,
-                    "runtime": 100,
+                    "runtime": null,
                     "settings": {}
                 },
                 {
@@ -68,7 +68,7 @@
                     "application": "run-program",
                     "name": "add_delay",
                     "delay": 30,
-                    "runtime": 60,
+                    "runtime": null,
                     "settings": {
                         "command": "router/application.sh",
                         "ignore_timeout": true,

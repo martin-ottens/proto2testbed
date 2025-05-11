@@ -307,6 +307,9 @@ class Controller(Dismantable):
         max_value = 0
         for instance in TestbedSettingsWrapper.testbed_config.instances:
             for application in instance.applications:
+                if application.runtime is None:
+                    continue
+
                 this_value = application.delay + application.runtime
                 if this_value > max_value:
                     max_value = this_value

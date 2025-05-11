@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -86,37 +86,44 @@ class ApplicationController(Thread):
         
         self.barrier.wait()
 
-        print(f"{self.config.name} timeout: {self.app.get_runtime_upper_bound(self.config.runtime)}/{self.config.runtime}", flush=True)        
         time.sleep(self.config.delay)
         process.start()
-        process.join(self.app.get_runtime_upper_bound(self.config.runtime) + 10)
 
-        if process.is_alive():
-            message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
-                                        f"Application {self.config.name} still runs after timeout.")
-            self.mgmt_client.send_to_server(message)
-            try:
-                parent = psutil.Process(process.ident)
-                for child in parent.children(recursive=True):
-                    try: child.send_signal(signal.SIGTERM)
-                    except Exception as ex:
-                        message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
-                                                    f"Application {self.config.name}:\n Unable to kill childs: {ex}")
-                        self.mgmt_client.send_to_server(message)
-                        continue
-            except Exception as ex:
+        # If no runtime is specified, the Application is a daemon process. 
+        # It will remain running in backgroud, but the testbed execution is not delayed by this Application
+        if self.config.runtime is not None:
+            process.join(self.app.get_runtime_upper_bound(self.config.runtime) + 10)
+
+            if process.is_alive():
                 message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
-                                            f"Application {self.config.name}:\n Unable get childs: {ex}")
+                                            f"Application {self.config.name} still runs after timeout.")
                 self.mgmt_client.send_to_server(message)
-                pass
+                try:
+                    parent = psutil.Process(process.ident)
+                    for child in parent.children(recursive=True):
+                        try: child.send_signal(signal.SIGTERM)
+                        except Exception as ex:
+                            message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
+                                                        f"Application {self.config.name}:\n Unable to kill childs: {ex}")
+                            self.mgmt_client.send_to_server(message)
+                            continue
+                except Exception as ex:
+                    message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
+                                                f"Application {self.config.name}:\n Unable get childs: {ex}")
+                    self.mgmt_client.send_to_server(message)
+                    pass
 
-            process.terminate()
-            
-        process.join()
-        
+                process.terminate()
+
+            process.join()
+
         if not self.shared_state["error_flag"]:
-            message = DownstreamMassage(InstanceMessageType.MSG_SUCCESS, 
-                                        f"Application {self.config.name} finished")
+            if self.config.runtime is None:
+                message = DownstreamMassage(InstanceMessageType.MSG_SUCCESS, 
+                                            f"Application {self.config.name} started as daemon")
+            else:
+                message = DownstreamMassage(InstanceMessageType.MSG_SUCCESS, 
+                                            f"Application {self.config.name} finished")
             self.mgmt_client.send_to_server(message)
         else:
             message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 

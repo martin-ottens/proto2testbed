@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -95,7 +95,7 @@ class IperfClientApplication(BaseApplication):
         except Exception as ex:
             return False, f"Config validation failed: {ex}"
 
-    def start(self, runtime: int) -> bool:
+    def start(self, runtime: Optional[int]) -> bool:
         if self.settings is None:
             return False
         
@@ -126,8 +126,9 @@ class IperfClientApplication(BaseApplication):
                 raise Exception("TCP_NO_DELAY is used together with UDP option")
             command.append("--no-delay")
         
-        command.append("--time")
-        command.append(str(runtime))
+        if runtime is not None:
+            command.append("--time")
+            command.append(str(runtime))
 
         command.append("--interval")
         command.append(str(self.settings.report_interval))

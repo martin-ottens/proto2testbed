@@ -59,7 +59,7 @@
                     "application": "iperf3-server",
                     "name": "vma-iperf-server",
                     "delay": 0,
-                    "runtime": 100,
+                    "runtime": null,
                     "settings": {}
                 },
                 {

@@ -90,7 +90,7 @@ Array of Applications installed on the Instance. Leave empty when the Instance s
     "application": "type-of-application",
     "name": "name",
     "delay": 0,
-    "runtime": 30,
+    "runtime": 30, // or null for daemon Applications
     "dont_store": false,
     "settings": {
         // Application-specific settings
@@ -100,7 +100,7 @@ Array of Applications installed on the Instance. Leave empty when the Instance s
 - **`application`**: Type of the Application. First, Applications bundled in the Instance Manager are loaded. If the type is not found in these Applications, this value is interpreted as a path relative to the Testbed Package root, from there, the Instance Manager will attempt to dynamically load the Application. Have a look in the `applications/` directory of the repo to see what Applications are available bundled in the Instance Manager.
 - **`name`**: Self-selected name of the Application, used for logs and result data labeling. Should be unique for each Instance in a testbed.
 - **`delay`**: Delay in seconds for the start of Application after the Experiments are started on all Instances (defaults to *0* seconds)
-- **`runtime`**: Maximum runtime in seconds for the Application, after this time, the Application will be terminated. It is up to the Application, if this value is used or another runtime is defined (defaults to *30* seconds)
+- **`runtime`**: Maximum runtime in seconds for the Application, after this time, the Application will be terminated. It is up to the Application, if this value is used or another runtime is defined. If set to *null*, the Application is a daemon process that will run until testbed shutdown and will does not hold up the testbed execution (defaults to *30* seconds)
 - **`dont_store`**: Boolean value if the Application should be executed without pushing data to the InfluxDB (defaults to `false`)
 - **`load_from_instance`**: Load Application from an absolute path on the Instance's file system (cannot be used to export data, defaults to `false`)
 - **`settings`**: Application-specific configuration, this object is passed to the Application Type selected by `application`. See the documentation in each Application of in the `applications/` and `extra-applications/` directories for the specific settings.
