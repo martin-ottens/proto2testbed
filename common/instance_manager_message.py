@@ -74,7 +74,7 @@ class InstanceManagerDownstream(JSONSerializer):
 class InitializeMessageUpstream(JSONSerializer):
     status_name =  "initialize"
 
-    def __init__(self, script: Optional[str], environment: Optional[Dict[str, str]]):
+    def __init__(self, script: Optional[str], environment: Optional[Dict[str, str]], **kwargs):
         self.status = InitializeMessageUpstream.status_name
         self.script = script
         self.environment = environment
@@ -83,7 +83,7 @@ class InitializeMessageUpstream(JSONSerializer):
 class InstallApplicationsMessageUpstream(JSONSerializer):
     status_name = "install_apps"
 
-    def __init__(self, applications: Optional[List[ApplicationConfig]] = None) -> None:
+    def __init__(self, applications: Optional[List[ApplicationConfig]] = None, **kwargs) -> None:
         self.status = InstallApplicationsMessageUpstream.status_name
         self.applications = applications
 
@@ -95,7 +95,7 @@ class InstallApplicationsMessageUpstream(JSONSerializer):
             return obj
         
         obj.applications = []
-        for application in json["applications"]:
+        for application in json_dict["applications"]:
             obj.applications.append(ApplicationConfig(**application))
 
         return obj
@@ -104,14 +104,14 @@ class InstallApplicationsMessageUpstream(JSONSerializer):
 class RunApplicationsMessageUpstream(JSONSerializer):
     status_name = "run_apps"
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.status = RunApplicationsMessageUpstream.status_name
     
 
 class CopyFileMessageUpstream(JSONSerializer):
     status_name = "copy"
 
-    def __init__(self, source: str, target: str, source_renameto: Optional[str], proc_id: str):
+    def __init__(self, source: str, target: str, source_renameto: Optional[str], proc_id: str, **kwargs):
         self.status = CopyFileMessageUpstream.status_name
         self.source = source
         self.source_renameto = source_renameto
@@ -122,7 +122,7 @@ class CopyFileMessageUpstream(JSONSerializer):
 class FinishInstanceMessageUpstream(JSONSerializer):
     status_name = "finish"
 
-    def __init__(self, preserve_files: Optional[List[str]] = None, do_preserve: bool = True):
+    def __init__(self, preserve_files: Optional[List[str]] = None, do_preserve: bool = True, **kwargs):
         self.status = FinishInstanceMessageUpstream.status_name
         self.preserve_files = preserve_files
         self.do_preserve = do_preserve

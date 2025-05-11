@@ -37,7 +37,7 @@ from utils.networking import *
 from utils.continue_mode import *
 from management_server import ManagementServer
 from cli import CLI
-from state_manager import InstanceStateManager, AgentManagementState, WaitResult, InstanceState
+from state_manager import InstanceStateManager, AgentManagementState, WaitResult
 from common.instance_manager_message import *
 from constants import SUPPORTED_INSTANCE_NUMBER
 

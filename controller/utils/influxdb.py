@@ -24,11 +24,9 @@ import hashlib
 
 from typing import Optional, Any
 from loguru import logger
-from jsonschema import validate
 from influxdb import InfluxDBClient
 
 from utils.interfaces import Dismantable
-from utils.system_commands import get_asset_relative_to
 from utils.settings import CommonSettings
 
 

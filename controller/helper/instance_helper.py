@@ -30,7 +30,7 @@ from typing import Optional
 from dataclasses import dataclass
 
 from utils.interfaces import Dismantable
-from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_relative_to, get_DNS_resolver
+from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_relative_to, get_dns_resolver
 from state_manager import InstanceState
 from utils.settings import CommonSettings
 from utils.networking import InstanceInterface
@@ -150,7 +150,7 @@ class InstanceHelper(Dismantable):
             user_data = j2_env.get_template("user-data.j2").render(
                 hostname=instance.name,
                 fqdn=fqdn,
-                dns_primary=get_DNS_resolver()
+                dns_primary=get_dns_resolver()
             )
             with open(init_files / "user-data", mode="w", encoding="utf-8") as handle:
                 handle.write(user_data)

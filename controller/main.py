@@ -29,7 +29,7 @@ from loguru import logger
 from pathlib import Path
 from typing import Dict, Optional
 
-from controller.utils.settings import DefaultConfigs
+from utils.settings import DefaultConfigs
 from executors.base_executor import BaseExecutor
 
 
@@ -98,7 +98,7 @@ def main():
     CommonSettings.experiment = args.experiment
     if CommonSettings.experiment is None and "EXPERIMENT_TAG" in os.environ:
         CommonSettings.experiment = os.environ.get("EXPERIMENT_TAG")
-    else:
+    elif CommonSettings.experiment is None:
         CommonSettings.experiment = "".join(random.choices(string.ascii_letters + string.digits, k=8))
         CommonSettings.experiment_generated = True
 

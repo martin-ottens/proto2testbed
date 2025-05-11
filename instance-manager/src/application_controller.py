@@ -27,10 +27,10 @@ from typing import cast
 
 from common.application_configs import ApplicationConfig
 from common.instance_manager_message import InstanceMessageType
-from controller.applications.generic_application_interface import GenericApplicationInterface
 from management_client import ManagementClient, DownstreamMassage
 from application_interface import ApplicationInterface
 from applications.base_application import BaseApplication
+from applications.generic_application_interface import GenericApplicationInterface
 from global_state import GlobalState
 
 

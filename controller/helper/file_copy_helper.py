@@ -26,7 +26,7 @@ from typing import Tuple, Dict
 from loguru import logger
 
 from common.instance_manager_message import CopyFileMessageUpstream
-from utils.system_commands import copy_file_or_directory, remove_file_or_direcory, rename_file_or_direcory
+from utils.system_commands import copy_file_or_directory, remove_file_or_directory, rename_file_or_directory
 
 
 class FileCopyAction:
@@ -110,7 +110,7 @@ class FileCopyHelper:
                 logger.error(f"Error while copying '{source}' to '{action.destination}'")
                 success = False
             
-            if not remove_file_or_direcory(source):
+            if not remove_file_or_directory(source):
                 logger.error(f"Unable to clean up '{source}' after successful copy!")
                 success = False
 
@@ -118,7 +118,7 @@ class FileCopyHelper:
                 rename_path = action.destination / Path(os.path.basename(source))
                 rename_to = action.destination / Path(os.path.basename(action.source))
 
-                if not rename_file_or_direcory(rename_path, str(rename_to)):
+                if not rename_file_or_directory(rename_path, str(rename_to)):
                     logger.error(f"Unable to rename '{rename_path}' to '{rename_to}' after successful copy!")
                     success = False
 
