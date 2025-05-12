@@ -177,10 +177,13 @@ class Controller(Dismantable):
                 logger.opt(exception=ex).critical(f"Unable to setup additional network {network.name}")
                 return False
         
-        if not self.integration_helper.handle_stage_start(InvokeIntegrationAfter.NETWORK):
+        start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.NETWORK)
+        if start_status is None:
+            logger.debug(f"No integration scheduled for start at stage {InvokeIntegrationAfter.NETWORK}")
+        elif start_status is False:
             logger.critical("Critical error during integration start!")
             return False
-            
+
         # Setup Instances
         wait_for_interfaces: List[str] = []
         diskimage_basepath = Path(TestbedSettingsWrapper.testbed_config.settings.diskimage_basepath)
@@ -421,7 +424,10 @@ class Controller(Dismantable):
             return False
         self.state_manager.enable_file_preservation(TestbedSettingsWrapper.cli_parameters.preserve)
 
-        if not self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP):
+        start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP)
+        if start_status is None:
+            logger.debug(f"No integration scheduled for start at stage {InvokeIntegrationAfter.STARTUP}")
+        elif start_status is False:
             logger.critical("Critical error during integration start!")
             return False
 
@@ -488,7 +494,10 @@ class Controller(Dismantable):
         
         logger.success("All Instances reported up & ready!")
 
-        if not self.integration_helper.handle_stage_start(InvokeIntegrationAfter.INIT):
+        start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.INIT)
+        if start_status is None:
+            logger.debug(f"No integration scheduled for start at stage {InvokeIntegrationAfter.INIT}")
+        elif start_status is False:
             logger.critical("Critical error during integration start!")
             return False
 

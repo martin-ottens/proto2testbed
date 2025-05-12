@@ -73,7 +73,7 @@ class Integration:
 
 
 class AttachedNetwork:
-    def __init__(self, name: str, mac: Optional[str], netmodel: str = "virtio") -> None:
+    def __init__(self, name: str, mac: Optional[str] = None, netmodel: str = "virtio") -> None:
         self.name: str = name
         self.mac: Optional[str] = mac
         self.netmodel: str = netmodel
