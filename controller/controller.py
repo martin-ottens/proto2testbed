@@ -254,13 +254,13 @@ class Controller(Dismantable):
                 return False
 
         # Wait for tap devices to become ready
-        wait_until = time.time() + 60
+        wait_until = time.time() + TestbedSettingsWrapper.testbed_config.settings.startup_init_timeout
         while True:
             if NetworkBridge.check_interfaces_available(wait_for_interfaces):
                 break
 
             if time.time() > wait_until:
-                logger.critical("Interfaces are not ready after 20 seconds!")
+                logger.critical(f"Interfaces are not ready after {TestbedSettingsWrapper.testbed_config.settings.startup_init_timeout} seconds!")
                 return False
 
             time.sleep(1)
@@ -530,14 +530,17 @@ class Controller(Dismantable):
             self.send_finish_message()
             return False
         else:
-            self.wait_for_to_become(experiment_timeout, 'Experiment', 
-                                    AgentManagementState.FINISHED, 
-                                    self.pause_after == PauseAfterSteps.EXPERIMENT, True)
-            logger.success("All Instances reported finished applications!")
-            
-        if self.pause_after == PauseAfterSteps.EXPERIMENT:
-            self.start_interaction(PauseAfterSteps.EXPERIMENT)
-        
-        self.send_finish_message()
+            succeeded = False
 
-        return True # Dismantling handled by main
+            if self.wait_for_to_become(experiment_timeout, 'Experiment', 
+                                    AgentManagementState.FINISHED, 
+                                    self.pause_after == PauseAfterSteps.EXPERIMENT, False):
+                succeeded = True
+                logger.success("All Instances reported finished applications!")
+            
+            if self.pause_after == PauseAfterSteps.EXPERIMENT:
+                self.start_interaction(PauseAfterSteps.EXPERIMENT)
+            
+            self.send_finish_message()
+
+            return succeeded # Dismantling handled by main
