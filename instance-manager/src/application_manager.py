@@ -41,7 +41,6 @@ class ApplicationManager:
             Path(GlobalState.testbed_package_path),
             ["set_and_validate_config", "start"])
         self.app_exec: List[ApplicationController] = None
-        self.barrier = None
 
         try:
             self.loader.read_packaged_apps()
@@ -63,8 +62,6 @@ class ApplicationManager:
 
         if apps is None:
             return True
-        
-        self.barrier = Barrier(len(apps) + 1)
         
         for config in apps:
             app_cls, message = self.loader.load_app(config.application, True, config.load_from_instance)
@@ -111,9 +108,7 @@ class ApplicationManager:
                 self._destory_apps()
                 return False
             
-            app_controller = ApplicationController(app_instance, config, 
-                                                   self.manager, self.barrier, 
-                                                   self.instance_name)
+            app_controller = ApplicationController(app_instance, config, self.manager, self.instance_name)
             self.app_exec.append(app_controller)
         
         self.main.message_to_controller(InstanceMessageType.MSG_DEBUG, 
@@ -122,7 +117,7 @@ class ApplicationManager:
         return True
         
 
-    def run_apps(self) -> bool:
+    def run_apps(self, t0: float) -> bool:
         if self.app_exec is None:
             print(f"No application are installed, nothing to execute.", file=sys.stderr, flush=True)
             self.main.message_to_controller(InstanceMessageType.APPS_DONE)
@@ -132,10 +127,9 @@ class ApplicationManager:
 
         threads = []
         for controller in self.app_exec:
+            controller.update_t0(t0)
             controller.start()
             threads.append(controller)
-
-        self.barrier.wait()
 
         failed = 0
         for t in threads:

@@ -104,8 +104,9 @@ class InstallApplicationsMessageUpstream(JSONSerializer):
 class RunApplicationsMessageUpstream(JSONSerializer):
     status_name = "run_apps"
 
-    def __init__(self, **kwargs):
+    def __init__(self, t0: float, **kwargs):
         self.status = RunApplicationsMessageUpstream.status_name
+        self.t0 = t0
     
 
 class CopyFileMessageUpstream(JSONSerializer):

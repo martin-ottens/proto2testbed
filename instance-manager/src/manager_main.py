@@ -21,6 +21,7 @@ import subprocess
 import os
 import shutil
 import sys
+import time
 
 from pathlib import Path
 from enum import Enum, auto
@@ -93,8 +94,9 @@ class InstanceManager:
             if proc is not None and proc.returncode != 0:
                 self.message_to_controller(InstanceMessageType.FAILED, 
                                                         f"Mounting of testbed package failed with code ({proc.returncode})\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {proc.stderr.decode('utf-8')}")
-                print(f"Testbed Package mounted to {TESTBED_PACKAGE_P9_DEV}", file=sys.stderr, flush=True)
                 return False
+            
+            print(f"Testbed Package mounted to {TESTBED_PACKAGE_P9_DEV}", file=sys.stderr, flush=True)
 
         # 3. Execute the setup script from mounted testbed package
         if init_message.script is not None:
@@ -139,15 +141,39 @@ class InstanceManager:
         self.application_manager = ApplicationManager(self, self.manager, self.instance_name)
 
         return self.application_manager.install_apps(applications.applications)
+    
+    def sync_ptp_clock(self) -> bool:
+        proc = None
+        try:
+            proc = subprocess.run(["chronyc", "makestep"])
+        except Exception as ex:
+            self.message_to_controller(InstanceMessageType.FAILED, f"Unable to sync ptp clock: {ex}")
+            return False
 
-    def run_apps(self) -> bool:
+        if proc is not None and proc.returncode != 0:
+            self.message_to_controller(InstanceMessageType.FAILED, 
+                                       f"Syncing of ptp clock failed with exit code ({proc.returncode})\nSTDERR: {proc.stderr.decode('utf-8')}")
+            print(f"Unable sync ptp clock': {proc.stderr.decode('utf-8')}", file=sys.stderr, flush=True)
+            return False
+        else:
+            return True
+
+    def run_apps(self, data) -> bool:
+        config = RunApplicationsMessageUpstream(**data)
+
         if self.application_manager is None:
             print("Unable to run experiment: No application manager is installed")
             self.message_to_controller(InstanceMessageType.MSG_ERROR, 
                                    f"Can' run apps: No applications manager is configured.")
             return False
         
-        return self.application_manager.run_apps()
+        if config.t0 < time.time():
+            print("Clock of this instance is running behind!")
+            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
+                                   f"Unable to start apps at t0: Clock is running behind.")
+            return False
+        
+        return self.application_manager.run_apps(config.t0)
 
     def handle_finish(self, data) -> False:
         print(f"Starting File Preservation", file=sys.stderr, flush=True)
@@ -279,10 +305,13 @@ class InstanceManager:
                         self.message_to_controller(InstanceMessageType.MSG_ERROR, "Instance has not yet installed apps.")
                     else:
                         self.state = IMState.EXPERIMENT_RUNNING
-                        if self.run_apps():
-                            self.state = IMState.APPS_READY
-                        else:
+                        if not self.sync_ptp_clock():
                             self.state = IMState.FAILED
+                        else:
+                            if self.run_apps(data):
+                                self.state = IMState.APPS_READY
+                            else:
+                                self.state = IMState.FAILED
                 case CopyFileMessageUpstream.status_name:
                     if not self.handle_file_copy(data):
                         self.state = IMState.FAILED

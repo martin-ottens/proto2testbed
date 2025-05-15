@@ -13,7 +13,8 @@ all: control instance-manager.service postinst $(SOURCES)
 	mkdir -p $(BASENAME)/usr/lib/instance-manager
 	mkdir -p $(BASENAME)/lib/systemd/system
 	mkdir -p $(BASENAME)/usr/local/bin
-	cp control postinst $(BASENAME)/DEBIAN/.
+	mkdir -p $(BASENAME)/etc/chrony
+	cp control postinst preinst $(BASENAME)/DEBIAN/.
 	cp instance-manager.service $(BASENAME)/lib/systemd/system/.
 	cp -r src/*.py $(BASENAME)/usr/lib/instance-manager/.
 	cp -Lr src/common $(BASENAME)/usr/lib/instance-manager/.
@@ -21,6 +22,7 @@ all: control instance-manager.service postinst $(SOURCES)
 	rm -rf $(BASENAME)/usr/lib/instance-manager/common/__pycache__
 	rm -rf $(BASENAME)/usr/lib/instance-manager/applications/__pycache__
 	cp -p im $(BASENAME)/usr/local/bin/.
+	cp chrony.conf $(BASENAME)/etc/chrony/chrony.conf
 	dpkg-deb --build $(BASENAME)
 
 clean:

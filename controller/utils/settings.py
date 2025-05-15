@@ -38,6 +38,7 @@ class TestbedSettings:
     startup_init_timeout: int = 30
     experiment_timeout: int = -1
     file_preservation_timeout: int = 30
+    appstart_timesync_offset: int = 1
 
 
 @dataclass

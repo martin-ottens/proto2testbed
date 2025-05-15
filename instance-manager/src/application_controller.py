@@ -20,6 +20,7 @@ import time
 import signal
 import psutil
 import traceback
+import time
 
 from multiprocessing import Process, Manager
 from threading import Event, Thread, Barrier
@@ -37,20 +38,20 @@ from global_state import GlobalState
 class ApplicationController(Thread):
             
     def __init__(self, app: BaseApplication, config: ApplicationConfig, 
-                 client: ManagementClient, start_barrier: Barrier, 
-                 instance_name: str) -> None:
+                 client: ManagementClient, instance_name: str) -> None:
         super(ApplicationController, self).__init__()
         self.config: ApplicationConfig = config
         self.app: BaseApplication = app
         self.mgmt_client: ManagementClient = client
         self.settings = config.settings
-        self.barrier: Barrier = start_barrier
         self.is_terminated = Event()
         self.manager = Manager()
         self.shared_state = self.manager.dict()
         self.instance_name = instance_name
         self.shared_state["error_flag"] = False
-        self.shared_state["error_string"] = None
+        self.shared_state["error_string"] = None 
+        self.t0: float
+        self.daemon = True
 
     def __del__(self) -> None:
         del self.app
@@ -83,12 +84,14 @@ class ApplicationController(Thread):
             self.shared_state["error_flag"] = True
             self.shared_state["error_string"] = str(ex)
 
+    def update_t0(self, t0: float) -> None:
+        self.t0 = t0
+
     def run(self):
         process = Process(target=self.__fork_run, args=())
-        
-        self.barrier.wait()
-
-        time.sleep(self.config.delay)
+        # Python >= 3.11 used nanosleep, which is quite accurate
+        wait_for = (self.t0 - time.time()) + self.config.delay
+        time.sleep(wait_for)
         process.start()
 
         # If no runtime is specified, the Application is a daemon process. 

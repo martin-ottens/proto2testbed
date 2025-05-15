@@ -159,8 +159,11 @@ class InstanceState:
         
         if self.vsock_cid is not None:
             return self.vsock_cid
-        
+
         potential_cid = os.getpid() + self.numeric_id
+        if os.getpid() < 100:
+            logger.trace("Probably running inside a container, using non-PID based initital VSOCK CID")
+            potential_cid = random.randint(3, 0xFFFFFFFF)
 
         while True:
             s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)

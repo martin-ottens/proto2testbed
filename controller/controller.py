@@ -506,8 +506,10 @@ class Controller(Dismantable):
                 self.send_finish_message()
                 return True
         
-        logger.info("Starting applications on Instances.")
-        message = RunApplicationsMessageUpstream().to_json().encode("utf-8")
+        t0 = time.time() + TestbedSettingsWrapper.testbed_config.settings.appstart_timesync_offset
+
+        logger.info(f"Starting applications on Instances (t0={t0}).")
+        message = RunApplicationsMessageUpstream(t0).to_json().encode("utf-8")
         for instance in self.state_manager.get_all_instances():
             instance.send_message(message)
             instance.set_state(AgentManagementState.IN_EXPERIMENT)
