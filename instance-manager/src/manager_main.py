@@ -29,7 +29,7 @@ from typing import Optional
 
 from preserve_handler import PreserveHandler
 from management_daemon import IMDaemonServer
-from management_client import ManagementClient, DownstreamMassage, get_hostname
+from management_client import ManagementClient, DownstreamMessage, get_hostname
 from application_manager import ApplicationManager
 from global_state import GlobalState
 
@@ -65,7 +65,7 @@ class InstanceManager:
         self.application_manager: Optional[ApplicationManager] = None
 
     def message_to_controller(self, message_type: InstanceMessageType, payload = None):
-        self.manager.send_to_server(DownstreamMassage(message_type, payload))
+        self.manager.send_to_server(DownstreamMessage(message_type, payload))
 
     def handle_initialize(self, data) -> bool:
         # 1. Check initialization data from management server
@@ -261,7 +261,7 @@ class InstanceManager:
         self.message_to_controller(InstanceMessageType.MSG_DEBUG, 
                                    f"Copied from to '{source}' to '{target}' on Instance.")
         print(f"Copied from to '{source}' to '{target}'", file=sys.stderr, flush=True)
-        message = DownstreamMassage(InstanceMessageType.COPIED_FILE, copy_instructions.proc_id)
+        message = DownstreamMessage(InstanceMessageType.COPIED_FILE, copy_instructions.proc_id)
         self.manager.send_to_server(message)
         return True
 

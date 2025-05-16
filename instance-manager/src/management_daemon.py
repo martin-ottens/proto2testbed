@@ -25,7 +25,7 @@ from threading import Thread, Event, Lock
 from typing import List, Optional
 
 from preserve_handler import PreserveHandler
-from management_client import ManagementClient, DownstreamMassage
+from management_client import ManagementClient, DownstreamMessage
 from common.instance_manager_message import InstanceMessageType
 from global_state import GlobalState
 
@@ -94,7 +94,7 @@ class IMClientThread(Thread):
         if not isinstance(data["message"], str):
             return self._respond_to_client(False, f"Field 'message' is not a string")
         
-        message: DownstreamMassage = DownstreamMassage(level, data["message"])
+        message: DownstreamMessage = DownstreamMessage(level, data["message"])
         self.manager.send_to_server(message)
         return self._respond_to_client(True)
     
@@ -127,7 +127,7 @@ class IMClientThread(Thread):
         if "restart" not in data:
             return self._respond_to_client(False, "Field 'restart' not in message")
         
-        message: DownstreamMassage = DownstreamMassage(InstanceMessageType.SHUTDOWN, data["restart"])
+        message: DownstreamMessage = DownstreamMessage(InstanceMessageType.SHUTDOWN, data["restart"])
         self.manager.send_to_server(message)
         return self._respond_to_client(True)
 
@@ -157,7 +157,7 @@ class IMClientThread(Thread):
 
         if connected_app is not None and status is False:
             print(f"Daemon Thread: Client {self.id} ({connected_app}) got error during command '{json_data['type']}'", file=sys.stderr, flush=True)
-            message: DownstreamMassage = DownstreamMassage(InstanceMessageType.MSG_ERROR, f"App {connected_app}: Command '{json_data['type']}' failed.")
+            message: DownstreamMessage = DownstreamMessage(InstanceMessageType.MSG_ERROR, f"App {connected_app}: Command '{json_data['type']}' failed.")
             self.manager.send_to_server(message)
             return True # Keep connection alive
         else:

@@ -24,7 +24,7 @@ import sys
 from typing import List
 from pathlib import Path
 
-from management_client import ManagementClient, DownstreamMassage
+from management_client import ManagementClient, DownstreamMessage
 from common.instance_manager_message import InstanceMessageType
 from global_state import GlobalState
 
@@ -53,12 +53,12 @@ class PreserveHandler:
         try:
             proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", self.exchange_p9_dev, self.exchange_mount])
         except Exception as ex:
-            message = DownstreamMassage(InstanceMessageType.FAILED, f"Unable to mount exchange directory!")
+            message = DownstreamMessage(InstanceMessageType.FAILED, f"Unable to mount exchange directory!")
             self.manager.send_to_server(message)
             raise Exception("Unable to mount exchange directory!") from ex
         
         if proc is not None and proc.returncode != 0:
-            message = DownstreamMassage(InstanceMessageType.FAILED, 
+            message = DownstreamMessage(InstanceMessageType.FAILED, 
                                         f"Mounting of exchange directory failed with code ({proc.returncode})\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {proc.stderr.decode('utf-8')}")
             self.manager.send_to_server(message)
             raise Exception(f"Unable to mount exchange directory: {proc.stderr.decode('utf-8')}")
@@ -75,7 +75,7 @@ class PreserveHandler:
                 path = Path(preserve_file)
                 if not path.is_absolute():
                     print(f"Preservation of '{preserve_file}' failed: No absolute path.", file=sys.stderr, flush=True)
-                    message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
+                    message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
                                                 f"Unable to preserve '{preserve_file}': Not an absolute path")
                     self.manager.send_to_server(message)
                     continue
@@ -85,7 +85,7 @@ class PreserveHandler:
 
                 if not path.exists():
                     print(f"Preservation of '{preserve_file}' failed: Path does not exists.", file=sys.stderr, flush=True)
-                    message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
+                    message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
                                                 f"Unable to preserve '{preserve_file}': Path does not exists")
                     self.manager.send_to_server(message)
                     continue
@@ -98,7 +98,7 @@ class PreserveHandler:
                     shutil.copy2(path, destination_path)
             except Exception as ex:
                 print(f"Preservation of '{preserve_file}' failed: Unhandled error: {ex}", file=sys.stderr, flush=True)
-                message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
+                message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
                                                 f"Unable to preserve '{preserve_file}': Unhandled error: {ex}")
                 self.manager.send_to_server(message)
                 print(f"Error during preservation of '{preserve_file}': {ex}", flush=True, file=sys.stderr)

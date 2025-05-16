@@ -43,7 +43,7 @@ def get_hostname() -> str:
     return socket.getfqdn()
 
 
-class DownstreamMassage:
+class DownstreamMessage:
     def __init__(self, status: InstanceMessageType, message = None):
         self.message = InstanceManagerDownstream(get_hostname(), str(status), message)
     
@@ -217,11 +217,11 @@ class ManagementClient():
             for k, v in tags.items():
                 data[0]["tags"][k] = v
 
-        message: DownstreamMassage = DownstreamMassage(InstanceMessageType.DATA_POINT, data)
+        message: DownstreamMessage = DownstreamMessage(InstanceMessageType.DATA_POINT, data)
         self.send_to_server(message)
 
 
-    def send_to_server(self, downstream_message: DownstreamMassage):
+    def send_to_server(self, downstream_message: DownstreamMessage):
         try:
             with self.sendlock:
                 self.connection.write(downstream_message.get_json_bytes())

@@ -1,6 +1,12 @@
 stages:
   - build
 
+.only-main: &only-main
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+      when: always
+    - when: never
+
 build-manager-package:
   stage: build
   needs: []
@@ -19,8 +25,10 @@ build-manager-package:
     name: "Instance Manager .deb Package"
     paths:
       - ./instance-manager/instance-manager.deb
+  rules:
 
 .build-docker: &build-docker
+  <<: *only-main
   stage: build
   image:
     name: gcr.io/kaniko-project/executor:debug

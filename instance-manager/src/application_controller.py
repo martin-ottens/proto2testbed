@@ -28,7 +28,7 @@ from typing import cast
 
 from common.application_configs import ApplicationConfig
 from common.instance_manager_message import InstanceMessageType
-from management_client import ManagementClient, DownstreamMassage
+from management_client import ManagementClient, DownstreamMessage
 from application_interface import ApplicationInterface
 from applications.base_application import BaseApplication
 from applications.generic_application_interface import GenericApplicationInterface
@@ -100,7 +100,7 @@ class ApplicationController(Thread):
             process.join(self.app.get_runtime_upper_bound(self.config.runtime) + 10)
 
             if process.is_alive():
-                message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
+                message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
                                             f"Application {self.config.name} still runs after timeout.")
                 self.mgmt_client.send_to_server(message)
                 try:
@@ -108,12 +108,12 @@ class ApplicationController(Thread):
                     for child in parent.children(recursive=True):
                         try: child.send_signal(signal.SIGTERM)
                         except Exception as ex:
-                            message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
+                            message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
                                                         f"Application {self.config.name}:\n Unable to kill children: {ex}")
                             self.mgmt_client.send_to_server(message)
                             continue
                 except Exception as ex:
-                    message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
+                    message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
                                                 f"Application {self.config.name}:\n Unable get children: {ex}")
                     self.mgmt_client.send_to_server(message)
                     pass
@@ -124,14 +124,14 @@ class ApplicationController(Thread):
 
         if not self.shared_state["error_flag"]:
             if self.config.runtime is None:
-                message = DownstreamMassage(InstanceMessageType.MSG_SUCCESS, 
+                message = DownstreamMessage(InstanceMessageType.MSG_SUCCESS, 
                                             f"Application {self.config.name} started as daemon")
             else:
-                message = DownstreamMassage(InstanceMessageType.MSG_SUCCESS, 
+                message = DownstreamMessage(InstanceMessageType.MSG_SUCCESS, 
                                             f"Application {self.config.name} finished")
             self.mgmt_client.send_to_server(message)
         else:
-            message = DownstreamMassage(InstanceMessageType.MSG_ERROR, 
+            message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
                                         f"Application {self.config.name} reported error: \n{self.shared_state['error_string']}")
             self.mgmt_client.send_to_server(message)
         
