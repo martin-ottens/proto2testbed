@@ -169,5 +169,3 @@ class ApplicationManager:
 
             value.start()
             self.running.append(value)
-
-

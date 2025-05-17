@@ -88,6 +88,7 @@ class Controller(Dismantable):
                                                                 TestbedSettingsWrapper.cli_parameters.skip_substitution)
             self.app_dependencies = AppDependencyHelper(TestbedSettingsWrapper.testbed_config)
             self.app_dependencies.compile_dependency_list()
+            self.state_manager.set_app_dependecy_helper(self.app_dependencies)
             self.integration_helper = IntegrationHelper(TestbedSettingsWrapper.cli_parameters.config,
                                                         str(CommonSettings.app_base_path))
         except Exception as ex:
@@ -311,19 +312,6 @@ class Controller(Dismantable):
             return False
 
         return True
-        
-    def get_longest_application_duration(self) -> int:
-        max_value = 0
-        for instance in TestbedSettingsWrapper.testbed_config.instances:
-            for application in instance.applications:
-                if application.runtime is None:
-                    continue
-
-                this_value = application.delay + application.runtime
-                if this_value > max_value:
-                    max_value = this_value
-
-        return max_value
     
     def send_finish_message(self):
         logger.info("Sending finish instructions to Instances")
@@ -524,12 +512,12 @@ class Controller(Dismantable):
 
         # Calculate by longest application
         if experiment_timeout == -1:
-            experiment_timeout = self.get_longest_application_duration() + 10
+            experiment_timeout = self.app_dependencies.get_maximum_runtime()
             if experiment_timeout != 0:
                 experiment_timeout *= 2
     
         if experiment_timeout == 0:
-            logger.error("Maximum experiment duration could not be calculated -> No applications installed!")
+            logger.error("Maximum experiment duration could not be calculated -> No Applications or just daemons installed!")
             if self.pause_after == PauseAfterSteps.EXPERIMENT:
                 self.start_interaction(PauseAfterSteps.EXPERIMENT)
             

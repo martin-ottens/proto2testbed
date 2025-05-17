@@ -29,6 +29,7 @@ from pathlib import Path
 
 from utils.interfaces import Dismantable
 from common.instance_manager_message import *
+from common.application_configs import AppStartStatus
 from utils.influxdb import InfluxDBAdapter
 
 import state_manager
@@ -130,6 +131,14 @@ class ManagementClientConnection(threading.Thread):
             case InstanceMessageType.APPS_DONE:
                 self.client.set_state(AgentManagementState.FINISHED)
                 logger.info(f"Management: Client {self.client.name} completed its applications.")
+                return True
+            
+            case InstanceMessageType.APP_FINISHED_SIGNAL | InstanceMessageType.APP_STARTED_SIGNAL:
+                state = AppStartStatus.FINISH if message_obj.type == InstanceMessageType.APP_FINISHED_SIGNAL else AppStartStatus.START
+                app = message_obj.payload
+                logger.debug(f"Management: Client {self.client.name} reported Application '{app}' is now {state}.")
+                self.manager.report_app_state_change(self.client.name, app, state)
+                return True
 
             case InstanceMessageType.FINISHED:
                 self.client.set_state(AgentManagementState.FILES_PRESERVED)

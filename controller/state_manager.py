@@ -33,10 +33,11 @@ from threading import Lock, Semaphore, Event
 
 from utils.system_commands import invoke_subprocess, set_owner
 from helper.file_copy_helper import FileCopyHelper
+from helper.app_dependency_helper import AppDependencyHelper
 from utils.networking import InstanceInterface
 from helper.state_file_helper import InstanceStateFile
-from common.application_configs import ApplicationConfig
-from common.instance_manager_message import UpstreamMessage
+from common.application_configs import ApplicationConfig, AppStartStatus
+from common.instance_manager_message import UpstreamMessage, ApplicationStatusMessageUpstream
 from utils.interfaces import Dismantable
 from common.interfaces import DataclassJSONEncoder
 from utils.settings import CommonSettings
@@ -328,7 +329,7 @@ class InstanceState:
 
 
 class InstanceStateManager(Dismantable):
-    def __init__(self, enable_vsock: bool = False):
+    def __init__(self, enable_vsock: bool = False) -> None:
         self.map: dict[str, InstanceState] = {}
         self.state_change_lock: Lock = Lock()
         self.file_preservation: Optional[Path] = None
@@ -341,6 +342,10 @@ class InstanceStateManager(Dismantable):
         self.external_interrupt_signal.clear()
         self.instance_counter: int = 0
         self.enable_vsock = enable_vsock
+        self.app_dependecy_helper: Optional[AppDependencyHelper] = None
+
+    def set_app_dependecy_helper(self, helper: AppDependencyHelper) -> None:
+        self.app_dependecy_helper = helper
 
     def enable_file_preservation(self, preservation_path: Optional[Path]):
         self.file_preservation = preservation_path
@@ -378,6 +383,20 @@ class InstanceStateManager(Dismantable):
             return
         self.map.pop(name).disconnect()
 
+    def report_app_state_change(self, reporting_instance: str, 
+                                reporting_app: str, state: AppStartStatus) -> None:
+        if self.app_dependecy_helper is None:
+            raise Exception("AppDependencyHelper was not set!")
+        
+        for fulfilled_dependency in self.app_dependecy_helper.get_next_applications(reporting_instance, reporting_app, state):
+            if fulfilled_dependency not in self.map.keys():
+                logger.error(f"Unable to invoke deferred Application {fulfilled_dependency.application.name}: Instance {fulfilled_dependency.instance} not found!")
+                continue
+
+            instance = self.map[fulfilled_dependency.instance]
+            message = ApplicationStatusMessageUpstream(fulfilled_dependency.application.name, state)
+            instance.send_message(message)
+
     def remove_all(self):
         if self.state_change_semaphore is not None and len(self.map) != 0:
             self.external_interrupt_signal.set()
@@ -390,7 +409,7 @@ class InstanceStateManager(Dismantable):
         self.map.clear()
 
     def get_instance(self, name: str) -> Optional[InstanceState]:
-        if name not in self.map:
+        if name not in self.map.keys():
             return None
         
         return self.map[name]

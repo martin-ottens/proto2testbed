@@ -72,6 +72,9 @@ class Integration:
         self.wait_after_invoke = wait_after_invoke
         self.settings: IntegrationSettings = settings
 
+    def __str__(self) -> str:
+        return f"{self.name} ({self.type})"
+
 
 class AttachedNetwork:
     def __init__(self, name: str, mac: Optional[str] = None, netmodel: str = "virtio") -> None:
@@ -116,6 +119,9 @@ class TestbedInstance:
 
         for application in applications:
             self.applications.append(ApplicationConfig(**application))
+    
+    def __str__(self) -> str:
+        return self.name
 
 
 class TestbedConfig:

@@ -71,3 +71,6 @@ class ApplicationConfig(JSONMessage):
                 self.depends.append(DependentAppStartConfig(**start_config))
         elif isinstance(depends, dict):
             self.depends.append(DependentAppStartConfig(**depends))
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.application})"
