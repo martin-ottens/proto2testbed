@@ -119,7 +119,7 @@ class ApplicationManager:
             
             app_controller = ApplicationController(app_instance, config, self.manager, self.instance_name)
 
-            if config.depends is None:
+            if config.depends is None or len(config.depends) == 0:
                 self.app_exec_init.append(app_controller)
             else:
                 self.app_exec_deferred[config.name] = app_controller

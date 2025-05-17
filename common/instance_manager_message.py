@@ -19,8 +19,8 @@
 from enum import Enum
 from typing import Dict, List, Any, Optional
 
-from common.application_configs import ApplicationConfig
-from common.interfaces import JSONMessage, JSONSerializer
+from common.application_configs import ApplicationConfig, AppStartStatus
+from common.interfaces import JSONMessage
 
 
 class InstanceMessageType(Enum):
@@ -35,6 +35,8 @@ class InstanceMessageType(Enum):
     FAILED = "failed"
     APPS_INSTALLED = "apps_installed"
     APPS_FAILED = "apps_failed"
+    APP_STARTED_SIGNAL = "app_started"
+    APP_FINISHED_SIGNAL = "app_finished"
     APPS_DONE = "apps_done"
     FINISHED = "finished"
     COPIED_FILE = "copied_file"
@@ -53,70 +55,53 @@ class InstanceMessageType(Enum):
 # Downstream: Instance -> Controller
 # Upstream:   Controller -> Instance
 
-class InstanceManagerDownstream(JSONSerializer):
-    def __init__(self, name: str, status: str, message: Any = None):
+class InstanceManagerMessageDownstream(JSONMessage):
+    def __init__(self, name: str, status: InstanceMessageType, 
+                 payload: Any = None) -> None:
         self.name = name
         self.status = status
-        self.message = message
-    
-    def get_status(self) -> InstanceMessageType:
-        return InstanceMessageType.from_str(self.status)
+        self.payload = payload
 
 
-class InitializeMessageUpstream(JSONMessage):
-    status_name =  "initialize"
+class UpstreamMessage(JSONMessage):
+    pass
 
-    def __init__(self, script: Optional[str], environment: Optional[Dict[str, str]], **kwargs):
-        self.status = InitializeMessageUpstream.status_name
+
+class InitializeMessageUpstream(UpstreamMessage):
+    def __init__(self, script: Optional[str], 
+                 environment: Optional[Dict[str, str]]) -> None:
         self.script = script
         self.environment = environment
 
 
-class InstallApplicationsMessageUpstream(JSONMessage):
-    status_name = "install_apps"
-
-    def __init__(self, applications: Optional[List[ApplicationConfig]] = None, **kwargs) -> None:
-        self.status = InstallApplicationsMessageUpstream.status_name
+class InstallApplicationsMessageUpstream(UpstreamMessage):
+    def __init__(self, applications: Optional[List[ApplicationConfig]] = None) -> None:
         self.applications = applications
 
-    @staticmethod
-    def from_json(json_dict):
-        obj = InstallApplicationsMessageUpstream(**json_dict)
 
-        if obj.applications is None:
-            return obj
-        
-        obj.applications = []
-        for application in json_dict["applications"]:
-            obj.applications.append(ApplicationConfig(**application))
-
-        return obj
-
-
-class RunApplicationsMessageUpstream(JSONMessage):
-    status_name = "run_apps"
-
-    def __init__(self, t0: float, **kwargs):
-        self.status = RunApplicationsMessageUpstream.status_name
+class RunApplicationsMessageUpstream(UpstreamMessage):
+    def __init__(self, t0: float) -> None:
         self.t0 = t0
-    
 
-class CopyFileMessageUpstream(JSONMessage):
-    status_name = "copy"
 
-    def __init__(self, source: str, target: str, source_renameto: Optional[str], proc_id: str, **kwargs):
-        self.status = CopyFileMessageUpstream.status_name
+class ApplicationStatusMessageUpstream(UpstreamMessage):
+    def __init__(self, app_name: str, app_status: AppStartStatus) -> None:
+        self.app_name = app_name
+        self.app_status = app_status
+
+
+class CopyFileMessageUpstream(UpstreamMessage):
+    def __init__(self, source: str, target: str, 
+                 source_renameto: Optional[str], proc_id: str) -> None:
         self.source = source
         self.source_renameto = source_renameto
         self.target = target
         self.proc_id = proc_id
 
 
-class FinishInstanceMessageUpstream(JSONMessage):
-    status_name = "finish"
-
-    def __init__(self, preserve_files: Optional[List[str]] = None, do_preserve: bool = True, **kwargs):
-        self.status = FinishInstanceMessageUpstream.status_name
+class FinishInstanceMessageUpstream(UpstreamMessage):
+    def __init__(self, preserve_files: Optional[List[str]] = None, 
+                 do_preserve: bool = True) -> None:
         self.preserve_files = preserve_files
         self.do_preserve = do_preserve
 

@@ -22,7 +22,7 @@ from typing import List, Dict
 from dataclasses import dataclass
 
 from utils.settings import TestbedConfig
-from common.application_configs import StartAppAfter
+from common.application_configs import AppStartStatus
 
 
 @dataclass
@@ -34,7 +34,7 @@ class DeferredStartApplication:
 @dataclass
 class ReverseDependencyContainer:
     name: str
-    after: StartAppAfter
+    after: AppStartStatus
     satisfied: bool = False
 
 
@@ -43,13 +43,13 @@ class ReverseApplicationDependency:
         self.app = app
         self.reverse_depdendencies: Dict[str, ReverseDependencyContainer] = {}
 
-    def add_dependency(self, dependency: str, after: StartAppAfter) -> None:
+    def add_dependency(self, dependency: str, after: AppStartStatus) -> None:
         self.reverse_depdendencies[dependency] = ReverseDependencyContainer(
             name=dependency,
             after=after
         )
     
-    def satisfy_and_check(self, dependecy: str, after: StartAppAfter) -> bool:
+    def satisfy_and_check(self, dependecy: str, after: AppStartStatus) -> bool:
         if dependecy not in self.reverse_depdendencies.keys():
             return False
         
@@ -100,7 +100,7 @@ class AppDependencyHelper:
                         if not self.graph.has_node(app_start_name):
                             raise Exception(f"Application {app_name} depends on {app_start_name}, but this application does not exist.")
 
-                        if app_start.at == StartAppAfter.FINISH and app_start_name in self.daemon_apps:
+                        if app_start.at == AppStartStatus.FINISH and app_start_name in self.daemon_apps:
                             raise Exception(f"Application {app_start_name} is a daemon application, cannot start {app_name} after its finished.")
 
                         self.graph.add_edge(app_start_name, app_name)
@@ -143,7 +143,7 @@ class AppDependencyHelper:
                     del reverse_dependencies
 
     def get_next_applications(self, instance_finished: str, 
-                              app_finished: str, state: StartAppAfter) -> List[DeferredStartApplication]:
+                              app_finished: str, state: AppStartStatus) -> List[DeferredStartApplication]:
         app_str = f"{app_finished}@{instance_finished}"
         result_list: List[DeferredStartApplication] = []
 

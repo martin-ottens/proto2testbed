@@ -333,7 +333,7 @@ class Controller(Dismantable):
 
             message = FinishInstanceMessageUpstream(instance.preserve_files,
                                                     TestbedSettingsWrapper.cli_parameters.preserve is not None)
-            instance.send_message(message.as_json())
+            instance.send_message(message)
 
         result: WaitResult = self.state_manager.wait_for_instances_to_become_state([AgentManagementState.STARTED,
                                                                                     AgentManagementState.APPS_SENDED,
@@ -474,7 +474,7 @@ class Controller(Dismantable):
             for instance in self.state_manager.get_all_instances():
                 instance.send_message(InitializeMessageUpstream(
                             instance.get_setup_env()[0], 
-                            instance.get_setup_env()[1]).as_json())
+                            instance.get_setup_env()[1]))
         else:
             logger.info("Waiting for Instances to start and initialize ...")
 
@@ -489,7 +489,7 @@ class Controller(Dismantable):
             apps = config_instance.applications
             instance.add_apps(apps)
             instance.set_state(AgentManagementState.APPS_SENDED)
-            instance.send_message(InstallApplicationsMessageUpstream(apps).as_json())
+            instance.send_message(InstallApplicationsMessageUpstream(apps))
         
         if not self.wait_for_to_become(setup_timeout, 'App Installation', 
                                 AgentManagementState.APPS_READY, 
@@ -513,7 +513,7 @@ class Controller(Dismantable):
         t0 = time.time() + TestbedSettingsWrapper.testbed_config.settings.appstart_timesync_offset
 
         logger.info(f"Starting applications on Instances (t0={t0}).")
-        message = RunApplicationsMessageUpstream(t0).as_json()
+        message = RunApplicationsMessageUpstream(t0)
         for instance in self.state_manager.get_all_instances():
             instance.send_message(message)
             instance.set_state(AgentManagementState.IN_EXPERIMENT)

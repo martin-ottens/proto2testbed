@@ -22,6 +22,7 @@ import sys
 import serial
 import os
 import json
+import jsonpickle
 
 from typing import Any, Dict, Optional
 from threading import Lock
@@ -46,13 +47,13 @@ def get_hostname() -> str:
 
 class DownstreamMessage:
     def __init__(self, status: InstanceMessageType, message = None):
-        self.message = InstanceManagerDownstream(get_hostname(), str(status), message)
+        self.message = InstanceManagerMessageDownstream(get_hostname(), status, message)
     
     def set_message(self, message):
-            self.message.message = message
+            self.message.payload = message
 
     def get_json_bytes(self) -> bytes:
-        return self.message.to_json().encode("utf-8") + b'\n'
+        return jsonpickle.encode(self.message).encode("utf-8") + b"\n"
 
 
 class ManagementServerConnection(ABC):

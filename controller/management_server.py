@@ -22,13 +22,12 @@ import json
 import time
 import os
 import errno
+import jsonpickle
 
 from loguru import logger
-from jsonschema import validate
 from pathlib import Path
 
 from utils.interfaces import Dismantable
-from utils.system_commands import get_asset_relative_to
 from common.instance_manager_message import *
 from utils.influxdb import InfluxDBAdapter
 
@@ -38,8 +37,6 @@ from state_manager import AgentManagementState
 
 class ManagementClientConnection(threading.Thread):
     __MAX_FRAME_LEN = 8192
-
-    message_schema = None
 
     def __init__(self, controller,
                  manager: state_manager.InstanceStateManager, 
@@ -64,20 +61,13 @@ class ManagementClientConnection(threading.Thread):
         self.connected = False
         self.client_socket = None
 
-        if ManagementClientConnection.message_schema is None:
-            with open(get_asset_relative_to(__file__, "assets/statusmsg.schema.json"), "r") as handle:
-                ManagementClientConnection.message_schema = json.load(handle)
-
     def _process_one_message(self, data) -> bool:
+        message_obj: Optional[InstanceManagerMessageDownstream] = None
         try:
-            json_data = json.loads(data)
-            validate(schema=ManagementClientConnection.message_schema, instance=json_data)
+            message_obj = jsonpickle.decode(data)
         except Exception as ex:
             logger.opt(exception=ex).error(f"Management: Client '{self.expected_instance.name}': message parsing error")
             return False
-            
-
-        message_obj = InstanceManagerDownstream(**json_data)
 
         if self.client is None:
             self.client = self.manager.get_instance(message_obj.name)
@@ -90,23 +80,23 @@ class ManagementClientConnection(threading.Thread):
                 logger.error(f"Management: Client '{self.expected_instance.name}': reported name {self.client.name} before, now {message_obj.name}")
                 return False
 
-        match message_obj.get_status():
+        match message_obj.status:
             case InstanceMessageType.STARTED:
                 previous = self.client.get_state()
                 if previous == AgentManagementState.DISCONNECTED:
                     logger.error(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Instance Manager failed?")
                     self.client.set_state(AgentManagementState.FAILED)
-                    self.send_message(InitializeMessageUpstream(None, None).as_json())
+                    self.send_message(InitializeMessageUpstream(None, None))
 
                 elif previous == AgentManagementState.INITIALIZED:
                     logger.warning(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Skipping Instance setup!")
                     self.client.set_state(AgentManagementState.INITIALIZED)
-                    self.send_message(InitializeMessageUpstream(None, None).as_json())
+                    self.send_message(InitializeMessageUpstream(None, None))
 
                 elif previous == AgentManagementState.APPS_READY or previous == AgentManagementState.APPS_SENDED:
                     logger.warning(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Re-Installing apps!")
                     self.client.set_state(AgentManagementState.INITIALIZED)
-                    self.send_message(InstallApplicationsMessageUpstream(self.expected_instance.apps).as_json())
+                    self.send_message(InstallApplicationsMessageUpstream(self.expected_instance.apps))
                 
                 else:
                     self.client.set_state(AgentManagementState.STARTED)
@@ -114,7 +104,7 @@ class ManagementClientConnection(threading.Thread):
                         logger.info(f"Management: Client '{self.expected_instance.name}': Started. Sending setup instructions for instant setup.")
                         self.send_message(InitializeMessageUpstream(
                             self.client.get_setup_env()[0], 
-                            self.client.get_setup_env()[1]).as_json())
+                            self.client.get_setup_env()[1]))
                     else:
                         logger.info(f"Management: Client '{self.expected_instance.name}': Started. Setup deferred.")
             case InstanceMessageType.INITIALIZED:
@@ -126,8 +116,8 @@ class ManagementClientConnection(threading.Thread):
 
             case InstanceMessageType.FAILED | InstanceMessageType.APPS_FAILED:
                 self.client.set_state(AgentManagementState.FAILED)
-                if message_obj.message is not None:
-                    logger.error(f"Management: Client {self.client.name} reported failure with message: {message_obj.message}")
+                if message_obj.payload is not None:
+                    logger.error(f"Management: Client {self.client.name} reported failure with message: {message_obj.payload}")
                 else:
                     logger.error(f"Management: Client {self.client.name} reported failure without message.")
                 return True
@@ -147,12 +137,12 @@ class ManagementClientConnection(threading.Thread):
                 return True
             
             case InstanceMessageType.COPIED_FILE:
-                self.client.file_copy_helper.feedback_from_instance(message_obj.message)
+                self.client.file_copy_helper.feedback_from_instance(message_obj.payload)
                 return True
             
             case InstanceMessageType.SHUTDOWN:
                 logger.warning(f"Management: Client {self.client.name} requested testbed shutdown.")
-                restart = (message_obj.message is not None and bool(message_obj.message) == True)
+                restart = (message_obj.payload is not None and bool(message_obj.payload) == True)
                 self.manager.apply_shutdown_signal()
                 self.controller.stop_interaction(restart=restart)
                 return True
@@ -160,13 +150,13 @@ class ManagementClientConnection(threading.Thread):
             case _:
                 logger.warning(f"Management: Client {self.client.name}: Unknown message type '{message_obj.status}'")
 
-        if message_obj.message is not None:
-            if message_obj.get_status() == InstanceMessageType.DATA_POINT:
-                if not self.influx_adapter.insert(message_obj.message):
+        if message_obj.payload is not None:
+            if message_obj.status == InstanceMessageType.DATA_POINT:
+                if not self.influx_adapter.insert(message_obj.payload):
                     logger.warning(f"Management: Client {self.client.name}: Unable to add reported point to InfluxDB")
                 return True
 
-            match message_obj.get_status():
+            match message_obj.status:
                 case InstanceMessageType.MSG_INFO:
                     fn = logger.info
                 case InstanceMessageType.MSG_ERROR:
@@ -178,7 +168,7 @@ class ManagementClientConnection(threading.Thread):
                 case _:
                     fn = logger.warning
             
-            fn(f"LOG - Instance {self.client.name}: {message_obj.message}")
+            fn(f"LOG - Instance {self.client.name}: {message_obj.payload}")
         
         return True
     
@@ -303,11 +293,11 @@ class ManagementClientConnection(threading.Thread):
     def stop(self):
         self.stop_event.set()
 
-    def send_message(self, message: bytes) -> bool:
+    def send_message(self, message: UpstreamMessage) -> bool:
         if not self.connected:
             return False
         else:
-            self.client_socket.sendall(message + b'\n')
+            self.client_socket.sendall(message.as_json() + b'\n')
             return True
 
 class ManagementServer(Dismantable):

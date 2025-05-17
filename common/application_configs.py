@@ -28,9 +28,15 @@ class ApplicationSettings(ABC):
     pass
 
 
-class StartAppAfter(Enum):
+class AppStartStatus(Enum):
     START = "started"
     FINISH = "finished"
+    
+    @staticmethod
+    def from_str(status: str):
+        try: return AppStartStatus(status)
+        except Exception:
+            raise Exception(f"Unknown AppStartStatus '{status}'")
 
     def __str__(self) -> str:
         return str(self.value)
@@ -38,7 +44,7 @@ class StartAppAfter(Enum):
 
 class DependentAppStartConfig:
     def __init__(self, at: str, instance: str, application: str) -> None:
-        self.at: StartAppAfter = StartAppAfter(at)
+        self.at: AppStartStatus = AppStartStatus(at)
         self.instance = instance
         self.application = application
 

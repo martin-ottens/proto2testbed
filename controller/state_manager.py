@@ -36,6 +36,7 @@ from helper.file_copy_helper import FileCopyHelper
 from utils.networking import InstanceInterface
 from helper.state_file_helper import InstanceStateFile
 from common.application_configs import ApplicationConfig
+from common.instance_manager_message import UpstreamMessage
 from utils.interfaces import Dismantable
 from common.interfaces import DataclassJSONEncoder
 from utils.settings import CommonSettings
@@ -283,7 +284,7 @@ class InstanceState:
         
         return False
 
-    def send_message(self, message: bytes):
+    def send_message(self, message: UpstreamMessage) -> None:
         if self.connection is None:
             raise Exception(f"Instance {self.name} is not connected")
 
@@ -292,13 +293,13 @@ class InstanceState:
     def is_connected(self) -> bool:
         return self.connection is not None
     
-    def connect(self, connection):
+    def connect(self, connection) -> None:
         self.connection = connection
 
         if self.get_state() != AgentManagementState.DISCONNECTED:
             self.set_state(AgentManagementState.STARTED)
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         self.connection = None
         self.set_state(AgentManagementState.DISCONNECTED)
 
@@ -394,7 +395,8 @@ class InstanceStateManager(Dismantable):
         
         return self.map[name]
     
-    def send_instance_message(self, name: str, message: bytes):
+    def send_instance_message(self, name: str,
+                              message: UpstreamMessage) -> None:
         if name not in self.map:
             raise Exception(f"Instance {name} is not configured")
         
@@ -407,7 +409,7 @@ class InstanceStateManager(Dismantable):
     def all_instances_connected(self) -> bool:
         return all(x.connection is not None for x in self.map.values())
     
-    def apply_shutdown_signal(self):
+    def apply_shutdown_signal(self) -> None:
         with self.state_change_lock:
             self.has_shutdown_signal.set()
 
@@ -415,7 +417,7 @@ class InstanceStateManager(Dismantable):
                 self.state_change_semaphore.release(n=len(self.map))
             
     
-    def notify_state_change(self, new_state: AgentManagementState):
+    def notify_state_change(self, new_state: AgentManagementState) -> None:
         with self.state_change_lock:
             if self.state_change_semaphore is not None:
                 if new_state == AgentManagementState.FAILED:
