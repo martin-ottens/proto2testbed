@@ -35,10 +35,10 @@ from utils.continue_mode import PauseAfterSteps
 class TestbedSettings:
     management_network: Optional[str] = None
     diskimage_basepath: str = "./"
-    startup_init_timeout: int = 30
-    experiment_timeout: int = -1
-    file_preservation_timeout: int = 30
-    appstart_timesync_offset: int = 1
+    startup_init_timeout: int = 30 # seconds
+    experiment_timeout: int = -1 # seconds
+    file_preservation_timeout: int = 30 # seconds
+    appstart_timesync_offset: int = 1 # seconds
 
 
 @dataclass
@@ -56,7 +56,7 @@ class InvokeIntegrationAfter(Enum):
     NETWORK = "network"
     INIT = "init"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.value)
     
 
@@ -83,7 +83,7 @@ class AttachedNetwork:
             if re.fullmatch(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$', self.mac) is None:
                 raise Exception(f"MAC address '{self.mac}' (attached to network {name}) is invalid!")
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
@@ -92,6 +92,9 @@ class TestbedInstance:
                  environment: Optional[Dict[str, str]] =  None, cores: int = 2, 
                  memory: int = 1024, networks: Optional[List[Any]] = None,
                  applications = None, preserve_files: Optional[List[str]] = None) -> None:
+        if "@" in name:
+            raise Exception(f"Instance name '{name}' contains the reserved '@' character.")
+        
         self.name: str = name
         self.diskimage: str = diskimage
         self.setup_script: str = setup_script

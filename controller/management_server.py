@@ -96,17 +96,17 @@ class ManagementClientConnection(threading.Thread):
                 if previous == AgentManagementState.DISCONNECTED:
                     logger.error(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Instance Manager failed?")
                     self.client.set_state(AgentManagementState.FAILED)
-                    self.send_message(InitializeMessageUpstream(None, None).to_json().encode("utf-8"))
+                    self.send_message(InitializeMessageUpstream(None, None).as_json())
 
                 elif previous == AgentManagementState.INITIALIZED:
                     logger.warning(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Skipping Instance setup!")
                     self.client.set_state(AgentManagementState.INITIALIZED)
-                    self.send_message(InitializeMessageUpstream(None, None).to_json().encode("utf-8"))
+                    self.send_message(InitializeMessageUpstream(None, None).as_json())
 
                 elif previous == AgentManagementState.APPS_READY or previous == AgentManagementState.APPS_SENDED:
                     logger.warning(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Re-Installing apps!")
                     self.client.set_state(AgentManagementState.INITIALIZED)
-                    self.send_message(InstallApplicationsMessageUpstream(self.expected_instance.apps).to_json().encode("utf-8"))
+                    self.send_message(InstallApplicationsMessageUpstream(self.expected_instance.apps).as_json())
                 
                 else:
                     self.client.set_state(AgentManagementState.STARTED)
@@ -114,7 +114,7 @@ class ManagementClientConnection(threading.Thread):
                         logger.info(f"Management: Client '{self.expected_instance.name}': Started. Sending setup instructions for instant setup.")
                         self.send_message(InitializeMessageUpstream(
                             self.client.get_setup_env()[0], 
-                            self.client.get_setup_env()[1]).to_json().encode("utf-8"))
+                            self.client.get_setup_env()[1]).as_json())
                     else:
                         logger.info(f"Management: Client '{self.expected_instance.name}': Started. Setup deferred.")
             case InstanceMessageType.INITIALIZED:

@@ -16,13 +16,11 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
-import json
-
 from enum import Enum
 from typing import Dict, List, Any, Optional
 
 from common.application_configs import ApplicationConfig
-from common.interfaces import JSONSerializer
+from common.interfaces import JSONMessage, JSONSerializer
 
 
 class InstanceMessageType(Enum):
@@ -51,12 +49,6 @@ class InstanceMessageType(Enum):
         try: return InstanceMessageType(status)
         except Exception:
             return InstanceMessageType.UNKNOWN
-        
-        
-class JSONSerializable:
-    def as_json_bytes(self) -> bytes:
-        return json.dumps(vars(self)).encode("utf-8")
-
 
 # Downstream: Instance -> Controller
 # Upstream:   Controller -> Instance
@@ -71,7 +63,7 @@ class InstanceManagerDownstream(JSONSerializer):
         return InstanceMessageType.from_str(self.status)
 
 
-class InitializeMessageUpstream(JSONSerializer):
+class InitializeMessageUpstream(JSONMessage):
     status_name =  "initialize"
 
     def __init__(self, script: Optional[str], environment: Optional[Dict[str, str]], **kwargs):
@@ -80,7 +72,7 @@ class InitializeMessageUpstream(JSONSerializer):
         self.environment = environment
 
 
-class InstallApplicationsMessageUpstream(JSONSerializer):
+class InstallApplicationsMessageUpstream(JSONMessage):
     status_name = "install_apps"
 
     def __init__(self, applications: Optional[List[ApplicationConfig]] = None, **kwargs) -> None:
@@ -101,7 +93,7 @@ class InstallApplicationsMessageUpstream(JSONSerializer):
         return obj
 
 
-class RunApplicationsMessageUpstream(JSONSerializer):
+class RunApplicationsMessageUpstream(JSONMessage):
     status_name = "run_apps"
 
     def __init__(self, t0: float, **kwargs):
@@ -109,7 +101,7 @@ class RunApplicationsMessageUpstream(JSONSerializer):
         self.t0 = t0
     
 
-class CopyFileMessageUpstream(JSONSerializer):
+class CopyFileMessageUpstream(JSONMessage):
     status_name = "copy"
 
     def __init__(self, source: str, target: str, source_renameto: Optional[str], proc_id: str, **kwargs):
@@ -120,7 +112,7 @@ class CopyFileMessageUpstream(JSONSerializer):
         self.proc_id = proc_id
 
 
-class FinishInstanceMessageUpstream(JSONSerializer):
+class FinishInstanceMessageUpstream(JSONMessage):
     status_name = "finish"
 
     def __init__(self, preserve_files: Optional[List[str]] = None, do_preserve: bool = True, **kwargs):

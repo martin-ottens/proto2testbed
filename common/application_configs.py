@@ -17,19 +17,40 @@
 #
 
 from abc import ABC
+from enum import Enum
 
-from typing import Any, Optional
+from typing import Any, Optional, List
 
-from common.interfaces import JSONSerializer
+from common.interfaces import JSONMessage
+
 
 class ApplicationSettings(ABC):
     pass
 
 
-class ApplicationConfig(JSONSerializer):
+class StartAppAfter(Enum):
+    START = "started"
+    FINISH = "finished"
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+class DependentAppStartConfig:
+    def __init__(self, at: str, instance: str, application: str) -> None:
+        self.at: StartAppAfter = StartAppAfter(at)
+        self.instance = instance
+        self.application = application
+
+
+class ApplicationConfig(JSONMessage):
     def __init__(self, name: str, application: str, delay: int = 0, 
                  runtime: int = 30, dont_store: bool = False, 
-                 load_from_instance: bool = False, settings = Optional[Any]) -> None:
+                 load_from_instance: bool = False, 
+                 depends = Optional[Any], settings = Optional[Any]) -> None:
+        if "@" in name:
+            raise Exception(f"Application name '{name}' contains the reserved '@' character.")
+
         self.name: str = name
         self.delay: int = delay
         self.runtime: int = runtime
@@ -37,3 +58,10 @@ class ApplicationConfig(JSONSerializer):
         self.application: str = application
         self.load_from_instance: bool = load_from_instance
         self.settings: ApplicationConfig = settings
+        self.depends: List[DependentAppStartConfig] | List[str] =  []
+
+        if isinstance(depends, list):
+            for start_config in depends:
+                self.depends.append(DependentAppStartConfig(**start_config))
+        elif isinstance(depends, dict):
+            self.depends.append(DependentAppStartConfig(**depends))

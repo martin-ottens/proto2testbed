@@ -33,6 +33,7 @@ from utils.config_tools import load_config, load_vm_initialization, check_preser
 from utils.settings import CommonSettings, TestbedSettingsWrapper
 from utils.settings import InvokeIntegrationAfter
 from utils.influxdb import InfluxDBAdapter
+from helper.app_dependency_helper import AppDependencyHelper
 from utils.networking import *
 from utils.continue_mode import *
 from management_server import ManagementServer
@@ -76,6 +77,7 @@ class Controller(Dismantable):
         self.interrupted_event = Event()
         self.interaction_event = None
         self.interrupted_event.clear()
+        self.app_dependencies: Optional[AppDependencyHelper] = None
 
         try:
             self.cli = CLI(CommonSettings.log_verbose, self.state_manager)
@@ -84,6 +86,8 @@ class Controller(Dismantable):
 
             TestbedSettingsWrapper.testbed_config = load_config(self.config_path,
                                                                 TestbedSettingsWrapper.cli_parameters.skip_substitution)
+            self.app_dependencies = AppDependencyHelper(TestbedSettingsWrapper.testbed_config)
+            self.app_dependencies.compile_dependency_list()
             self.integration_helper = IntegrationHelper(TestbedSettingsWrapper.cli_parameters.config,
                                                         str(CommonSettings.app_base_path))
         except Exception as ex:
@@ -329,7 +333,7 @@ class Controller(Dismantable):
 
             message = FinishInstanceMessageUpstream(instance.preserve_files,
                                                     TestbedSettingsWrapper.cli_parameters.preserve is not None)
-            instance.send_message(message.to_json().encode("utf-8"))
+            instance.send_message(message.as_json())
 
         result: WaitResult = self.state_manager.wait_for_instances_to_become_state([AgentManagementState.STARTED,
                                                                                     AgentManagementState.APPS_SENDED,
@@ -470,7 +474,7 @@ class Controller(Dismantable):
             for instance in self.state_manager.get_all_instances():
                 instance.send_message(InitializeMessageUpstream(
                             instance.get_setup_env()[0], 
-                            instance.get_setup_env()[1]).to_json().encode("utf-8"))
+                            instance.get_setup_env()[1]).as_json())
         else:
             logger.info("Waiting for Instances to start and initialize ...")
 
@@ -485,7 +489,7 @@ class Controller(Dismantable):
             apps = config_instance.applications
             instance.add_apps(apps)
             instance.set_state(AgentManagementState.APPS_SENDED)
-            instance.send_message(InstallApplicationsMessageUpstream(apps).to_json().encode("utf-8"))
+            instance.send_message(InstallApplicationsMessageUpstream(apps).as_json())
         
         if not self.wait_for_to_become(setup_timeout, 'App Installation', 
                                 AgentManagementState.APPS_READY, 
@@ -509,7 +513,7 @@ class Controller(Dismantable):
         t0 = time.time() + TestbedSettingsWrapper.testbed_config.settings.appstart_timesync_offset
 
         logger.info(f"Starting applications on Instances (t0={t0}).")
-        message = RunApplicationsMessageUpstream(t0).to_json().encode("utf-8")
+        message = RunApplicationsMessageUpstream(t0).as_json()
         for instance in self.state_manager.get_all_instances():
             instance.send_message(message)
             instance.set_state(AgentManagementState.IN_EXPERIMENT)

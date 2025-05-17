@@ -114,6 +114,13 @@
                 {
                     "application": "procmon",
                     "name": "procmon-vmb",
+                    "depends": [
+                        {
+                            "at": "started",
+                            "instance": "vma",
+                            "application": "vma-iperf-server"
+                        }
+                    ],
                     "delay": 5,
                     "runtime": 30,
                     "settings": {

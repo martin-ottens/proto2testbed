@@ -66,7 +66,7 @@ class FileCopyHelper:
                                               str(destination_path), 
                                               os.path.basename(str(source_path)), 
                                               proc_id)
-            self.instance.send_message(message.to_json().encode("utf-8"))
+            self.instance.send_message(message.as_json())
         
             # (Wait for reply)
             return True, "Waiting for Instance to complete the copy process."
@@ -76,7 +76,7 @@ class FileCopyHelper:
 
             # Instruct the Instance to copy from source to exchange mount
             message = CopyFileMessageUpstream(str(source_path), proc_id, None, proc_id)
-            self.instance.send_message(message.to_json().encode("utf-8"))
+            self.instance.send_message(message.as_json())
 
             # (Copy from exchange mount to target)
             return True, "Waiting for Instance to start the copy process."

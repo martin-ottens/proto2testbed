@@ -18,9 +18,8 @@
 
 import sys
 
-from typing import Optional, List
+from typing import Optional, List, Dict
 from pathlib import Path
-from threading import Barrier
 
 from management_client import ManagementClient
 from applications.base_application import BaseApplication
@@ -40,7 +39,9 @@ class ApplicationManager:
             Path(GlobalState.start_exec_path), 
             Path(GlobalState.testbed_package_path),
             ["set_and_validate_config", "start"])
-        self.app_exec: List[ApplicationController] = None
+        self.app_exec_init: Optional[List[ApplicationController]] = None
+        self.app_exec_deferred: Optional[Dict[str, ApplicationController]] = None
+        self.running: List[ApplicationController] = []
 
         try:
             self.loader.read_packaged_apps()
@@ -53,12 +54,20 @@ class ApplicationManager:
         self._destory_apps()
 
     def _destory_apps(self):
-        if self.app_exec is not None:
-            for app_controller in self.app_exec:
+        for app in self.running:
+            app.join()
+
+        if self.app_exec_init is not None:
+            for app_controller in self.app_exec_init:
+                del app_controller
+
+        if self.app_exec_deferred is not None:
+            for app_controller in self.app_exec_deferred.values():
                 del app_controller
 
     def install_apps(self, apps: Optional[List[ApplicationConfig]]) -> bool:
-        self.app_exec = []
+        self.app_exec_init = []
+        self.app_exec_deferred = {}
 
         if apps is None:
             return True
@@ -109,30 +118,33 @@ class ApplicationManager:
                 return False
             
             app_controller = ApplicationController(app_instance, config, self.manager, self.instance_name)
-            self.app_exec.append(app_controller)
+
+            if config.depends is None:
+                self.app_exec_init.append(app_controller)
+            else:
+                self.app_exec_deferred[config.name] = app_controller
         
         self.main.message_to_controller(InstanceMessageType.MSG_DEBUG, 
-                                                        f"Apps loaded: {self.loader.loaded_apps_size()}, Scheduled to execute: {len(self.app_exec)}")
+                                                        f"Apps loaded: {self.loader.loaded_apps_size()}, Scheduled to execute instant: {len(self.app_exec_init)}, with dependency: {len(self.app_exec_deferred)}")
         self.main.message_to_controller(InstanceMessageType.APPS_INSTALLED)
         return True
         
 
     def run_apps(self, t0: float) -> bool:
-        if self.app_exec is None:
+        if self.app_exec_init is None:
             print(f"No application are installed, nothing to execute.", file=sys.stderr, flush=True)
             self.main.message_to_controller(InstanceMessageType.APPS_DONE)
             return True
 
         print(f"Starting execution of Applications", file=sys.stderr, flush=True)
 
-        threads = []
-        for controller in self.app_exec:
+        for controller in self.app_exec_init:
             controller.update_t0(t0)
             controller.start()
-            threads.append(controller)
+            self.running.append(controller)
 
         failed = 0
-        for t in threads:
+        for t in self.running:
             t.join()
             if t.error_occurred():
                 failed += 1
@@ -146,3 +158,16 @@ class ApplicationManager:
             print(f"Execution of Applications successfully completed.", file=sys.stderr, flush=True)
             self.main.message_to_controller(InstanceMessageType.APPS_DONE)
             return True
+        
+    def run_deferred_app(self, name: str) -> bool:
+        if name not in self.app_exec_deferred.keys():
+            return False
+        
+        for key, value in self.app_exec_deferred.items():
+            if key != name:
+                continue
+
+            value.start()
+            self.running.append(value)
+
+

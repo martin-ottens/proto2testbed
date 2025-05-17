@@ -21,6 +21,7 @@ import time
 import sys
 import serial
 import os
+import json
 
 from typing import Any, Dict, Optional
 from threading import Lock
@@ -240,7 +241,7 @@ class ManagementClient():
             if self._check_if_valid_json(self.partial_data):
                 tmp = self.partial_data
                 self.partial_data = ""
-                return json.loads(tmp)
+                return tmp
 
         try:
             self.connection.settimeout(None)
@@ -256,11 +257,11 @@ class ManagementClient():
                 parts[0] = parts[0] + "}"
                 parts[1] = "{" + parts[1]
                 self.partial_data = parts[1]
-                return json.loads(parts[0])
+                return parts[0]
             else:
                 # Singlepart message
                 tmp = self.partial_data
                 self.partial_data = ""
-                return json.loads(tmp)
+                return tmp
         except Exception as ex:
             raise Exception("Unable to read message from management server") from ex

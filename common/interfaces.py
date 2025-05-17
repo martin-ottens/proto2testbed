@@ -16,10 +16,16 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
+import jsonpickle
 import json
 import dataclasses
 
 from abc import ABC
+
+
+class JSONMessage(ABC):
+    def as_json(self) -> bytes:
+        return jsonpickle.encode(self).encode("utf-8")
 
 
 class JSONSerializer(ABC):

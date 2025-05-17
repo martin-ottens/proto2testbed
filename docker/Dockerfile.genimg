@@ -21,7 +21,7 @@ COPY --from=builder /opt/proto-testbed/instance-manager/instance-manager.deb /im
 
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-    apt-get install -y qemu-utils qemu-system-x86 qemu-system-gui \
+    apt-get install -y --no-install-recommends qemu-utils qemu-system-x86 qemu-system-gui \
                     python3 python3-pexpect python3-loguru && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

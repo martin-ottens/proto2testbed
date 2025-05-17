@@ -22,6 +22,7 @@ import os
 import shutil
 import sys
 import time
+import jsonpickle
 
 from pathlib import Path
 from enum import Enum, auto
@@ -67,21 +68,12 @@ class InstanceManager:
     def message_to_controller(self, message_type: InstanceMessageType, payload = None):
         self.manager.send_to_server(DownstreamMessage(message_type, payload))
 
-    def handle_initialize(self, data) -> bool:
-        # 1. Check initialization data from management server
-        if "script" not in data or "environment" not in data:
-            raise Exception("Initialization message error: Fields are missing")
-
-        if not isinstance(data.get("environment"), dict):
-            raise Exception("Initialization message error: Environment should be a dict")
-
+    def handle_initialize(self, init_message: InitializeMessageUpstream) -> bool:
         print(f"Got 'initialize' instructions from Management Server", file=sys.stderr, flush=True)
 
-        data["environment"]["TESTBED_PACKAGE"] = GlobalState.testbed_package_path
+        init_message.environment["TESTBED_PACKAGE"] = GlobalState.testbed_package_path
 
-        init_message = InitializeMessageUpstream(**data)
-
-        # 2. Mount the testbed package from host via virtio p9 (if not already done)
+        # 1. Mount the testbed package from host via virtio p9 (if not already done)
         if not os.path.ismount(GlobalState.testbed_package_path):
             os.mkdir(GlobalState.testbed_package_path, mode=0o777)
             proc = None
@@ -98,7 +90,7 @@ class InstanceManager:
             
             print(f"Testbed Package mounted to {TESTBED_PACKAGE_P9_DEV}", file=sys.stderr, flush=True)
 
-        # 3. Execute the setup script from mounted testbed package
+        # 2. Execute the setup script from mounted testbed package
         if init_message.script is not None:
             print(f"Running setup script {init_message.script}", file=sys.stderr, flush=True)
             os.chdir(GlobalState.testbed_package_path)
@@ -125,14 +117,13 @@ class InstanceManager:
             else:
                 print(f"No setup script in 'initialize' message, skipping setup.", file=sys.stderr, flush=True)
 
-        # 4. Report status to management server
+        # 3. Report status to management server
         Path(STATE_FILE).touch()
         self.message_to_controller(InstanceMessageType.INITIALIZED)
         return True
 
-    def install_apps(self, data) -> bool:
+    def install_apps(self, applications: InstallApplicationsMessageUpstream) -> bool:
         print(f"Starting installation of Applications", file=sys.stderr, flush=True)
-        applications = InstallApplicationsMessageUpstream.from_json(data)
 
         if self.application_manager is not None:
             print(f"Purging previous installed application_manager")
@@ -158,9 +149,7 @@ class InstanceManager:
         else:
             return True
 
-    def run_apps(self, data) -> bool:
-        config = RunApplicationsMessageUpstream(**data)
-
+    def run_apps(self, config: RunApplicationsMessageUpstream) -> bool:
         if self.application_manager is None:
             print("Unable to run experiment: No application manager is installed")
             self.message_to_controller(InstanceMessageType.MSG_ERROR, 
@@ -175,9 +164,8 @@ class InstanceManager:
         
         return self.application_manager.run_apps(config.t0)
 
-    def handle_finish(self, data) -> False:
+    def handle_finish(self, finish_message: FinishInstanceMessageUpstream) -> False:
         print(f"Starting File Preservation", file=sys.stderr, flush=True)
-        finish_message = FinishInstanceMessageUpstream(**data)
 
         if not finish_message.do_preserve:
             print(f"Skipping preservation, it is not enabled in the controller", file=sys.stderr, flush=True)
@@ -195,9 +183,7 @@ class InstanceManager:
             print(f"File preservation failed.", file=sys.stderr, flush=True)
             return False
         
-    def handle_file_copy(self, data) -> bool:
-        copy_instructions = CopyFileMessageUpstream(**data)
-
+    def handle_file_copy(self, copy_instructions: CopyFileMessageUpstream) -> bool:
         if copy_instructions.proc_id is None:
             self.message_to_controller(InstanceMessageType.MSG_ERROR, 
                                        f"Copy failed, no proc_id was provided to Instance.")
@@ -277,13 +263,11 @@ class InstanceManager:
             self.message_to_controller(InstanceMessageType.INITIALIZED)
         
         while True:
-            data = self.manager.wait_for_command()
+            data_str = self.manager.wait_for_command()
+            data = jsonpickle.decode(data_str)
 
-            if "status" not in data:
-                raise Exception("Invalid message received from management server")
-
-            match data.get("status"):
-                case InitializeMessageUpstream.status_name:
+            match data:
+                case InitializeMessageUpstream():
                     if self.state != IMState.STARTED:
                         print(f"Got 'initialize' message from controller, but im in state {self.state.value}, skipping init.")
                         self.message_to_controller(InstanceMessageType.INITIALIZED)
@@ -292,14 +276,14 @@ class InstanceManager:
                             self.state = IMState.INITIALIZED
                         else:
                             self.state = IMState.FAILED
-                case InstallApplicationsMessageUpstream.status_name:
+                case InstallApplicationsMessageUpstream():
                     if self.state != IMState.INITIALIZED and self.state != IMState.APPS_READY:
                         print(f"Got 'install_apps' message from controller, but im in state {self.state.value}, skipping.")
                         self.message_to_controller(InstanceMessageType.MSG_ERROR, "Instance is not ready for app installation.")
                     else:
                         self.install_apps(data)
                         self.state = IMState.APPS_READY
-                case RunApplicationsMessageUpstream.status_name:
+                case RunApplicationsMessageUpstream():
                     if self.state != IMState.APPS_READY:
                         print(f"Got 'run_apps' message from controller, but im in state {self.state.value}, skipping.")
                         self.message_to_controller(InstanceMessageType.MSG_ERROR, "Instance has not yet installed apps.")
@@ -312,16 +296,16 @@ class InstanceManager:
                                 self.state = IMState.APPS_READY
                             else:
                                 self.state = IMState.FAILED
-                case CopyFileMessageUpstream.status_name:
+                case CopyFileMessageUpstream():
                     if not self.handle_file_copy(data):
                         self.state = IMState.FAILED
-                case FinishInstanceMessageUpstream.status_name:
+                case FinishInstanceMessageUpstream():
                     if self.handle_finish(data):
                         self.state = IMState.READY_FOR_SHUTDOWN
                     else:
                         self.state = IMState.FAILED
                 case _:
-                    raise Exception(f"Invalid 'status' in message: {data.get('status')}")
+                    raise Exception(f"Invalid 'status' in message: {type(data)}")
             
             if self.state == IMState.FAILED:
                 print("Instance Manager has entered FAILED state.")

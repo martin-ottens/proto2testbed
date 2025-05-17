@@ -23,8 +23,8 @@ import traceback
 import time
 
 from multiprocessing import Process, Manager
-from threading import Event, Thread, Barrier
-from typing import cast
+from threading import Event, Thread
+from typing import cast, Optional
 
 from common.application_configs import ApplicationConfig
 from common.instance_manager_message import InstanceMessageType
@@ -50,7 +50,7 @@ class ApplicationController(Thread):
         self.instance_name = instance_name
         self.shared_state["error_flag"] = False
         self.shared_state["error_string"] = None 
-        self.t0: float
+        self.t0: Optional[float] = None
         self.daemon = True
 
     def __del__(self) -> None:
@@ -90,7 +90,11 @@ class ApplicationController(Thread):
     def run(self):
         process = Process(target=self.__fork_run, args=())
         # Python >= 3.11 used nanosleep, which is quite accurate
-        wait_for = (self.t0 - time.time()) + self.config.delay
+        if self.t0 is None:
+            wait_for = self.config.delay
+        else:
+            wait_for = (self.t0 - time.time()) + self.config.delay
+
         time.sleep(wait_for)
         process.start()
 
