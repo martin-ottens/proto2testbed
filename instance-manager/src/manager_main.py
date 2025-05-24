@@ -35,6 +35,7 @@ from application_manager import ApplicationManager
 from global_state import GlobalState
 
 from common.instance_manager_message import *
+from common.application_configs import AppStartStatus
 
 
 FILE_SERVER_PORT = 4242
@@ -153,16 +154,25 @@ class InstanceManager:
         if self.application_manager is None:
             print("Unable to run experiment: No application manager is installed")
             self.message_to_controller(InstanceMessageType.MSG_ERROR, 
-                                   f"Can' run apps: No applications manager is configured.")
+                                   f"Can't run Applications: No applications manager is configured.")
             return False
         
         if config.t0 < time.time():
             print("Clock of this instance is running behind!")
             self.message_to_controller(InstanceMessageType.MSG_ERROR, 
-                                   f"Unable to start apps at t0: Clock is running behind.")
+                                   f"Unable to start Applications at t0: Clock is running behind.")
             return False
         
-        return self.application_manager.run_apps(config.t0)
+        return self.application_manager.run_initial_apps(config.t0)
+    
+    def run_deferred_app(self, message: ApplicationStatusMessageUpstream) -> None:
+        if self.application_manager is None:
+            print("Unable to start Application: No application manager is installed")
+            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
+                                   f"Can't start Application: No applications manager is configured.")
+            return
+        
+        self.application_manager.run_deferred_app(message.app_name, message.app_status)
 
     def handle_finish(self, finish_message: FinishInstanceMessageUpstream) -> False:
         print(f"Starting File Preservation", file=sys.stderr, flush=True)
@@ -250,6 +260,20 @@ class InstanceManager:
         message = DownstreamMessage(InstanceMessageType.COPIED_FILE, copy_instructions.proc_id)
         self.manager.send_to_server(message)
         return True
+    
+    def single_app_status_changed(self, app: str, status: AppStartStatus) -> None:
+        messagetype = InstanceMessageType.APP_FINISHED_SIGNAL if status == AppStartStatus.FINISH else InstanceMessageType.APP_STARTED_SIGNAL
+        message = DownstreamMessage(messagetype, app)
+        self.manager.send_to_server(message)
+
+    def all_apps_status_changed(self, failed_count: int) -> None:
+        if failed_count != 0:
+            print(f"Execution of Applications finished, {failed_count} failed.", file=sys.stderr, flush=True)
+            self.message_to_controller(InstanceMessageType.APPS_FAILED, 
+                                        f"{failed_count} Applications(s) failed.")
+        else:
+            print(f"Execution of Applications successfully completed.", file=sys.stderr, flush=True)
+            self.message_to_controller(InstanceMessageType.APPS_DONE)
 
     def _run_instance_manager(self):
         self.manager.start()
@@ -292,10 +316,14 @@ class InstanceManager:
                         if not self.sync_ptp_clock():
                             self.state = IMState.FAILED
                         else:
-                            if self.run_apps(data):
-                                self.state = IMState.APPS_READY
-                            else:
+                            if not self.run_apps(data):
                                 self.state = IMState.FAILED
+                case ApplicationStatusMessageUpstream():
+                    if self.state != IMState.EXPERIMENT_RUNNING:
+                        print(f"Got message from controller to start deferred, but im in state {self.state.value}")
+                        self.message_to_controller(InstanceMessageType.MSG_ERROR, "Starting deferred Applications in invalid state!")
+
+                    
                 case CopyFileMessageUpstream():
                     if not self.handle_file_copy(data):
                         self.state = IMState.FAILED

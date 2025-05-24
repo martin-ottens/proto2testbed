@@ -68,6 +68,11 @@ class GenericApplicationInterface(ABC):
     @abstractmethod
     def log(self, level: LogMessageLevel, message: str) -> bool:
         pass
+
+    # Report successful Application startup to the controller
+    @abstractmethod
+    def report_startup(self) -> None:
+        pass
     
     # Push a data point to the InfluxDB. See the `im data` command for reference.
     @abstractmethod

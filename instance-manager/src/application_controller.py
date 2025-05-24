@@ -23,10 +23,11 @@ import traceback
 import time
 
 from multiprocessing import Process, Manager
+from multiprocessing import Event as MultiprocessingEvent
 from threading import Event, Thread
 from typing import cast, Optional
 
-from common.application_configs import ApplicationConfig
+from common.application_configs import ApplicationConfig, AppStartStatus
 from common.instance_manager_message import InstanceMessageType
 from management_client import ManagementClient, DownstreamMessage
 from application_interface import ApplicationInterface
@@ -38,19 +39,23 @@ from global_state import GlobalState
 class ApplicationController(Thread):
             
     def __init__(self, app: BaseApplication, config: ApplicationConfig, 
-                 client: ManagementClient, instance_name: str) -> None:
+                 client: ManagementClient, instance_name: str,
+                 application_manager) -> None:
         super(ApplicationController, self).__init__()
         self.config: ApplicationConfig = config
         self.app: BaseApplication = app
         self.mgmt_client: ManagementClient = client
+        self.application_manager = application_manager
         self.settings = config.settings
         self.is_terminated = Event()
         self.manager = Manager()
         self.shared_state = self.manager.dict()
+        self.started_event = MultiprocessingEvent()
         self.instance_name = instance_name
         self.shared_state["error_flag"] = False
         self.shared_state["error_string"] = None 
         self.t0: Optional[float] = None
+        self.start_defered: bool = False
         self.daemon = True
 
     def __del__(self) -> None:
@@ -67,12 +72,15 @@ class ApplicationController(Thread):
 
         try:
             try:
-                interface = ApplicationInterface(self.config.name, GlobalState.im_daemon_socket_path)
+                interface = ApplicationInterface(self.config.name, 
+                                                 GlobalState.im_daemon_socket_path,
+                                                 self.started_event)
                 interface.connect()
                 self.app.attach_interface(cast(GenericApplicationInterface, interface))
             except Exception as ex:
                 raise "Unable to connect to Instance Manager Daemon" from ex
             
+            self.app.report_startup()
             rc = self.app.start(self.config.runtime)
 
             interface.disconnect()
@@ -88,6 +96,7 @@ class ApplicationController(Thread):
         self.t0 = t0
 
     def run(self):
+        self.started_event.clear()
         process = Process(target=self.__fork_run, args=())
         # Python >= 3.11 used nanosleep, which is quite accurate
         if self.t0 is None:
@@ -98,10 +107,21 @@ class ApplicationController(Thread):
         time.sleep(wait_for)
         process.start()
 
+        total_wait = self.app.get_runtime_upper_bound(self.config.runtime) + 10
+        wait_for_init = time.time()
+
+        if not self.started_event.wait():
+            message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
+                                            f"Application {self.config.name} has not reported start event!")
+            self.mgmt_client.send_to_server(message)
+        
+        self.application_manager.report_app_status(self, AppStartStatus.START)
+        wait_left = max(0, total_wait - (time.time() - wait_for_init))
+
         # If no runtime is specified, the Application is a daemon process. 
         # It will remain running in background, but the testbed execution is not delayed by this Application
         if self.config.runtime is not None:
-            process.join(self.app.get_runtime_upper_bound(self.config.runtime) + 10)
+            process.join(wait_left)
 
             if process.is_alive():
                 message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
@@ -120,7 +140,8 @@ class ApplicationController(Thread):
                     message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
                                                 f"Application {self.config.name}:\n Unable get children: {ex}")
                     self.mgmt_client.send_to_server(message)
-                    pass
+                finally:
+                    self.application_manager.report_app_status(self, AppStartStatus.FINISH)
 
                 process.terminate()
 

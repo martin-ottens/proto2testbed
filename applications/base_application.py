@@ -139,6 +139,14 @@ class BaseApplication(ABC):
     def start(self, runtime: Optional[int]) -> bool:
         pass
 
+    # The Application is assumed to be started when initialize. Whenever an Application needs to
+    # report the startup delayed (e.g. after a server is started), override this method with a 
+    # "pass" and call "self.interface.report_startup()" in the start-method. 
+    # self.interface.report_startup() MUST be called before start() returns!
+    def report_startup(self) -> None:
+        if self.interface is not None:
+            self.interface.report_startup()
+
     # Return whether this Application exports any data to the InfluxDB. Used for data export, self.interface
     # is not set.
     def exports_data(self) -> bool:

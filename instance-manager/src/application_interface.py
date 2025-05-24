@@ -21,15 +21,17 @@ import socket
 import sys
 
 from typing import Dict, Optional
+from multiprocessing import Event
 
 from applications.generic_application_interface import LogMessageLevel, GenericApplicationInterface
 
 
 class ApplicationInterface(GenericApplicationInterface):
-    def __init__(self, app_name: str, socket_path: str):
+    def __init__(self, app_name: str, socket_path: str, started_event):
         super().__init__(app_name, socket_path)
         self.socket = None
         self.is_connected = False
+        self.started_event = started_event
 
     def connect(self):
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -87,6 +89,9 @@ class ApplicationInterface(GenericApplicationInterface):
             "message": f"App {self.app_name}: {message}"
         }
         return self._send_to_daemon(payload)
+    
+    def report_startup(self) -> None:
+        self.started_event.set()
 
     def data_point(self, series_name: str, points: Dict[str, int | float], additional_tags: Optional[Dict[str, str]] = None) -> bool:
         payload = {
