@@ -105,7 +105,7 @@
                 {
                     "application": "iperf3-client",
                     "name": "vmb-iperf-client",
-                    "delay": 1,
+                    "delay": 0,
                     "runtime": 30,
                     "settings": {
                         "host": "10.0.0.1"

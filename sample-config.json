@@ -43,6 +43,15 @@
             ],
             "preserve_files": [
                 "/var/log/latest.log"
+            ],
+            "applications": [
+                {
+                    "application": "iperf3-server",
+                    "name": "iperf-server",
+                    "delay": 0,
+                    "runtime": null,
+                    "settings": {}
+                }
             ]
         },
         {
@@ -55,8 +64,16 @@
             "cores": 2,
             "memory": 1024,
             "networks": [
-                "exp0",
-                "exp1"
+                {
+                    "name": "exp0",
+                    "mac": "AA:BB:CC:DD:EE:FF",
+                    "netmodel": "virtio"
+                },
+                {
+                    "name": "exp1",
+                    "mac": "11:22:33:44:55:66",
+                    "netmodel": "e1000"
+                }
             ]
         },
         {
@@ -70,6 +87,24 @@
             "memory": 1024,
             "networks": [
                 "exp1"
+            ],
+            "applications": [
+                {
+                    "application": "iperf3-client",
+                    "name": "iperf-client",
+                    "delay": 0,
+                    "runtime": 30,
+                    "settings": {
+                        "host": "10.0.0.1"
+                    },
+                    "depends": [
+                        {
+                            "at": "started|finished",
+                            "instance": "vma",
+                            "application": "iperf3-server"
+                        }
+                    ]
+                }
             ]
         }
     ]

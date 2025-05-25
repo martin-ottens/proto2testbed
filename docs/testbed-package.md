@@ -94,16 +94,82 @@ Array of Applications installed on the Instance. Leave empty when the Instance s
     "dont_store": false,
     "settings": {
         // Application-specific settings
+    },
+    "depends": {
+        // Dependencies for this Application
     }
 }
 ```
 - **`application`**: Type of the Application. First, Applications bundled in the Instance Manager are loaded. If the type is not found in these Applications, this value is interpreted as a path relative to the Testbed Package root, from there, the Instance Manager will attempt to dynamically load the Application. Have a look in the `applications/` directory of the repo to see what Applications are available bundled in the Instance Manager.
 - **`name`**: Self-selected name of the Application, used for logs and result data labeling. Should be unique for each Instance in a testbed.
-- **`delay`**: Delay in seconds for the start of Application after the Experiments are started on all Instances (defaults to *0* seconds)
+- **`delay`**: Delay in seconds for the start of Application after the Experiments are started on all Instances or the dependencies of the Application are met (defaults to *0* seconds)
 - **`runtime`**: Maximum runtime in seconds for the Application, after this time, the Application will be terminated. It is up to the Application, if this value is used or another runtime is defined. If set to *null*, the Application is a daemon process that will run until testbed shutdown and will does not hold up the testbed execution (defaults to *30* seconds)
 - **`dont_store`**: Boolean value if the Application should be executed without pushing data to the InfluxDB (defaults to `false`)
 - **`load_from_instance`**: Load Application from an absolute path on the Instance's file system (cannot be used to export data, defaults to `false`)
 - **`settings`**: Application-specific configuration, this object is passed to the Application Type selected by `application`. See the documentation in each Application of in the `applications/` and `extra-applications/` directories for the specific settings.
+- **`depends`**: See below.
+
+### Application Dependencies
+Each application can have a list of dependencies that is used to determine when the Application should be started. Whenever the `depends` field is *null* or omitted, the Application will be started directly after the testbed enters the experiment stage, in other words without any dependencies. All Applications that are started in this way are synced, e.g. their starting timestamps are synced to sub-ms accuracy even across different Instances (using KVM PTP). Any configured `delay` is used as an offset from this common starting timestamp.
+
+After an Application is started (or when the Application is ready, e.g. a server, can be controlled in the Applications implementation), it yields a `started` event, when the Application is finished (or failed), is yields a `finished` event. These events are used by the controller to resolve the dependencies of other Applications. Dependencies are configured in the following way, when multiple dependencies are defined, the Application will be invoked when all dependencies are met (*logical AND*).
+```json
+"depends": [
+    {
+        "at": "start-type",
+        "instance": "previous-app-instance",
+        "application": "previous-app-name"
+    }
+]
+```
+- **`at`**: The event type of the dependency: `started` or `finished`. Please not, that the `finished` event is not yielded by a daemon Application (when its runtime is set to *null*).
+- **`instance`**: Name of the Instance the event is yielded from.
+- **`application`**: Name of the Application (must be on `instance`) the event is yielded from.
+
+Dependencies must build a directed acyclic graph (DAG) and all dependencies must be resolvable, e.g. all nodes of the DAG must be reachable from set of Applications that are started at the testbed startup. These constraints are checked at the startup of Proto²Testbed.
+
+<details>
+<summary>Example of an iPerf3 Server/Client using dependencies</summary>
+
+#### On the first Instance (*Server*):
+```json
+// [...]
+"applications": [
+    {
+        "application": "iperf3-server",
+        "name": "iperf-server",
+        "delay": 0,
+        "runtime": null,
+        "settings": {}
+    }
+],
+// [...]
+```
+
+#### On the second Instance: (*Client*):
+```json
+// [...]
+"applications": [
+    {
+        "application": "iperf3-client",
+        "name": "iperf-client",
+        "delay": 0,
+        "runtime": 30,
+        "settings": {
+            "host": "10.0.0.1"
+        },
+        "depends": [
+            {
+                "at": "started",
+                "instance": "first",
+                "application": "iperf-server"
+            }
+        ]
+    }
+],
+// [...]
+```
+</details>
 
 ## Integrations
 Integrations are programs executed on the Testbed Host during the Testbed execution (e.g., for running a simulator or manipulating physical interfaces). There are several important things to consider when using Integrations:

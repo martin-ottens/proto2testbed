@@ -20,7 +20,7 @@ Proto²Testbed was first introduced at the 12th Advanced Satellite Multimedia Sy
 }
 ```
 
-## 1. Functional Overview & Terms
+## 1. Functional Overview & Terminology
 - The main part of Proto²Testbed, the **Controller**, is installed on a *Debian 12* workstation, server or even desktop. This system is called the **Testbed Host**.
 - The Topology of a testbed and some configurations are defined in the testbed configuration file `testbed.json`, this file is bundled together with scripts and additional dependencies that are used during a testbed execution to form a **Testbed Package**.
 - The Controller reads the configuration file. It starts and configures virtual machines, called **Instances**. Instances are run using *QEMU* and connected using Linux Layer-2-Network-Bridges.

@@ -7,6 +7,11 @@ It is configured to do the following things:
 - During the experiment, different bundled applications are executed on the Instances. On Instance `vma` an application is dynamically loaded from `apps/log_app.py` and executed.
 - On `vmb` a file is created by the script `vmb/generate-file.sh` and preserved (= copied to Testbed Host) after the testbed run is completed.
 - Two bundled integrations are executed on the Testbed Host that writes to `/tmp/integration`. Also, an Integration is dynamically loaded from `integration/loadable_integration.py` and executed.
+- Applications on `vmb` are started with dependencies:
+  1. `vmb-iperf3-client` is started after the iPerf3 server is started on `vma`
+  2. `procmon-vmb` is started with a 5-second delay, after the `vmb-iperf3-client` is finished
+  3. `generate-file` is started with a 20-second delay, after `procmon-vmb` is started (in other words: approx 25 seconds after `vmb-iperf3-client` is finished)
+- The Application `vma-iperf3-server` is executed as a Daemon (`null` runtime)
 
 ## Guide
 
