@@ -389,13 +389,14 @@ class InstanceStateManager(Dismantable):
             raise Exception("AppDependencyHelper was not set!")
         
         for fulfilled_dependency in self.app_dependecy_helper.get_next_applications(reporting_instance, reporting_app, state):
-            if fulfilled_dependency not in self.map.keys():
+            if fulfilled_dependency.instance not in self.map.keys():
                 logger.error(f"Unable to invoke deferred Application {fulfilled_dependency.application.name}: Instance {fulfilled_dependency.instance} not found!")
                 continue
 
             instance = self.map[fulfilled_dependency.instance]
             message = ApplicationStatusMessageUpstream(fulfilled_dependency.application.name, state)
             instance.send_message(message)
+            logger.debug(f"Sending Application status update for '{fulfilled_dependency.application.name}' and state '{state}' to Instance '{fulfilled_dependency.instance}'.")
 
     def remove_all(self):
         if self.state_change_semaphore is not None and len(self.map) != 0:

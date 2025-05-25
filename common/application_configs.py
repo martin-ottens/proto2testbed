@@ -31,6 +31,7 @@ class ApplicationSettings(ABC):
 class AppStartStatus(Enum):
     START = "started"
     FINISH = "finished"
+    DAEMON = "daemon"
     
     @staticmethod
     def from_str(status: str):

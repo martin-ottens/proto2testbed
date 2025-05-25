@@ -107,16 +107,21 @@ class ApplicationController(Thread):
         time.sleep(wait_for)
         process.start()
 
-        total_wait = self.app.get_runtime_upper_bound(self.config.runtime) + 10
-        wait_for_init = time.time()
+        total_wait = 10
+        if self.config.runtime is not None:
+            total_wait += self.app.get_runtime_upper_bound(self.config.runtime)
+            wait_for_init = time.time()
 
-        if not self.started_event.wait():
+        if not self.started_event.wait(total_wait):
             message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
                                             f"Application {self.config.name} has not reported start event!")
             self.mgmt_client.send_to_server(message)
         
         self.application_manager.report_app_status(self, AppStartStatus.START)
-        wait_left = max(0, total_wait - (time.time() - wait_for_init))
+        wait_left = None
+
+        if self.config.runtime is not None:
+            wait_left = max(0, total_wait - (time.time() - wait_for_init))
 
         # If no runtime is specified, the Application is a daemon process. 
         # It will remain running in background, but the testbed execution is not delayed by this Application
@@ -140,17 +145,17 @@ class ApplicationController(Thread):
                     message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
                                                 f"Application {self.config.name}:\n Unable get children: {ex}")
                     self.mgmt_client.send_to_server(message)
-                finally:
-                    self.application_manager.report_app_status(self, AppStartStatus.FINISH)
 
                 process.terminate()
 
+            self.application_manager.report_app_status(self, AppStartStatus.FINISH)
             process.join()
 
         if not self.shared_state["error_flag"]:
             if self.config.runtime is None:
                 message = DownstreamMessage(InstanceMessageType.MSG_SUCCESS, 
                                             f"Application {self.config.name} started as daemon")
+                self.application_manager.report_app_status(self, AppStartStatus.DAEMON)
             else:
                 message = DownstreamMessage(InstanceMessageType.MSG_SUCCESS, 
                                             f"Application {self.config.name} finished")

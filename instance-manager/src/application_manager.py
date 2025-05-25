@@ -73,6 +73,11 @@ class ApplicationManager:
         while self.app_collect_list:
             event: ApplicationEvent = self.event_queue.get()
 
+            if event.status == AppStartStatus.DAEMON:
+                self.app_collect_list.remove(event.app)
+                collected += 1
+                continue
+
             self.main.single_app_status_changed(event.app.config.name, event.status)
 
             if event.status == AppStartStatus.FINISH:
@@ -85,12 +90,15 @@ class ApplicationManager:
         if collected != (len(self.app_exec_deferred) + len(self.app_exec_init)):
             print(f"Not all Applications were completed yielding finished event!")
             self.main.message_to_controller(InstanceMessageType.MSG_ERROR,
-                                            f"Not all Applications were completed yielding finished event!")
+                                            f"Not all Applications were completed yielding 'finished' event!")
             for app in self.running:
+                if app.config.runtime is None:
+                    continue
+                
                 app.join()
+                failed += 1
 
-        if failed != 0:
-            self.manager.all_apps_status_changed(failed)
+        self.main.all_apps_status_changed(failed)
 
 
     def _destory_apps(self) -> None:
@@ -158,7 +166,7 @@ class ApplicationManager:
                 self._destory_apps()
                 return False
             
-            app_controller = ApplicationController(app_instance, config, self.manager, self.instance_name)
+            app_controller = ApplicationController(app_instance, config, self.manager, self.instance_name, self)
             self.app_collect_list.append(app_controller)
 
             if config.depends is None or len(config.depends) == 0:
@@ -170,6 +178,7 @@ class ApplicationManager:
         self.main.message_to_controller(InstanceMessageType.MSG_DEBUG, 
                                                         f"Apps loaded: {self.loader.loaded_apps_size()}, Scheduled to execute instant: {len(self.app_exec_init)}, with dependency: {len(self.app_exec_deferred)}")
         self.main.message_to_controller(InstanceMessageType.APPS_INSTALLED)
+        self.colletor_thread.start()
         return True
 
     def run_initial_apps(self, t0: float) -> bool:
@@ -196,6 +205,8 @@ class ApplicationManager:
                 continue
 
             value.start()
+            self.main.message_to_controller(InstanceMessageType.MSG_DEBUG, 
+                                            f"Deferred Application started: {value.config.name}")
             self.running.append(value)
 
         return True

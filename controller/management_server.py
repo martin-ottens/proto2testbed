@@ -134,9 +134,9 @@ class ManagementClientConnection(threading.Thread):
                 return True
             
             case InstanceMessageType.APP_FINISHED_SIGNAL | InstanceMessageType.APP_STARTED_SIGNAL:
-                state = AppStartStatus.FINISH if message_obj.type == InstanceMessageType.APP_FINISHED_SIGNAL else AppStartStatus.START
+                state = AppStartStatus.FINISH if message_obj.status == InstanceMessageType.APP_FINISHED_SIGNAL else AppStartStatus.START
                 app = message_obj.payload
-                logger.debug(f"Management: Client {self.client.name} reported Application '{app}' is now {state}.")
+                logger.debug(f"Management: Client {self.client.name} reported Application '{app}' is now '{state}'.")
                 self.manager.report_app_state_change(self.client.name, app, state)
                 return True
 

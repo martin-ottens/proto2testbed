@@ -20,6 +20,7 @@ import networkx as nx
 
 from typing import List, Optional
 from dataclasses import dataclass
+from loguru import logger
 
 from utils.settings import TestbedConfig, TestbedInstance
 from common.application_configs import AppStartStatus, ApplicationConfig
@@ -50,7 +51,6 @@ class ReverseApplicationDependency:
     def satisfy_and_check(self, reporting_instance: str, reporting_app: str, 
                           after: AppStartStatus) -> Optional[DeferredStartApplication]:
         if all(map(lambda x: x.satisfied, self.reverse_depdendencies)):
-            raise Exception("Already statisfied!")
             return None
 
         for dependecy in self.reverse_depdendencies:
@@ -240,6 +240,7 @@ class AppDependencyHelper:
                 else:
                     instant_start.append(deferred_app)
 
+        logger.debug(f"Application Dependency List: {len(instant_start)} start inital, {len(self.dependencies)} deferred.")
         return instant_start
 
     def get_next_applications(self, reporting_instance: str, 
@@ -249,6 +250,7 @@ class AppDependencyHelper:
         for dependency in self.dependencies:
             app = dependency.satisfy_and_check(reporting_instance, reporting_app, state)
             if app is not None:
+                logger.trace(f"Application ready: '{app.application}@{app.instance}', caused by '{reporting_app}@{reporting_instance}' in state '{state}'.")
                 result_list.append(app)
         
         return result_list

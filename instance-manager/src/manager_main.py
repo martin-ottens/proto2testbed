@@ -262,6 +262,9 @@ class InstanceManager:
         return True
     
     def single_app_status_changed(self, app: str, status: AppStartStatus) -> None:
+        if status not in [AppStartStatus.FINISH, AppStartStatus.START]:
+            return
+
         messagetype = InstanceMessageType.APP_FINISHED_SIGNAL if status == AppStartStatus.FINISH else InstanceMessageType.APP_STARTED_SIGNAL
         message = DownstreamMessage(messagetype, app)
         self.manager.send_to_server(message)
@@ -272,7 +275,7 @@ class InstanceManager:
             self.message_to_controller(InstanceMessageType.APPS_FAILED, 
                                         f"{failed_count} Applications(s) failed.")
         else:
-            print(f"Execution of Applications successfully completed.", file=sys.stderr, flush=True)
+            print(f"Execution of all Applications successfully completed.", file=sys.stderr, flush=True)
             self.message_to_controller(InstanceMessageType.APPS_DONE)
 
     def _run_instance_manager(self):
@@ -323,7 +326,7 @@ class InstanceManager:
                         print(f"Got message from controller to start deferred, but im in state {self.state.value}")
                         self.message_to_controller(InstanceMessageType.MSG_ERROR, "Starting deferred Applications in invalid state!")
 
-                    
+                    self.run_deferred_app(data)
                 case CopyFileMessageUpstream():
                     if not self.handle_file_copy(data):
                         self.state = IMState.FAILED
