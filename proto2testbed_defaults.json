@@ -7,5 +7,6 @@
     "influx_user": null,
     "influx_password": null,
     "influx_timeout": 10,
-    "influx_retries": 4
+    "influx_retries": 4,
+    "statefile_basedir": "/tmp/p2t/"
 }

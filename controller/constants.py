@@ -16,7 +16,6 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
-INTERCHANGE_BASE_PATH = "/tmp/ptb-i-"
 MACHINE_STATE_FILE = "state.json"
 TAP_PREFIX = "ptb-t-"
 BRIDGE_PREFIX = "ptb-b-"

@@ -18,12 +18,13 @@
 
 import os
 import json
+import jsonpickle
 
 from loguru import logger
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 
-from constants import INTERCHANGE_BASE_PATH, MACHINE_STATE_FILE
+from constants import MACHINE_STATE_FILE
 from utils.settings import CommonSettings
 from utils.networking import InstanceInterface
 
@@ -37,22 +38,18 @@ class InstanceStateFile:
     main_pid: int
     uuid: str
     mgmt_ip: Optional[str]
-    interfaces: Optional[List[InstanceInterface | Any]] = None
+    interfaces: Optional[List[InstanceInterface]] = None
 
     @staticmethod
-    def from_json(json_dict):
-        interfaces = []
-        for mapping in json_dict["interfaces"]:
-            interface = InstanceInterface(**mapping)
-            status = interface.check_export_values()
-            if status is not None:
-                raise Exception(f"Invalid interface: {status}")
-            interfaces.append(interface)
+    def from_json(json_str : str):
+        obj: InstanceStateFile = jsonpickle.decode(json_str)
 
-        del json_dict["interfaces"]
+        if obj.interfaces:
+            for interface in obj.interfaces:
+                status = interface.check_export_values()
+                if status is not None:
+                    raise Exception(f"Invalid interface class while parsing state files: {status}")
 
-        obj = InstanceStateFile(**json_dict)
-        obj.interfaces = interfaces
         return obj
 
 
@@ -68,25 +65,24 @@ class StateFileReader:
         self.reload()
 
     def reload(self) -> None:
-        base_dir = os.path.dirname(INTERCHANGE_BASE_PATH)
-        prefix = os.path.basename(INTERCHANGE_BASE_PATH)
+        base_dir = CommonSettings.statefile_base
         self.files = []
         if not os.path.exists(base_dir) or not os.path.isdir(base_dir):
             return
         
         for item in os.listdir(base_dir):
             itempath = os.path.join(base_dir, item)
-            if not item.startswith(prefix) or not os.path.isdir(itempath):
+            if not os.path.isdir(itempath):
                 continue
 
             statefilepath = os.path.join(itempath, MACHINE_STATE_FILE)
             try:
                 with open(statefilepath, "r") as handle:
-                    state = InstanceStateFile.from_json(json.load(handle))
+                    state = InstanceStateFile.from_json(handle.read())
                     self.files.append(StateFileEntry(state, statefilepath))
                     logger.trace(f"Loaded a state from '{statefilepath}'")
             except Exception as ex:
-                logger.opt(exception=ex).debug(f"Cannot load state file '{statefilepath}'")
+                logger.opt(exception=ex).error(f"Cannot load state file '{statefilepath}'")
                 self.files.append(StateFileEntry(None, statefilepath))
     
     @staticmethod
@@ -115,7 +111,7 @@ class StateFileReader:
     def get_states(self, filter_owned_by_executor: bool = False, 
                    filter_experiment_tag: Optional[str] = None, 
                    filter_running: Optional[bool] = None) -> List[StateFileEntry]:
-        
+
         result: List[StateFileEntry] = []
         for state in self.files:
             if state.contents is None and (filter_running is not None and not filter_running):

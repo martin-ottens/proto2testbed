@@ -88,12 +88,20 @@ class InstanceInterface:
     def __lt__(self, other) -> bool:
         return self.tap_index < other.tap_index
     
-    def dump(self) -> Any:
-        result = {}
-        for attr in InstanceInterface._EXPORT_ATTRIBUTES:
-            result[attr] = getattr(self, attr)
-       
-        return result
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        delkeys = []
+        for val in state.keys():
+            if val not in InstanceInterface._EXPORT_ATTRIBUTES:
+                delkeys.append(val)
+
+        for attr in delkeys:
+            del state[attr]
+
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
 
 class NetworkMappingHelper:

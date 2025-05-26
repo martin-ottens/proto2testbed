@@ -26,10 +26,3 @@ from abc import ABC
 class JSONMessage(ABC):
     def as_json(self) -> bytes:
         return jsonpickle.encode(self).encode("utf-8")
-
-
-class DataclassJSONEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if dataclasses.is_dataclass(obj):
-            return dataclasses.asdict(obj)
-        return super().default(obj)

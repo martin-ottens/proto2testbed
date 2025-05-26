@@ -112,6 +112,8 @@ def main():
 
     CommonSettings.default_configs = DefaultConfigs("/etc/proto2testbed/proto2testbed_defaults.json")
 
+    CommonSettings.statefile_base = Path(CommonSettings.default_configs.get_defaults("statefile_basedir", "/tmp/p2t/"))
+
     mode = args.mode
     if mode in aliases.keys():
         mode = aliases.get(mode)

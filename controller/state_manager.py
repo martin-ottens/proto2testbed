@@ -21,14 +21,14 @@ import random
 import string
 import os
 import shutil
-import json
 import socket
 import errno
+import jsonpickle
 
 from enum import Enum
 from pathlib import Path
 from loguru import logger
-from typing import Tuple, Optional, List, Dict, Any
+from typing import Tuple, Optional, List, Dict
 from threading import Lock, Semaphore, Event
 
 from utils.system_commands import invoke_subprocess, set_owner
@@ -39,7 +39,6 @@ from helper.state_file_helper import InstanceStateFile
 from common.application_configs import ApplicationConfig, AppStartStatus
 from common.instance_manager_message import UpstreamMessage, ApplicationStatusMessageUpstream
 from utils.interfaces import Dismantable
-from common.interfaces import DataclassJSONEncoder
 from utils.settings import CommonSettings
 from constants import *
 
@@ -68,9 +67,8 @@ class WaitResult(Enum):
 class InstanceState:
     @staticmethod
     def clean_interchange_dir(path: str) -> bool:
-        prefix = INTERCHANGE_BASE_PATH
         try:
-            if os.path.isdir(path) and path.startswith(prefix):
+            if os.path.isdir(path):
                 shutil.rmtree(path)
                 return True
             else:
@@ -208,13 +206,13 @@ class InstanceState:
         self.manager.notify_state_change(new_state)
 
     def prepare_interchange_dir(self) -> None:
-        self.interchange_dir = Path(INTERCHANGE_BASE_PATH + self.uuid + "/")
+        self.interchange_dir = CommonSettings.statefile_base / Path(self.uuid)
 
         if self.interchange_dir.exists():
             raise Exception(f"Error during setup of interchange directory: {self.interchange_dir} already exists!")
         
         # Set 777 permission to allow socket access with --sudo option
-        os.mkdir(self.interchange_dir, mode=0o777)
+        os.makedirs(self.interchange_dir, mode=0o777, exist_ok=True)
         os.mkdir(self.interchange_dir / INSTANCE_INTERCHANGE_DIR_MOUNT)
         self.interchange_ready = True
 
@@ -305,11 +303,6 @@ class InstanceState:
         self.set_state(AgentManagementState.DISCONNECTED)
 
     def dump_state(self) -> None:
-        dump_interfaces: List[Any] = []
-
-        for interface in self.interfaces:
-            dump_interfaces.append(interface.dump())
-
         state = InstanceStateFile(
             instance=self.name,
             uuid=self.uuid,
@@ -318,12 +311,12 @@ class InstanceState:
             experiment=CommonSettings.experiment,
             main_pid=CommonSettings.main_pid,
             mgmt_ip=str(self.mgmt_ip_addr),
-            interfaces=dump_interfaces
+            interfaces=self.interfaces
         )
 
         target = self.interchange_dir / MACHINE_STATE_FILE
         with open(target, "w") as handle:
-            json.dump(state, handle, cls=DataclassJSONEncoder, indent=4)
+            handle.write(jsonpickle.encode(state))
 
         logger.trace(f"Dumped state of Instance {self.name} to file {target}.")
 

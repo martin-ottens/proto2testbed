@@ -176,6 +176,7 @@ class CommonSettings:
     main_pid: Optional[int] = None
     unique_run_name: Optional[str] = None
     app_base_path: Optional[Path] = None
+    statefile_base: Optional[Path] = None
 
     log_verbose: Optional[int] = None
     sudo_mode: Optional[bool] = None
