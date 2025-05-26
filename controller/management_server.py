@@ -339,7 +339,7 @@ class ManagementServer(Dismantable):
                                                                timeout=self.startup_init_timeout,
                                                                init_instant=self.init_instant,
                                                                socket_path=instance.get_mgmt_socket_path(),
-                                                               vsock_cid=instance.generate_vsock_cid())
+                                                               vsock_cid=instance.get_vsock_cid())
                 client_connection.start()
                 self.client_threads.append(client_connection)
             except Exception as ex:

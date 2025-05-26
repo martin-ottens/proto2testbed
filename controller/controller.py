@@ -36,6 +36,7 @@ from utils.influxdb import InfluxDBAdapter
 from helper.app_dependency_helper import AppDependencyHelper
 from utils.networking import *
 from utils.continue_mode import *
+from utils.concurrency_reservation import ConcurrencyReservation
 from management_server import ManagementServer
 from cli import CLI
 from state_manager import InstanceStateManager, AgentManagementState, WaitResult
@@ -144,7 +145,8 @@ class Controller(Dismantable):
 
         # Setup management network bridge
         try:
-            self.mgmt_bridge_mapping = self.network_mapping.add_bridge_mapping("br-mgmt")
+            bridge_name = ConcurrencyReservation.get_instance().generate_new_bridge_names()[0]
+            self.mgmt_bridge_mapping = self.network_mapping.add_bridge_mapping("br-mgmt", bridge_name)
             self.mgmt_bridge = ManagementNetworkBridge(self.mgmt_bridge_mapping.dev_name, 
                                                        self.mgmt_bridge_mapping.name,
                                                        mgmt_network)
@@ -168,9 +170,10 @@ class Controller(Dismantable):
             return False
 
         # Create bridges for experiment networks
-        for network in TestbedSettingsWrapper.testbed_config.networks:
+        bridge_names = ConcurrencyReservation.get_instance().generate_new_bridge_names(len(TestbedSettingsWrapper.testbed_config.networks))
+        for index, network in enumerate(TestbedSettingsWrapper.testbed_config.networks):
             try:
-                bridge_mapping = self.network_mapping.add_bridge_mapping(network.name)
+                bridge_mapping = self.network_mapping.add_bridge_mapping(network.name, bridge_names[index])
                 bridge = NetworkBridge(bridge_mapping.dev_name,
                                        bridge_mapping.name)
                 bridge_mapping.bridge = bridge
@@ -194,9 +197,10 @@ class Controller(Dismantable):
         diskimage_basepath = Path(TestbedSettingsWrapper.testbed_config.settings.diskimage_basepath)
         for instance_config in TestbedSettingsWrapper.testbed_config.instances:
             instance = self.state_manager.get_instance(instance_config.name)
-
+            
+            tap_names = ConcurrencyReservation.get_instance().generate_new_tap_names(len(instance_config.networks))
             for index, attached_network in enumerate(instance_config.networks):
-                tap_name = self.network_mapping.generate_tap_name()
+                tap_name = tap_names[index]
                 bridge_mapping = self.network_mapping.get_bridge_mapping(attached_network.name)
                 if bridge_mapping is None:
                     logger.critical(f"Unable to map network '{attached_network.name}' for Instance '{instance_config.name}': Not mapped.")
@@ -225,7 +229,7 @@ class Controller(Dismantable):
                 management_settings = None
                 if self.mgmt_bridge is not None:
                     instance_mgmt_ip = self.mgmt_bridge.get_next_mgmt_ip()
-                    tap_name = self.network_mapping.generate_tap_name()
+                    tap_name = ConcurrencyReservation.get_instance().generate_new_tap_names()[0]
                     instance.set_mgmt_ip(str(instance_mgmt_ip))
 
                     wait_for_interfaces.append(tap_name)
@@ -438,6 +442,8 @@ class Controller(Dismantable):
         if not load_vm_initialization(TestbedSettingsWrapper.testbed_config, self.base_path, self.state_manager):
             logger.critical("Critical error while loading Instance initialization!")
             return False
+
+        self.state_manager.assign_all_vsock_cids()
 
         if not self.start_management_infrastructure(self.pause_after != PauseAfterSteps.SETUP):
             logger.critical("Critical error during start of management infrastructure!")

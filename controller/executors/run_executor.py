@@ -145,3 +145,6 @@ class RunExecutor(BaseExecutor):
         
     def requires_priviledges(self) -> bool:
         return True
+    
+    def dumps_to_state_files(self) -> bool:
+        return True

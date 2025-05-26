@@ -31,6 +31,7 @@ Some more details:
 docker run -it --net host --rm --privileged \
     -e EXPERIMENT_TAG=<tag> \
     -v /images:/images \
+    -v /tmp/p2t:/tmp/p2t \
     -v </path/to/your/testbed_package>:/app \
     p2t:latest run <additional args> /app
 ```
@@ -41,6 +42,7 @@ Some more details:
 - `--net host` is used, so that the container can access all interfaces of the host machine and create network bridges. It also accesses the InfluxDB from the host's network (e.g. an InfluxDB instance installed on the host machine, possible in Docker with an exposed port).
 - `--privileged` will also grant access to `/dev/kvm`.
 - `-v /images:/images` is used for the disk image library.
+- `-v /tmp/p2t:/tmp/p2t` is used to share some states (e.g. VSOCK CIDs, since there is no CID registry in Linux) across multiple containers. This also allows the execution of `p2t ls` inside a container.
 - ` -v </path/to/your/testbed_package>:/app` mount the testbed package. If file preservation is enabled, Proto²Testbed running in the container will write to that mount on the host machine.
 - Since there are never any relevant modifications inside the container, `--rm` can be used to delete the container after the testbed was executed.
 - The experiment tag can be set using `-e EXPERIMENT_TAG=<tag>`, alternatively, it is possible to use the normal Proto²Testbed argument `-e <tag>`.

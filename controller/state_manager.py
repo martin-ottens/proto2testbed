@@ -40,6 +40,7 @@ from common.application_configs import ApplicationConfig, AppStartStatus
 from common.instance_manager_message import UpstreamMessage, ApplicationStatusMessageUpstream
 from utils.interfaces import Dismantable
 from utils.settings import CommonSettings
+from utils.concurrency_reservation import ConcurrencyReservation
 from constants import *
 
 
@@ -80,14 +81,13 @@ class InstanceState:
 
     def __init__(self, name: str, script_file: str, 
                  setup_env: Optional[Dict[str, str]], manager,
-                 init_preserve_files: Optional[List[str]], numeric_id: int,
-                 enable_vsock: bool = False) -> None:
+                 init_preserve_files: Optional[List[str]], 
+                 numeric_id: int) -> None:
         self.name: str = name
         self.script_file: str = script_file
         self.uuid = ''.join(random.choices(string.ascii_letters, k=8))
         self.numeric_id = numeric_id
         self.interchange_dir = None
-        self.vsock_enabled = enable_vsock
         self.vsock_cid: Optional[int] = None
         
         if setup_env is None:
@@ -153,35 +153,11 @@ class InstanceState:
 
         mapping.bridge_attached = True
     
-    def generate_vsock_cid(self) -> Optional[int]:
-        if not self.vsock_enabled:
-            return None
-        
-        if self.vsock_cid is not None:
-            return self.vsock_cid
+    def set_vsock_cid(self, cid: int) -> None:
+        self.vsock_cid = cid
 
-        potential_cid = os.getpid() + self.numeric_id
-        if os.getpid() < 100:
-            logger.trace("Probably running inside a container, using non-PID based initital VSOCK CID")
-            potential_cid = random.randint(3, 0xFFFFFFFF)
-
-        while True:
-            s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
-            s.settimeout(0.1)
-            try:
-                s.connect((potential_cid, 1))
-                s.close()
-                logger.debug(f"Searching VSOCK CID for '{self.name}': Connection succeeded with CID {potential_cid}, looking for new one")
-            except OSError as ex:
-                if ex.errno in (errno.ENODEV, errno.EHOSTUNREACH):
-                    self.vsock_cid = potential_cid
-                    logger.trace(f"Using VSOCK CID {self.vsock_cid} for Instance '{self.name}'")
-                    return potential_cid
-            except Exception:
-                logger.debug(f"Searching VSOCK CID for '{self.name}': Error using CID {potential_cid}: {ex}, in use?")
-            
-            potential_cid = random.randint(3, 0xFFFFFFFF)
-
+    def get_vsock_cid(self) -> Optional[int]:
+        return self.vsock_cid
     
     def set_mgmt_ip(self, ip_addr: str):
         self.mgmt_ip_addr = ip_addr
@@ -206,7 +182,7 @@ class InstanceState:
         self.manager.notify_state_change(new_state)
 
     def prepare_interchange_dir(self) -> None:
-        self.interchange_dir = CommonSettings.statefile_base / Path(self.uuid)
+        self.interchange_dir = CommonSettings.statefile_base / Path(CommonSettings.experiment) / Path(INTERCHANGE_DIR_PREFIX + self.uuid)
 
         if self.interchange_dir.exists():
             raise Exception(f"Error during setup of interchange directory: {self.interchange_dir} already exists!")
@@ -243,7 +219,7 @@ class InstanceState:
         self.interchange_ready = False
 
     def get_mgmt_socket_path(self) -> None | Path:
-        if not self.interchange_ready or self.vsock_enabled:
+        if not self.interchange_ready or self.vsock_cid is not None:
             return None
         return self.interchange_dir / INSTANCE_MANAGEMENT_SOCKET_PATH
     
@@ -262,7 +238,7 @@ class InstanceState:
             return False
         
         scope_sockets = [self.get_mgmt_tty_path()]
-        if not self.vsock_enabled:
+        if self.vsock_cid is None:
             scope_sockets.append(self.get_mgmt_socket_path())
         
         wait_until = time.time() + 20
@@ -357,12 +333,21 @@ class InstanceStateManager(Dismantable):
                                  setup_env=setup_env, 
                                  manager=self, 
                                  init_preserve_files=init_preserve_files, 
-                                 numeric_id=self.instance_counter,
-                                 enable_vsock=self.enable_vsock)
+                                 numeric_id=self.instance_counter)
 
         instance.set_setup_env_entry("INSTANCE_NAME", name)
         self.instance_counter += 1
         self.map[name] = instance
+
+    def assign_all_vsock_cids(self) -> None:
+        if not self.enable_vsock:
+            return
+        
+        vsock_cids = ConcurrencyReservation.get_instance().generate_new_vsock_cids(len(self.map))
+        index = 0
+        for instance in self.map.values():
+            instance.set_vsock_cid(vsock_cids[index])
+            index += 1
 
     def dump_states(self) -> None:
         for instance in self.map.values():

@@ -179,7 +179,7 @@ class InstanceHelper(Dismantable):
             if process.returncode != 0:
                 raise Exception(f"Unbale to run genisoimage: {process.stderr.decode('utf-8')}")
             
-            cid = instance.generate_vsock_cid()
+            cid = instance.get_vsock_cid()
             if not cid:
                 im_comm_args = InstanceHelper.__QEMU_IM_COMM_SERIAL.format(
                     serial=self.instance.get_mgmt_socket_path()

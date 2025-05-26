@@ -35,3 +35,6 @@ class BaseExecutor(ABC):
 
     def requires_priviledges(self) -> bool:
         return False
+    
+    def dumps_to_state_files(self) -> bool:
+        return False

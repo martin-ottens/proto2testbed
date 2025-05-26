@@ -108,39 +108,13 @@ class NetworkMappingHelper:
     def __init__(self) -> None:
         self.bridge_map: Dict[str, BridgeMapping] = {}
 
-    def _generate_name(self) -> str:
-        return "".join(random.choices(string.ascii_letters + string.digits, k=8))
-    
-    def generate_tap_name(self) -> str:
-        tries = 0
-        while True:
-            choice = TAP_PREFIX + self._generate_name()
-            if NetworkBridge.check_interfaces_available([choice]):
-                if tries > 100:
-                    raise Exception("Unable to generate TAP name")
-
-                tries += 1
-                continue
-            
-            return choice
-
-    def add_bridge_mapping(self, config_name: str) -> BridgeMapping:
+    def add_bridge_mapping(self, config_name: str, bridge_name: str) -> BridgeMapping:
         if config_name in self.bridge_map.keys():
             raise Exception(f"Bridge {config_name} already mapped.")
 
-        tries = 0
-        while True:
-            choice = BRIDGE_PREFIX + self._generate_name()
-            if NetworkBridge.check_interfaces_available([choice]):
-                if tries > 100:
-                    raise Exception("Unable to generate BRIDGE name")
-
-                tries += 1
-                continue
-            
-            mapping = BridgeMapping(config_name, choice)
-            self.bridge_map[config_name] = mapping
-            return mapping
+        mapping = BridgeMapping(config_name, bridge_name)
+        self.bridge_map[config_name] = mapping
+        return mapping
 
     def get_bridge_mapping(self, config_name: str) -> Optional[BridgeMapping]:
         return self.bridge_map.get(config_name, None)

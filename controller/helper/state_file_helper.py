@@ -17,16 +17,17 @@
 #
 
 import os
-import json
 import jsonpickle
+import shutil
 
 from loguru import logger
 from dataclasses import dataclass
 from typing import List, Optional, Dict
 
-from constants import MACHINE_STATE_FILE
+from constants import MACHINE_STATE_FILE, INTERCHANGE_DIR_PREFIX
 from utils.settings import CommonSettings
 from utils.networking import InstanceInterface
+from utils.state_lock import StateLock
 
 
 @dataclass
@@ -70,20 +71,30 @@ class StateFileReader:
         if not os.path.exists(base_dir) or not os.path.isdir(base_dir):
             return
         
-        for item in os.listdir(base_dir):
-            itempath = os.path.join(base_dir, item)
-            if not os.path.isdir(itempath):
+        for experiment in os.listdir(base_dir):
+            if not os.path.isdir(os.path.join(base_dir, experiment)):
                 continue
 
-            statefilepath = os.path.join(itempath, MACHINE_STATE_FILE)
-            try:
-                with open(statefilepath, "r") as handle:
-                    state = InstanceStateFile.from_json(handle.read())
-                    self.files.append(StateFileEntry(state, statefilepath))
-                    logger.trace(f"Loaded a state from '{statefilepath}'")
-            except Exception as ex:
-                logger.opt(exception=ex).error(f"Cannot load state file '{statefilepath}'")
-                self.files.append(StateFileEntry(None, statefilepath))
+            for instance in os.listdir(os.path.join(base_dir, experiment)):
+                if not instance.startswith(INTERCHANGE_DIR_PREFIX):
+                    continue
+
+                itempath = os.path.join(base_dir, experiment, instance)
+                if not os.path.isdir(itempath):
+                    continue
+
+                statefilepath = os.path.join(itempath, MACHINE_STATE_FILE)
+                if not os.path.exists(statefilepath):
+                    continue
+
+                try:
+                    with open(statefilepath, "r") as handle:
+                        state = InstanceStateFile.from_json(handle.read())
+                        self.files.append(StateFileEntry(state, statefilepath))
+                        logger.trace(f"Loaded a state from '{statefilepath}'")
+                except Exception as ex:
+                    logger.opt(exception=ex).error(f"Cannot load state file '{statefilepath}'")
+                    self.files.append(StateFileEntry(None, statefilepath))
     
     @staticmethod
     def get_name(uid: int) -> str:
@@ -107,6 +118,21 @@ class StateFileReader:
             return state.cmdline in ' '.join(proc.cmdline())
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return False
+        
+    @staticmethod
+    def check_and_aquire_experiment(tag: str) -> bool:
+        with StateLock.get_instance():
+            for item in os.listdir(CommonSettings.statefile_base):
+                if tag == item:
+                    return False
+            
+            os.mkdir(CommonSettings.statefile_base / tag, mode=0o777)
+            return True
+        
+    @staticmethod
+    def release_experiment(tag: str) -> None:
+        with StateLock.get_instance():
+            shutil.rmtree(CommonSettings.statefile_base / tag)
 
     def get_states(self, filter_owned_by_executor: bool = False, 
                    filter_experiment_tag: Optional[str] = None, 
