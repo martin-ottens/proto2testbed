@@ -77,6 +77,9 @@ class IperfServerApplication(BaseApplication):
             return True, None
         except Exception as ex:
             return False, f"Config validation failed: {ex}"
+        
+    def report_startup(self) -> None:
+        pass
 
     def start(self, runtime: Optional[int]) -> bool:
         if self.settings is None:
@@ -87,7 +90,7 @@ class IperfServerApplication(BaseApplication):
                    "--server", self.settings.host]
 
         try:
-           return run_iperf(command, self.interface) == 0
+           return run_iperf(command, self.interface, True) == 0
         except Exception as ex:
             traceback.print_exception(ex)
             raise Exception(f"Iperf3 server error: {ex}")

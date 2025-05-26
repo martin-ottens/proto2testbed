@@ -144,7 +144,9 @@ def parse_line_udp_server(interface: GenericApplicationInterface, time, stream, 
     interface.data_point("iperf-udp-server", data)
 
 
-def run_iperf(cli: List[str], interface: GenericApplicationInterface) -> int:
+def run_iperf(cli: List[str], interface: GenericApplicationInterface, 
+              report_startup: bool = False) -> int:
+
     process = subprocess.Popen(cli, shell=False, 
                                stdout=subprocess.PIPE, 
                                stderr=subprocess.PIPE)
@@ -153,6 +155,7 @@ def run_iperf(cli: List[str], interface: GenericApplicationInterface) -> int:
     pos = LogPosition.PREAMBLE
     next_could_be_delimiter = False
     preamble_finished = False
+    startup_reported = not report_startup
 
     while process.poll() is None:
         line = process.stdout.readline().decode("utf-8")
@@ -163,6 +166,12 @@ def run_iperf(cli: List[str], interface: GenericApplicationInterface) -> int:
             continue
 
         if pos == LogPosition.PREAMBLE and not line.startswith("["):
+            # Call report_start() BEFORE first client connects. iPerf3 is 
+            # ready as soon as first stdout output is written
+            if not startup_reported:
+                interface.report_startup()
+                startup_reported = True
+
             continue
         else:
             pos = LogPosition.RUNNING
