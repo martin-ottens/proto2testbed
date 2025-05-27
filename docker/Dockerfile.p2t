@@ -12,7 +12,7 @@ RUN apt-get update && \
                    iproute2 python3-jinja2 python3-pexpect python3-loguru \
                    python3-jsonschema python3-influxdb python3-psutil \
                    python3-numpy python3-matplotlib python3-networkx \
-                   python3-jsonpickle socat genisoimage && \
+                   python3-jsonpickle python3-filelock socat genisoimage && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

@@ -53,7 +53,7 @@ echo "Installing required dependencies ..."
 apt install -y --no-install-recommends qemu-utils qemu-system-x86 qemu-system-gui bridge-utils iptables net-tools genisoimage python3 iproute2 influxdb influxdb-client make socat
 
 echo "Installing required Python dependencies from Debian packages ..."
-apt install -y --no-install-recommends python3-jinja2 python3-pexpect python3-loguru python3-jsonschema python3-influxdb python3-psutil python3-networkx python3-jsonpickle
+apt install -y --no-install-recommends python3-jinja2 python3-pexpect python3-loguru python3-jsonschema python3-influxdb python3-psutil python3-networkx python3-jsonpickle python3-filelock
 apt install -y --no-install-recommends python3-numpy python3-matplotlib
 
 echo "Setting up default InfluxDB database ..."
