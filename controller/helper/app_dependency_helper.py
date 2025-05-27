@@ -149,8 +149,8 @@ class AppDependencyHelper:
         if set(self.daemon_apps) == set(self.graph.nodes):
             return 0
 
-        start_nodes = [n for n in self.graph.nodes if self.graph.in_degree(n) == 0]
-        end_nodes = [n for n in self.graph.nodes if self.graph.out_degree(n) == 0]
+        start_nodes: List[ApplicationConfig] = [n for n in self.graph.nodes if self.graph.in_degree(n) == 0]
+        end_nodes: List[ApplicationConfig] = [n for n in self.graph.nodes if self.graph.out_degree(n) == 0]
 
         paths = []
         for start in start_nodes:
@@ -159,11 +159,18 @@ class AppDependencyHelper:
                 paths.extend(path)
 
         max_runtime = 0
-
         for path in paths:
             runtime = 0
+            dependency_str = ""
+
             for index, node in enumerate(path):
+                if index != 0:
+                    dependency_str += " -> "
+                dependency_str += str(node)
+
                 app: ApplicationConfig = node
+                runtime_relevant = True
+
                 if index == 0:
                     if app.depends is None or len(app.depends) != 0:
                         raise Exception("In-Node if DAG cannot have dependencies!")
@@ -197,7 +204,10 @@ class AppDependencyHelper:
                     if start_type == AppStartStatus.START and prev_runtime is not None:
                     # Case 1: depends to previous node is "started"
                     #         -> Delete previous runtime from runtime sum
-                        runtime -= prev_runtime
+                        if runtime > prev_runtime:
+                            runtime -= prev_runtime
+                        else:
+                            runtime_relevant = False
                     elif start_type == AppStartStatus.FINISH and prev_runtime is None:
                     # Case 2: depends to previous node is "finished"
                     #         -> previous runtime has to be != None
@@ -206,14 +216,24 @@ class AppDependencyHelper:
                     # Add 1s offset per hop
                     runtime += AppDependencyHelper.__PER_HOP_DELAY_OFFSET
 
-                if app.runtime is not None:
+                if app.runtime is not None and runtime_relevant:
                     runtime += app.runtime
                     
                 if app.delay is not None:
                     runtime += app.delay
 
+            logger.trace(f"Runtime of dependency path: {dependency_str}: {runtime}")
             max_runtime = max(max_runtime, runtime)
 
+        # Workaround for networkx versions < 3: source == target is not considered
+        # as a path. Ensure that nodes not part of any path are considered in the
+        # maximum runtime.
+        node: ApplicationConfig
+        for node in self.graph.nodes:
+            if node.runtime is not None:
+                max_runtime = max(max_runtime, node.runtime)
+
+        logger.trace(f"Longest runtime in dependency graph ({self.graph}): {max_runtime}")
         return max_runtime
 
     def compile_dependency_list(self) -> List[DeferredStartApplication]:
