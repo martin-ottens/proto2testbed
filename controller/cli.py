@@ -95,7 +95,7 @@ class CLI(Dismantable):
                     return True
                 else:
                     if not self.continue_mode.update(ContinueMode.CONTINUE_TO, continue_to):
-                        logger.log("CLI", f"Can't continue to '{args[0]}': Step is in the past.")
+                        logger.log("CLI", f"Can't continue to '{continue_to}': Step is in the past.")
                         return True
                     
                     logger.log("CLI", f"Continue with testbed execution. Interaction will be disabled.")

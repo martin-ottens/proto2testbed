@@ -26,7 +26,7 @@ import jsonpickle
 
 from pathlib import Path
 from enum import Enum, auto
-from typing import Optional
+from typing import Optional, List
 
 from preserve_handler import PreserveHandler
 from management_daemon import IMDaemonServer
@@ -65,6 +65,7 @@ class InstanceManager:
         self.daemon = IMDaemonServer(self.manager, self.preserver)
         self.state = IMState.STARTED
         self.application_manager: Optional[ApplicationManager] = None
+        self.delayed_application_messages: List[DownstreamMessage] = []
 
     def message_to_controller(self, message_type: InstanceMessageType, payload = None):
         self.manager.send_to_server(DownstreamMessage(message_type, payload))
@@ -267,16 +268,24 @@ class InstanceManager:
 
         messagetype = InstanceMessageType.APP_FINISHED_SIGNAL if status == AppStartStatus.FINISH else InstanceMessageType.APP_STARTED_SIGNAL
         message = DownstreamMessage(messagetype, app)
-        self.manager.send_to_server(message)
+
+        if self.state not in [IMState.EXPERIMENT_RUNNING, IMState.FAILED, IMState.READY_FOR_SHUTDOWN]:
+            self.delayed_application_messages.append(message)
+        else:
+            self.manager.send_to_server(message)
 
     def all_apps_status_changed(self, failed_count: int) -> None:
         if failed_count != 0:
             print(f"Execution of Applications finished, {failed_count} failed.", file=sys.stderr, flush=True)
-            self.message_to_controller(InstanceMessageType.APPS_FAILED, 
-                                        f"{failed_count} Applications(s) failed.")
+            message = DownstreamMessage(InstanceMessageType.APPS_FAILED, f"{failed_count} Applications(s) failed.")
         else:
             print(f"Execution of all Applications successfully completed.", file=sys.stderr, flush=True)
-            self.message_to_controller(InstanceMessageType.APPS_DONE)
+            message = DownstreamMessage(InstanceMessageType.APPS_DONE)
+
+        if self.state not in [IMState.EXPERIMENT_RUNNING, IMState.FAILED, IMState.READY_FOR_SHUTDOWN]:
+            self.delayed_application_messages.append(message)
+        else:
+            self.manager.send_to_server(message)
 
     def _run_instance_manager(self):
         self.manager.start()
@@ -316,6 +325,10 @@ class InstanceManager:
                         self.message_to_controller(InstanceMessageType.MSG_ERROR, "Instance has not yet installed apps.")
                     else:
                         self.state = IMState.EXPERIMENT_RUNNING
+
+                        for message in self.delayed_application_messages:
+                            self.manager.send_to_server(message)
+
                         if not self.sync_ptp_clock():
                             self.state = IMState.FAILED
                         else:
