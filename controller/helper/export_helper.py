@@ -140,7 +140,7 @@ class ResultExportHelper:
                 
                 data_points = []
                 for point in points:
-                    data_points.append((int(dateparser.parse(point["time"]).timestamp()), point[series.name]))
+                    data_points.append((float(dateparser.parse(point["time"]).timestamp()), point[series.name]))
 
                 if len(data_points) == 0:
                     logger.warning(f"Query for '{series.name}' from '{subtype.name}' has not yield any results")
@@ -298,7 +298,7 @@ class ResultExportHelper:
             with open(filename, "w") as handle:
                 handle.write(f"time,{container.export_mapping.type.value[1]}\n")
                 for index in range(0, len(container.x)):
-                    handle.write(f"{container.x[index]},{container.y[index]}\n")
+                    handle.write(f"{container.x[index]:.2f},{container.y[index]}\n")
 
             logger.debug(f"CSV file rendered to file: {filename}")#
             logger.success(f"Exported CSV file: instance={container.instance}, application={container.app_config.application}, app_mame={container.app_config.name}, type={container.type_name}, series={container.export_mapping.name}")

@@ -51,7 +51,7 @@ Example config:
 """
 
 class PingApplicationConfig(ApplicationSettings):
-    def __init__(self, target: str, source: str = None, interval: int = 1,
+    def __init__(self, target: str, source: str = None, interval: float = 1,
                  packetsize: int = None, ttl: int = None, timeout: int = 1) -> None:
         self.target = target
         self.source = source
@@ -141,7 +141,7 @@ class PingApplication(BaseApplication):
                     "reachable": reachable,
                     "icmp_seq": icmp_seq
                 }
-                
+
                 self.interface.data_point("ping", data)
 
         except Exception as ex:

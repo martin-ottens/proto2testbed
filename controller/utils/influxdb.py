@@ -60,7 +60,7 @@ class InfluxDBAdapter(Dismantable):
                 break
                 
             try:
-                client.write_points(point)
+                client.write_points(point, time_precision="ms")
                 logger.trace(f"InfluxDBAdapter: Wrote data point {point}")
             except Exception as ex:
                 logger.opt(exception=ex).warning("InfluxDBAdapter: Unable to write datapoint")

@@ -19,6 +19,7 @@
 import json
 import socket
 import sys
+import select
 
 from typing import Dict, Optional
 from multiprocessing import Event
@@ -40,8 +41,11 @@ class ApplicationInterface(GenericApplicationInterface):
 
     def __is_connected(self) -> bool:
         try:
-            data = self.socket.recv(8, socket.MSG_DONTWAIT | socket.MSG_PEEK)
-            return len(data) != 0
+            r, _, _ = select.select([self.socket], [], [], 0)
+            if r:
+                data = self.socket.recv(8, socket.MSG_DONTWAIT | socket.MSG_PEEK)
+                return len(data) != 0
+            return True
         except BlockingIOError:
             return True
         except Exception:
