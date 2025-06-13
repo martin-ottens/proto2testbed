@@ -8,5 +8,6 @@
     "influx_password": null,
     "influx_timeout": 10,
     "influx_retries": 4,
-    "statefile_basedir": "/tmp/p2t/"
+    "statefile_basedir": "/tmp/p2t/",
+    "disable_integrations": false
 }

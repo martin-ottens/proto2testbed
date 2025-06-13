@@ -91,7 +91,8 @@ class Controller(Dismantable):
             self.app_dependencies.compile_dependency_list()
             self.state_manager.set_app_dependecy_helper(self.app_dependencies)
             self.integration_helper = IntegrationHelper(TestbedSettingsWrapper.cli_parameters.config,
-                                                        str(CommonSettings.app_base_path))
+                                                        str(CommonSettings.app_base_path),
+                                                        CommonSettings.default_configs.get_defaults("disable_integrations", False))
         except Exception as ex:
             logger.opt(exception=ex).critical("Internal error loading config!")
             raise Exception("Internal config loading error!")

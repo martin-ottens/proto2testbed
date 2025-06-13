@@ -133,9 +133,11 @@ class IntegrationLoader:
 
 
 class IntegrationHelper(Dismantable):
-    def __init__(self, testbed_package_base: str, app_base: str) -> None:
+    def __init__(self, testbed_package_base: str, app_base: str, 
+                 disabled: bool = False) -> None:
         self.loader = IntegrationLoader(testbed_package_base, app_base)
         self.integrations = None
+        self.disabled = disabled
 
         self.mapped_integrations = {
             InvokeIntegrationAfter.INIT: [],
@@ -144,6 +146,9 @@ class IntegrationHelper(Dismantable):
         }
 
     def apply_configured_integrations(self, integrations: List[Integration]):
+        if self.disabled and integrations is not None and len(integrations) != 0:
+            raise Exception("Integrations are disabled by default settings, unable to execute testbed.")
+
         self.loader.init_packaged_integrations()
         self.integrations = integrations
 
@@ -233,6 +238,9 @@ class IntegrationHelper(Dismantable):
     # - True = All integrations okay
     # - False = At least one integration failed at invoke
     def handle_stage_start(self, stage: InvokeIntegrationAfter) -> Optional[bool]:
+        if self.disabled:
+            return None
+
         # 0. Check always if there are previous failed integrations
         if self.has_error():
             logger.critical(f"Integration: Integration failure occured before stage {str(stage).upper()}")

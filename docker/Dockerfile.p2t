@@ -18,6 +18,12 @@ RUN apt-get update && \
 
 COPY . ./
 COPY proto2testbed_defaults.json /etc/proto2testbed/proto2testbed_defaults.json
-RUN ln -s /opt/proto-testbed/proto-testbed /usr/local/bin/p2t
+
+# Disable integrations by default, with --net=host concurrent testbeds will
+# possibly encounter problems anyway when integrations mix things up. Also,
+# a GitLab Docker Runner could force kill a container, thus preventing a 
+# correct cleanup of the integrations.
+RUN ln -s /opt/proto-testbed/proto-testbed /usr/local/bin/p2t && \
+    sed -i 's/"disable_integrations": false/"disable_integrations": true/' /etc/proto2testbed/proto2testbed_defaults.json
 
 ENTRYPOINT ["p2t"]
