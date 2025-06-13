@@ -147,6 +147,10 @@
                     "memory": {
                         "type": "number"
                     },
+                    "management_address": {
+                        "type": "string",
+                        "format": "ip-address"
+                    },
                     "networks": {
                         "oneOf": [
                             {
@@ -264,7 +268,6 @@
     "required": [
         "settings",
         "networks",
-        "integrations",
         "instances"
     ],
     "additionalItems": false

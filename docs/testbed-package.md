@@ -26,7 +26,7 @@ The following settings are possible via the testbed configuration. All settings 
 ```
 - **`management_network`**: The subnet for the management network. If omitted, the management network is disabled for all Instances - they are not reachable via SSH or have automatic internet access. Values:
   - *auto*: A free subnet is selected automatically (default)
-  - Subnet definition (e.g., `172.16.1.0/24`): Instances get IP addresses from the given subnet
+  - Subnet definition (e.g., `172.16.1.0/24`): Instances get IP addresses from the given subnet. The Testbed Host will always receive the first valid address from this subnet.
 - **`diskimage_basepath`**: Base path for the disk images for the Instances. If relative path are given for the Instances, they are relative to this value (defaults to */*)
 - **`startup_init_timeout`**: Timeout in seconds for startup and setup of the Instances (defaults to *30* seconds)
 - **`experiment_timeout`**: Timeout for the experiments in seconds. Select *-1* so that the timeout is calculated based on the application with the longest duration (defaults to *-1*)
@@ -53,6 +53,7 @@ Array of all Instances in a testbed. At least, `name`, `diskimage` and `networks
     },
     "cores": 2,
     "memory": 1024,
+    "management_address": "172.16.0.2",
     "networks": [
         "name", // Option: string
         { // Option: object
@@ -75,6 +76,7 @@ Array of all Instances in a testbed. At least, `name`, `diskimage` and `networks
 - **`environment`**: Environment variables passed to the setup script as a `string:string` object. Can be `null` or omitted, when no variables are needed.
 - **`cores`**: CPU cores assigned to the Instance, optional (defaults to *2*)
 - **`memory`**: Memory assigned to the Instance in MB, optional (defaults to *1024MB*)
+- **`management_address`**: Optional fixed management IP address for the Instance. The address must be from configured management network and will be checked for conflicts (e.g. default gateway). Be cautious when using this setting only for a part of the Instances since auto generated addresses since unwanted conflicts could occur. (Address will be auto generated for the Instance when this setting is omitted and the management network enabled.)
 - **`networks`**: List of networks the Instance will be attached to. All networks must be defined in the `networks` section. At most, an Instance can be attached to 4 networks (management network not included). The interfaces on the Instances will be assigned to networks by list positions and named `eth1` to `eth4`. The management network is always named `mgmt`, when enabled. Two types are possible, both can be mixed in the array:
     - **string**: Name of the attached network. A random MAC address will be assigned and `virtio` will be used as QEMU netmodel.
     - **object**: For more precise control of the interface settings. At least `name` is required:
@@ -172,8 +174,11 @@ Dependencies must build a directed acyclic graph (DAG) and all dependencies must
 </details>
 
 ## Integrations
-Integrations are programs executed on the Testbed Host during the Testbed execution (e.g., for running a simulator or manipulating physical interfaces). There are several important things to consider when using Integrations:
-- Integrations modify can change configurations of the Testbed Host - these changes are not rolled back automatically. The user must ensure, that the Integrations resets these changes upon termination of a testbed (e.g., by a shutdown script)
+
+> **Please Note:** Integrations can be disabled for all testbeds using the `disable_integrations` flag in the config at `/etc/proto2testbed/proto2testbed_defaults.json`. In this case, the `integrations` section must be fully omitted from the testbed config.
+
+Integrations are programs executed on the Testbed Host during the testbed execution (e.g., for running a simulator or manipulating physical interfaces). There are several important things to consider when using Integrations:
+- Integrations modify can change configurations of the Testbed Host - these changes are not rolled back automatically. The user must ensure, that the Integrations resets these changes upon termination of a testbed (e.g., by a shutdown script). For systems with concurrent testbed executions, unwanted side effects may occur.
 - Integrations can be started at different phases of a testbed run, depending on when the configuration done by the Integration or software executed by the Integration needs to be available
 - Integrations cannot push data to the InfluxDB. If you need to store data, you should rework your setup to use an Application for that.
  

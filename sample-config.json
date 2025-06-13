@@ -38,6 +38,7 @@
             "environment": null,
             "cores": 2,
             "memory": 1024,
+            "management_address": "172.16.99.2",
             "networks": [
                 "exp0"
             ],
@@ -63,6 +64,7 @@
             },
             "cores": 2,
             "memory": 1024,
+            "management_address": "172.16.99.3",
             "networks": [
                 {
                     "name": "exp0",
@@ -85,6 +87,7 @@
             },
             "cores": 2,
             "memory": 1024,
+            "management_address": "172.16.99.4",
             "networks": [
                 "exp1"
             ],

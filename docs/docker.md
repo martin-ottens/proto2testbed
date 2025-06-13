@@ -46,3 +46,5 @@ Some more details:
 - ` -v </path/to/your/testbed_package>:/app` mount the testbed package. If file preservation is enabled, Proto²Testbed running in the container will write to that mount on the host machine.
 - Since there are never any relevant modifications inside the container, `--rm` can be used to delete the container after the testbed was executed.
 - The experiment tag can be set using `-e EXPERIMENT_TAG=<tag>`, alternatively, it is possible to use the normal Proto²Testbed argument `-e <tag>`.
+
+Integrations are disabled by default in the Docker image. They can be re-enabled with the `disable_integrations` flag in the config at `/etc/proto2testbed/proto2testbed_defaults.json`.

@@ -93,8 +93,10 @@ class AttachedNetwork:
 class TestbedInstance:
     def __init__(self, name: str, diskimage: str, setup_script: str = None, 
                  environment: Optional[Dict[str, str]] =  None, cores: int = 2, 
-                 memory: int = 1024, networks: Optional[List[Any]] = None,
-                 applications = None, preserve_files: Optional[List[str]] = None) -> None:
+                 memory: int = 1024, management_address: Optional[str] = None, 
+                 networks: Optional[List[Any]] = None, applications = None, 
+                 preserve_files: Optional[List[str]] = None) -> None:
+
         if "@" in name:
             raise Exception(f"Instance name '{name}' contains the reserved '@' character.")
         
@@ -105,6 +107,7 @@ class TestbedInstance:
         self.cores: int = cores
         self.memory: int = memory
         self.preserve_files: List[str] = preserve_files
+        self.management_address = management_address
         self.networks: List[AttachedNetwork] = []
 
         self.applications: List[ApplicationConfig] = []
