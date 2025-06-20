@@ -77,10 +77,12 @@ class Integration:
 
 
 class AttachedNetwork:
-    def __init__(self, name: str, mac: Optional[str] = None, netmodel: str = "virtio") -> None:
+    def __init__(self, name: str, mac: Optional[str] = None, 
+                 netmodel: str = "virtio", vhost: bool = True) -> None:
         self.name: str = name
         self.mac: Optional[str] = mac
         self.netmodel: str = netmodel
+        self.vhost: bool = vhost
 
         if self.mac is not None:
             if re.fullmatch(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$', self.mac) is None:

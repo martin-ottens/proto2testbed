@@ -45,7 +45,7 @@ class InstanceManagementSettings:
 
 
 class InstanceHelper(Dismantable):
-    __QEMU_NIC_TEMPLATE     = "-nic tap,model={model},ifname={tapname},mac={mac} "
+    __QEMU_NIC_TEMPLATE     = "-nic tap,model={model},ifname={tapname},mac={mac},vhost={vhost} "
     __QEMU_COMMAND_TEMPLATE = """qemu-system-x86_64 \
                                 -boot c \
                                 -m {memory} \
@@ -109,7 +109,8 @@ class InstanceHelper(Dismantable):
                 interfaces_command += InstanceHelper.__QEMU_NIC_TEMPLATE.format(
                     model=instance_interface.netmodel, 
                     tapname=management.interface.tap_dev, 
-                    mac=mac)
+                    mac=mac,
+                    vhost=("on" if management.interface.vhost_enabled else "off"))
 
             eth_index = 1
             for interface in instance.interfaces:
@@ -128,7 +129,8 @@ class InstanceHelper(Dismantable):
                 interfaces_command += InstanceHelper.__QEMU_NIC_TEMPLATE.format(
                     model=interface.netmodel, 
                     tapname=interface.tap_dev, 
-                    mac=interface.tap_mac)
+                    mac=interface.tap_mac,
+                    vhost=("on" if interface.vhost_enabled else "off"))
 
                 eth_index += 1
 

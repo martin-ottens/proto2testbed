@@ -52,6 +52,7 @@ class InstanceInterface:
                  tap_dev: Optional[str] = None,
                  tap_mac: Optional[str] = None,
                  netmodel: str = "virtio",
+                 vhost_enabled: bool = True,
                  host_ports: Optional[List[str]] = None,
                  bridge_dev: Optional[str] = None,
                  bridge_name: Optional[str] = None,
@@ -63,6 +64,7 @@ class InstanceInterface:
         self.tap_dev = tap_dev
         self.tap_mac = tap_mac
         self.netmodel = netmodel
+        self.vhost_enabled = vhost_enabled
         self.bridge = bridge
         self.bridge_attached = False
         self.interface_on_instance = interface_on_instance

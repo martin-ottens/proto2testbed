@@ -215,6 +215,7 @@ class Controller(Dismantable):
                     tap_dev=tap_name,
                     tap_mac=attached_network.mac,
                     netmodel=attached_network.netmodel,
+                    vhost_enabled=attached_network.vhost,
                     bridge=bridge_mapping,
                     instance=instance
                 )

@@ -59,7 +59,8 @@ Array of all Instances in a testbed. At least, `name`, `diskimage` and `networks
         { // Option: object
             "name": "name",
             "mac": "AA:BB:CC:DD:EE:FF",
-            "netmodel": "virtio"
+            "netmodel": "virtio",
+            "vhost": true
         }
     ],
     "preserve_files": [ // or null
@@ -83,6 +84,7 @@ Array of all Instances in a testbed. At least, `name`, `diskimage` and `networks
         - **`name`**: Name of the attached network.
         - **`mac`**: MAC address for the interface with `:` delimiter. Random generated if omitted.
         - **`netmodel`**: QEMU emulation model for the virtual network interfaces from `virtio`, `e1000` and `rtl8139` (defaults to `virtio`)
+        - **`vhost`**: Change the Zero-Copy behavior of the selected netmodel driver (defaults to `true` = Zero-Copy enabled)
 - **`preserve_files`**: List of files that are copied to the Testbed Host before the Instance is terminated, if enabled during the testbed run. Absolute paths from the root of the Instance's file system. Can be omitted if no files should be preserved.
 
 ### Applications

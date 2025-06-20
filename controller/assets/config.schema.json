@@ -179,6 +179,9 @@
                                                         "e1000",
                                                         "rtl8139"
                                                     ]
+                                                },
+                                                "vhost": {
+                                                    "type": "boolean"
                                                 }
                                             },
                                             "required": [
