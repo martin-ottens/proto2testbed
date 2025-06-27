@@ -9,3 +9,8 @@ write_files:
         nameserver {{ dns_primary }}
       owner: root:root
       permissions: '0644'
+runcmd:
+    {% for command in mandatory_commands -%}
+    - {{ command }}
+    {% endfor -%}
+    - /bin/true

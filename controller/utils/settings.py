@@ -39,6 +39,7 @@ class TestbedSettings:
     experiment_timeout: int = -1 # seconds
     file_preservation_timeout: int = 30 # seconds
     appstart_timesync_offset: int = 1 # seconds
+    allow_gso_gro: bool = False
 
 
 @dataclass

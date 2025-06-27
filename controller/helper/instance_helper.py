@@ -77,7 +77,7 @@ class InstanceHelper(Dismantable):
 
     def __init__(self, instance: InstanceState, 
                  management: Optional[InstanceManagementSettings],
-                 image: str, testbed_package_path: str,
+                 image: str, testbed_package_path: str, allow_gso_gro: bool = False,
                  cores: int = 2, memory: int = 1024, debug: bool = False, 
                  disable_kvm: bool = False) -> None:
         self.instance = instance
@@ -99,6 +99,7 @@ class InstanceHelper(Dismantable):
             base_mac = hash_hex[1:2] + 'e:' + hash_hex[2:4] + ':' + hash_hex[4:6] + ':' + hash_hex[6:8] + ':' + hash_hex[8:10] + ':' + hash_hex[10:11]
             interfaces_command = ""
             experiment_interfaces = []
+            mandatroy_commands = []
 
             if management is not None:
                 mac = (base_mac + str(management.interface.tap_index))
@@ -131,6 +132,9 @@ class InstanceHelper(Dismantable):
                     tapname=interface.tap_dev, 
                     mac=interface.tap_mac,
                     vhost=("on" if interface.vhost_enabled else "off"))
+                
+                if not allow_gso_gro:
+                    mandatroy_commands.append(f"/usr/sbin/ethtool -K eth{eth_index} tso off gso off gro off lro off")
 
                 eth_index += 1
 
@@ -152,10 +156,12 @@ class InstanceHelper(Dismantable):
             user_data = j2_env.get_template("user-data.j2").render(
                 hostname=instance.name,
                 fqdn=fqdn,
+                mandatory_commands=mandatroy_commands,
                 dns_primary=get_dns_resolver()
             )
             with open(init_files / "user-data", mode="w", encoding="utf-8") as handle:
                 handle.write(user_data)
+            print(user_data)
 
             network_config = None
             if management is not None:

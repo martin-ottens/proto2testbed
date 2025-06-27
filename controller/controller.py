@@ -272,6 +272,7 @@ class Controller(Dismantable):
                                         image=str(diskimage_path),
                                         cores=instance_config.cores,
                                         memory=instance_config.memory,
+                                        allow_gso_gro=TestbedSettingsWrapper.testbed_config.settings.allow_gso_gro,
                                         disable_kvm=TestbedSettingsWrapper.cli_parameters.disable_kvm)
                 self.dismantables.insert(0, helper)
                 helper.start_instance()

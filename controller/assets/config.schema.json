@@ -48,6 +48,9 @@
                 },
                 "experiment_timeout": {
                     "type": "number"
+                },
+                "allow_gso_gro": {
+                    "type": "boolean"
                 }
             },
             "additionalItems": false
