@@ -99,7 +99,7 @@ class InstanceHelper(Dismantable):
             base_mac = hash_hex[1:2] + 'e:' + hash_hex[2:4] + ':' + hash_hex[4:6] + ':' + hash_hex[6:8] + ':' + hash_hex[8:10] + ':' + hash_hex[10:11]
             interfaces_command = ""
             experiment_interfaces = []
-            mandatroy_commands = []
+            mandatory_commands = []
 
             if management is not None:
                 mac = (base_mac + str(management.interface.tap_index))
@@ -134,7 +134,7 @@ class InstanceHelper(Dismantable):
                     vhost=("on" if interface.vhost_enabled else "off"))
                 
                 if not allow_gso_gro:
-                    mandatroy_commands.append(f"/usr/sbin/ethtool -K eth{eth_index} tso off gso off gro off lro off")
+                    mandatory_commands.append(f"/usr/sbin/ethtool -K eth{eth_index} tso off gso off gro off lro off")
 
                 eth_index += 1
 
@@ -156,12 +156,11 @@ class InstanceHelper(Dismantable):
             user_data = j2_env.get_template("user-data.j2").render(
                 hostname=instance.name,
                 fqdn=fqdn,
-                mandatory_commands=mandatroy_commands,
+                mandatory_commands=mandatory_commands,
                 dns_primary=get_dns_resolver()
             )
             with open(init_files / "user-data", mode="w", encoding="utf-8") as handle:
                 handle.write(user_data)
-            print(user_data)
 
             network_config = None
             if management is not None:
