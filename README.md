@@ -151,7 +151,7 @@ this tag should unique across multiple testbed runs. If a testbed is executed wi
 See [`docs/commands.md`](docs/commands.md) for further details on how to use Proto²Testbed.
 
 ## 6. Prepare a Base Image and execute an Example
-Before a testbed can be executed, a base image with a minimal OS installation has to be created. To create a *Debian 12* base image, see [`baseimage-creation/README.md`](baseimage-creation/README.md).
+Before a testbed can be executed, a base image with a minimal OS installation has to be created. To create a *Debian 12* or *Debian 13* base image, see [`baseimage-creation/README.md`](baseimage-creation/README.md).
 
 See `setups/` for some (advanced) usage examples. These examples are an excellent starting point for familiarizing yourself with Proto²Testbed. 
 The `README` files provide an overview of the setups and give instructions on how to run the examples.

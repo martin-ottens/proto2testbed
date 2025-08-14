@@ -2,7 +2,7 @@
 
 An OS installation with certain configurations and dependencies is required to execute a testbed. The basic installation of the operating system is usually only carried out once; the base-image created in the process can later be used to create testbed-specific images.
 
-Debian 12 "Bookworm" is currently supported as the operating system, whereby it should be possible to easily migrate the installation process and configuration to other Debian-based systems.
+Debian 12 "Bookworm" and 13 "Trixie" is currently supported as the operating system, whereby it should be possible to easily migrate the installation process and configuration to other Debian-based systems.
 
 ## Template Base-Image Creation
 
@@ -20,7 +20,7 @@ The script `make-baseimage.sh` can create base-images with AMD64 Debian 12 "Book
 
 ### Manual Base-Image Creation via Serial Mode
 
-1. Download a Debian 12 ISO --> `<ISO>` (e.g., [Netinstall Image](https://www.debian.org/CD/netinst/))
+1. Download a Debian 12 or 13 ISO --> `<ISO>` (e.g., [Netinstall Image](https://www.debian.org/CD/netinst/))
 2. Prepare Disk Image
    ```bash
    qemu-img create -f qcow2 <DISKIMAGE>.qcow2 4G
@@ -49,6 +49,13 @@ The script `make-baseimage.sh` can create base-images with AMD64 Debian 12 "Book
    - **Additional User:** `testbed`, Password `1`
 
    Omit the options `-enable-kvm -cpu host` when running `qemu-system-x86_64` on a virtual machine without nested KVM.
+
+   For Debian 13, it might be necessary to add the following kernel parameters to `/etc/default/grub`:
+   ```txt
+   GRUB_CMDLINE_LINUX="console=ttyS0,115200n8"
+   ```
+   After that, update GRUB using `update-grub`.
+
 5. Unmount ISO
    ```bash
    sudo umount /tmp/isomount
