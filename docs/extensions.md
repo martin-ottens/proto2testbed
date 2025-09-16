@@ -46,7 +46,6 @@ It is recommended to test and develop new Integrations while loading them dynami
 Additional commands can be added to the Testbed Controllers top-level CLI interface, each command is implemented as an Executor. 
 See `controller/executors/` for examples, each executor has to implement the `BaseExecutor` abstract base class. 
 During the `__init__` method call, the Executor can populate its subparser for CLI arguments, the `invoke` method is called, when the subcommand is selected. 
-Common arguments are provided via the `CommonSettings` static class.
 
 ## Further Proto²Testbed Interfaces
 Additional options to extend the functionality of the Proto²Testbed Controller are the contents of the temporary files for each Instance in `/tmp/ptb-i-*`. 

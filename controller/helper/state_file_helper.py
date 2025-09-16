@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict
 
 from constants import MACHINE_STATE_FILE, INTERCHANGE_DIR_PREFIX
-from utils.settings import CommonSettings
+from utils.state_provider import TestbedStateProvider
 from utils.networking import InstanceInterface
 from utils.state_lock import StateLock
 
@@ -61,12 +61,13 @@ class StateFileEntry:
 
 
 class StateFileReader:
-    def __init__(self) -> None:
+    def __init__(self, provider: TestbedStateProvider) -> None:
+        self.provider = provider
         self.files: List[StateFileEntry] = []
         self.reload()
 
     def reload(self) -> None:
-        base_dir = CommonSettings.statefile_base
+        base_dir = self.provider.statefile_base
         self.files = []
         if not os.path.exists(base_dir) or not os.path.isdir(base_dir):
             return
@@ -120,19 +121,19 @@ class StateFileReader:
             return False
         
     @staticmethod
-    def check_and_aquire_experiment(tag: str) -> bool:
-        with StateLock.get_instance():
-            for item in os.listdir(CommonSettings.statefile_base):
+    def check_and_aquire_experiment(lock: StateLock, tag: str, basedir: str) -> bool:
+        with lock:
+            for item in os.listdir(basedir):
                 if tag == item:
                     return False
             
-            os.mkdir(CommonSettings.statefile_base / tag, mode=0o777)
+            os.mkdir(basedir / tag, mode=0o777)
             return True
         
     @staticmethod
-    def release_experiment(tag: str) -> None:
-        with StateLock.get_instance():
-            shutil.rmtree(CommonSettings.statefile_base / tag)
+    def release_experiment(lock: StateLock, tag: str, basedir: str) -> None:
+        with lock:
+            shutil.rmtree(basedir / tag, ignore_errors=True)
 
     def get_states(self, filter_owned_by_executor: bool = False, 
                    filter_experiment_tag: Optional[str] = None, 
@@ -143,10 +144,10 @@ class StateFileReader:
             if state.contents is None and (filter_running is not None and not filter_running):
                 result.append(state)
 
-            if filter_owned_by_executor and state.contents.executor != CommonSettings.executor:
+            if filter_owned_by_executor and state.contents.executor != self.provider.executor:
                 continue
 
-            if filter_experiment_tag is not None and state.contents.experiment != CommonSettings.experiment:
+            if filter_experiment_tag is not None and state.contents.experiment != self.provider.experiment:
                 continue
 
             if filter_running is not None:

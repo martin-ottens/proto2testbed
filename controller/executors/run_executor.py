@@ -24,7 +24,8 @@ from loguru import logger
 
 from executors.base_executor import BaseExecutor
 from utils.continue_mode import PauseAfterSteps
-from utils.settings import CommonSettings, RunCLIParameters, TestbedSettingsWrapper
+from utils.settings import RunParameters
+from utils.state_provider import TestbedStateProvider
 
 
 class RunExecutor(BaseExecutor):
@@ -50,8 +51,8 @@ class RunExecutor(BaseExecutor):
         self.subparser.add_argument("-p", "--preserve", type=str, help="Path for instance data preservation, disabled with omitted",
                                     required=False, default=None)
 
-    def invoke(self, args) -> int:
-        parameters = RunCLIParameters()
+    def invoke(self, args, provider: TestbedStateProvider) -> int:
+        parameters = RunParameters()
         if os.path.isabs(args.TESTBED_CONFIG):
             parameters.config = args.TESTBED_CONFIG
         else:
@@ -63,13 +64,14 @@ class RunExecutor(BaseExecutor):
         parameters.skip_integration = args.skip_integrations
         parameters.skip_substitution = args.skip_substitution
         
-        if CommonSettings.experiment_generated:
-            logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {CommonSettings.experiment}")
+        if provider.experiment_generated:
+            logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {provider.experiment}")
         
         if parameters.interact != PauseAfterSteps.DISABLE and not os.isatty(sys.stdout.fileno()):
             logger.error("TTY does not allow user interaction, disabling 'interact' parameter")
             parameters.interact = PauseAfterSteps.DISABLE
         
+        # TODO: Move
         from pathlib import Path
         if args.preserve is not None:
             try:
@@ -82,12 +84,13 @@ class RunExecutor(BaseExecutor):
         else:
             parameters.preserve = None
 
-        TestbedSettingsWrapper.cli_parameters = parameters
+        provider.set_run_parameters(parameters)
 
         from helper.state_file_helper import StateFileReader
-        reader = StateFileReader()
-        all_experiments = reader.get_other_experiments(CommonSettings.experiment)
+        reader = StateFileReader(provider)
+        all_experiments = reader.get_other_experiments(provider.experiment)
 
+        # TODO: Move
         if len(all_experiments) != 0:
             logger.critical(f"Other testbeds with same experiment tag are running:")
             for user, pid in all_experiments.items():
@@ -98,7 +101,7 @@ class RunExecutor(BaseExecutor):
         from controller import Controller
         import signal
         try:
-            controller = Controller()
+            controller = Controller(provider)
         except Exception as ex:
             logger.opt(exception=ex).critical("Error during config initialization")
             return 1
@@ -127,7 +130,7 @@ class RunExecutor(BaseExecutor):
             logger.success(f"Files preserved to '{parameters.preserve}' (if any)")
         
         if not parameters.dont_use_influx:
-            logger.success(f"Data series stored with experiment tag '{CommonSettings.experiment}' (if any)")
+            logger.success(f"Data series stored with experiment tag '{provider.experiment}' (if any)")
 
         exit_code = 0
         if status:

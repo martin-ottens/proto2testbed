@@ -21,7 +21,7 @@ import argparse
 from loguru import logger
 
 from executors.base_executor import BaseExecutor
-from utils.settings import CommonSettings
+from utils.state_provider import TestbedStateProvider
 
 
 class CleanExecutor(BaseExecutor):
@@ -34,32 +34,32 @@ class CleanExecutor(BaseExecutor):
         self.subparser.add_argument("--all", action="store_true", required=False, default=False, 
                                     help="Delete all measurements from database")
 
-    def invoke(self, args) -> int:
+    def invoke(self, args, provider: TestbedStateProvider) -> int:
         from cli import CLI
         from utils.influxdb import InfluxDBAdapter
 
-        CLI(CommonSettings.log_verbose, None)
+        CLI(provider.log_verbose, None)
 
-        if CommonSettings.experiment_generated and not args.all:
+        if provider.experiment_generated and not args.all:
             logger.critical(f"No experiment tag was specified, use -e to specify an experiment tag.")
             return 1
         
-        adapter = InfluxDBAdapter(warn_on_no_database=True)
+        adapter = InfluxDBAdapter(provider, warn_on_no_database=True)
         client = adapter.get_access_client()
         if client is None:
             raise Exception("Unable to create InfluxDB access client")
 
         if not args.all:
-            logger.info(f"Deleting all result data with experiment tag '{CommonSettings.experiment}' from database '{adapter.get_selected_database()}'")
+            logger.info(f"Deleting all result data with experiment tag '{provider.experiment}' from database '{adapter.get_selected_database()}'")
             try:
-                client.delete_series(tags={"experiment": CommonSettings.experiment})
+                client.delete_series(tags={"experiment": provider.experiment})
             except Exception as ex:
-                logger.opt(exception=ex).critical(f"Unable to delete experiment tag '{CommonSettings.experiment}' from database '{adapter.get_selected_database()}'")
+                logger.opt(exception=ex).critical(f"Unable to delete experiment tag '{provider.experiment}' from database '{adapter.get_selected_database()}'")
                 return 1
             finally:
                 adapter.close_access_client()
             
-            logger.success(f"All data for experiment tag '{CommonSettings.experiment}' deleted")
+            logger.success(f"All data for experiment tag '{provider.experiment}' deleted")
             return 0
         else:
             logger.info(f"Deleting ALL data from database '{adapter.get_selected_database()}'")

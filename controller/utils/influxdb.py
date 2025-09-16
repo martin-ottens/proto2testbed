@@ -27,7 +27,7 @@ from loguru import logger
 from influxdb import InfluxDBClient
 
 from utils.interfaces import Dismantable
-from utils.settings import CommonSettings
+from utils.state_provider import TestbedStateProvider
 
 
 class InfluxDBAdapter(Dismantable):
@@ -90,13 +90,15 @@ class InfluxDBAdapter(Dismantable):
         logger.info(f"InfluxDBAdapter: InfluxDB is up & running, database '{self.database}' was found.")
         return True
 
-    def __init__(self, series_name: Optional[str] = None,
+    # TODO: Check what can be supplied by 'provider'
+    def __init__(self, provider: TestbedStateProvider, 
+                 series_name: Optional[str] = None,
                  warn_on_no_database: bool = False) -> None:
         self.store_disabled = warn_on_no_database
         self.series_name = series_name
 
         if "INFLUXDB_DATABASE" not in os.environ.keys():
-            default_database = CommonSettings.default_configs.get_defaults("influx_database")
+            default_database = provider.default_configs.get_defaults("influx_database")
             if default_database is None:
                 logger.critical("InfluxDBAdapter: INFLUXDB_DATABASE not set in environment. Set variable or specify config.")
                 raise Exception("INFLUXDB_DATABASE not set in environment")
@@ -106,15 +108,15 @@ class InfluxDBAdapter(Dismantable):
             self.database = os.environ.get("INFLUXDB_DATABASE")
 
         self.host = os.environ.get("INFLUXDB_HOST", 
-                                   CommonSettings.default_configs.get_defaults("influx_host", "127.0.0.1"))
+                                   provider.default_configs.get_defaults("influx_host", "127.0.0.1"))
         self.port = os.environ.get("INFLUXDB_PORT", 
-                                   int(CommonSettings.default_configs.get_defaults("influx_port", 8086)))
+                                   int(provider.default_configs.get_defaults("influx_port", 8086)))
         self.user  = os.environ.get("INFLUXDB_USER", 
-                                   CommonSettings.default_configs.get_defaults("influx_user", None))
+                                   provider.default_configs.get_defaults("influx_user", None))
         self.password = os.environ.get("INFLUXDB_PASSWORD", 
-                                   CommonSettings.default_configs.get_defaults("influx_password", None))
-        self.timeout = int(CommonSettings.default_configs.get_defaults("influx_timeout", 20))
-        self.retries = int(CommonSettings.default_configs.get_defaults("influx_retries", 4))
+                                   provider.default_configs.get_defaults("influx_password", None))
+        self.timeout = int(provider.default_configs.get_defaults("influx_timeout", 20))
+        self.retries = int(provider.default_configs.get_defaults("influx_retries", 4))
 
         if not self._check_connection():
             raise Exception("InfluxDBAdapter: Unable to verify InfluxDB connection!")

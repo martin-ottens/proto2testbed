@@ -29,7 +29,6 @@ from typing import Optional
 import state_manager
 from utils.settings import *
 from utils.system_commands import get_asset_relative_to, set_owner
-from utils.settings import TestbedConfig, CommonSettings
 
 
 def load_config(config_path: Path, skip_substitution: bool = False) -> TestbedConfig:
@@ -116,7 +115,7 @@ def load_vm_initialization(config: TestbedConfig, base_path: Path, state_manager
     return True
 
 
-def check_preserve_dir(preserve_dir: Optional[str]) -> bool:
+def check_preserve_dir(preserve_dir: Optional[str], executor: Optional[str]) -> bool:
     if preserve_dir is None:
         logger.warning("File Preservation is disabled, no files from Instances will be preserved!")
         return True
@@ -131,8 +130,8 @@ def check_preserve_dir(preserve_dir: Optional[str]) -> bool:
     else:
         logger.debug(f"File Preservation directory {preserve_dir} does not exist, creating it.")
         os.mkdir(preserve_dir)
-        if CommonSettings.executor is not None:
-            set_owner(preserve_dir, CommonSettings.executor)
+        if executor is not None:
+            set_owner(preserve_dir, executor)
 
     logger.info(f"File Preservation: Saving instance files to {preserve_dir}")
     return True

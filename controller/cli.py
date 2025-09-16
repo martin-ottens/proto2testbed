@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@ import sys
 import readline # Not unused, when imported, used by input()
 import termios
 import pexpect
-import os
 
 from threading import Thread, Event, Lock
 from loguru import logger
@@ -30,7 +29,7 @@ from pathlib import Path
 from utils.interfaces import Dismantable
 from utils.continue_mode import *
 from state_manager import InstanceStateManager
-from utils.settings import TestbedSettingsWrapper
+from utils.state_provider import TestbedStateProvider
 
 
 class CLI(Dismantable):
@@ -180,7 +179,7 @@ class CLI(Dismantable):
                     logger.log("CLI", f"Unable to get Instance with name '{instance}'")
                     return True
                 
-                if TestbedSettingsWrapper.cli_parameters.preserve is None:
+                if self.provider.run_parameters is None or self.provider.run_parameters.preserve is None:
                     logger.log("CLI", f"File preservation is not enabled in this testbed run.")
                     return True
                 
@@ -274,8 +273,11 @@ class CLI(Dismantable):
                 logger.log("CLI", f"Unknown command '{command}' or error running it, use 'help' to show available commands.")
 
 
-    def __init__(self, log_verbose: int, manager: InstanceStateManager = None):
+    def __init__(self, log_verbose: int, provider: TestbedStateProvider, 
+                 manager: InstanceStateManager = None) -> None:
+        # TODO: Move. No more globals
         CLI.instance = self
+        self.provider = provider
         self.manager: Optional[InstanceStateManager] = manager
         self.log_verbose = log_verbose
         self.enable_interaction = Event()

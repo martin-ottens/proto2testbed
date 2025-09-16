@@ -20,23 +20,13 @@ import os
 
 from filelock import FileLock
 
-from utils.settings import CommonSettings
 from constants import GLOBAL_LOCKFILE
 
 
 class StateLock:
-    _instance = None
-
-    @classmethod
-    def get_instance(cls):
-        if cls._instance is None:
-            cls._instance = StateLock()
-        
-        return cls._instance
-
-    def __init__(self) -> None:
-        os.makedirs(CommonSettings.statefile_base, exist_ok=True, mode=0o777)
-        self.lock = FileLock(CommonSettings.statefile_base / GLOBAL_LOCKFILE)
+    def __init__(self, statefile_base: str) -> None:
+        os.makedirs(statefile_base, exist_ok=True, mode=0o777)
+        self.lock = FileLock(statefile_base / GLOBAL_LOCKFILE)
     
     def lock_statefile(self) -> None:
         self.lock.acquire()

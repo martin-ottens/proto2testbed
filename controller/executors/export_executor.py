@@ -22,7 +22,7 @@ import os
 from loguru import logger
 
 from executors.base_executor import BaseExecutor
-from utils.settings import CommonSettings
+from utils.state_provider import TestbedStateProvider
 
 
 class ExportExecutor(BaseExecutor):
@@ -49,12 +49,12 @@ class ExportExecutor(BaseExecutor):
         self.subparser.add_argument("--skip_substitution", action="store_true", required=False, default=False, 
                                     help="Skip substitution of placeholders with environment variable values in config")
 
-    def invoke(self, args) -> int:
+    def invoke(self, args, provider: TestbedStateProvider) -> int:
         from cli import CLI
 
-        CLI(CommonSettings.log_verbose, None)
+        CLI(provider.log_verbose, None)
 
-        if CommonSettings.experiment_generated:
+        if provider.experiment_generated:
             logger.critical(f"No experiment tag was specified, use -e to specify an experiment tag.")
             return 1
 

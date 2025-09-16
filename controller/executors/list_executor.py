@@ -20,8 +20,8 @@ import argparse
 
 from loguru import logger
 
-from utils.settings import CommonSettings
 from executors.base_executor import BaseExecutor
+from utils.state_provider import TestbedStateProvider
 
 
 class ListExecutor(BaseExecutor):
@@ -34,13 +34,13 @@ class ListExecutor(BaseExecutor):
         self.subparser.add_argument("-a", "--all", required=False, default=False, action="store_true",
                                     help="Show testbeds from all users")
 
-    def invoke(self, args) -> int:
+    def invoke(self, args, provider: TestbedStateProvider) -> int:
         from cli import CLI
         from helper.state_file_helper import StateFileReader
 
-        CLI(CommonSettings.log_verbose, None)
+        CLI(provider.log_verbose, None)
 
-        statefile_reader = StateFileReader()
+        statefile_reader = StateFileReader(provider)
         states = statefile_reader.get_states(filter_owned_by_executor=(not args.all))
 
         # (uid, experiment) -> [states]

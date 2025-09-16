@@ -29,6 +29,7 @@ from pathlib import Path
 
 from utils.interfaces import Dismantable
 from utils.settings import *
+from utils.state_provider import TestbedStateProvider
 from base_integration import BaseIntegration, IntegrationStatusContainer
 
 
@@ -134,7 +135,8 @@ class IntegrationLoader:
 
 class IntegrationHelper(Dismantable):
     def __init__(self, testbed_package_base: str, app_base: str, 
-                 disabled: bool = False) -> None:
+                 provider: TestbedStateProvider, disabled: bool = False) -> None:
+        self.provider = provider
         self.loader = IntegrationLoader(testbed_package_base, app_base)
         self.integrations = None
         self.disabled = disabled
@@ -160,6 +162,7 @@ class IntegrationHelper(Dismantable):
             integration_status = IntegrationStatusContainer()
             integration_impl: BaseIntegration = integration_obj(integration.name,
                                                                 integration_status,
+                                                                self.provider,
                                                                 integration.environment)
             
             status, message = integration_impl.set_and_validate_config(integration.settings)
@@ -254,7 +257,7 @@ class IntegrationHelper(Dismantable):
         if fire_integrations is None or len(fire_integrations) == 0:
             return None
         
-        if TestbedSettingsWrapper.cli_parameters.skip_integration:
+        if self.provider.run_parameters is not None and self.provider.run_parameters.skip_integration:
             for integration in fire_integrations:
                 logger.warning(f"Integration: Start of '{integration.obj.name}' integration at stage {str(stage).upper()} skipped.")
             return None

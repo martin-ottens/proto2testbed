@@ -26,7 +26,8 @@ from dataclasses import dataclass
 import dateutil.parser as dateparser
 
 from utils.influxdb import InfluxDBAdapter
-from utils.settings import CommonSettings, TestbedConfig, ApplicationConfig
+from utils.settings import TestbedConfig, ApplicationConfig
+from utils.state_provider import TestbedStateProvider
 from applications.base_application import *
 from common.application_loader import ApplicationLoader
 
@@ -42,20 +43,22 @@ class SeriesContainer:
 
 
 class ResultExportHelper:
+    # TODO: Check which arguments can be supplied by 'provider'
     def __init__(self, output_path: str, config: TestbedConfig,
-                 testbed_package_path: str,
+                 testbed_package_path: str, provider: TestbedStateProvider,
                  exclude_instances: Optional[List[str]] = None,
                  exclude_applications: Optional[List[str]] = None) -> None:
         self.output_path = output_path
         self.config = config
+        self.provider = provider
         self.exclude_instances = exclude_instances
         self.exclude_applications = exclude_applications
-        self.adapter = InfluxDBAdapter(warn_on_no_database=True)
+        self.adapter = InfluxDBAdapter(provider, warn_on_no_database=True)
         self.reader = self.adapter.get_access_client()
         if self.reader is None:
             raise Exception("Unable to create InfluxDB data reader")
 
-        self.loader = ApplicationLoader(CommonSettings.app_base_path, Path(testbed_package_path),
+        self.loader = ApplicationLoader(provider.app_base_path, Path(testbed_package_path),
                                         ["exports_data", "get_export_mapping"])
         self.loader.read_packaged_apps()
 
@@ -78,7 +81,7 @@ class ResultExportHelper:
         result = []
 
         database_entries = self.reader.get_list_series(tags={
-            "experiment": CommonSettings.experiment,
+            "experiment": self.provider.experiment,
             "application": app_config.name,
             "instance": instance_name
         })
@@ -115,7 +118,7 @@ class ResultExportHelper:
             
             for series in data_mappings:
                 bind_params = {
-                    "experiment": CommonSettings.experiment,
+                    "experiment": self.provider.experiment,
                     "instance": instance_name,
                     "application": application.name
                 }
@@ -255,7 +258,7 @@ class ResultExportHelper:
 
             ax.yaxis.set_major_formatter(ticker.FuncFormatter(container.export_mapping.type.value[2]))
 
-            title = f"Experiment: {CommonSettings.experiment}, Series: {container.app_config.name}@{container.instance}, "
+            title = f"Experiment: {self.provider.experiment}, Series: {container.app_config.name}@{container.instance}, "
             title += f"Application: {container.export_mapping.name}@{container.app_config.application}"
             if container.export_mapping.title_suffix is not None:
                 title += f" ({container.export_mapping.title_suffix})"

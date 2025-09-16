@@ -22,7 +22,7 @@ import os
 from loguru import logger
 
 from executors.base_executor import BaseExecutor
-from utils.settings import CommonSettings
+from utils.state_provider import TestbedStateProvider
 
 
 class PruneExecutor(BaseExecutor):
@@ -38,15 +38,15 @@ class PruneExecutor(BaseExecutor):
         self.subparser.add_argument("--interfaces", required=False, default=False, action="store_true",
                                     help="Clean dangling interfaces, ")
 
-    def invoke(self, args) -> int:
+    def invoke(self, args, provider: TestbedStateProvider) -> int:
         from cli import CLI
         from state_manager import InstanceState
         from helper.state_file_helper import StateFileReader
         from helper.network_helper import NetworkBridge
 
-        CLI(CommonSettings.log_verbose, None)
+        CLI(provider.log_verbose, None)
 
-        statefile_reader = StateFileReader()
+        statefile_reader = StateFileReader(provider)
         all_states = statefile_reader.get_states(filter_owned_by_executor=(not args.all))
 
         running_interfaces = NetworkBridge.get_running_interfaces()

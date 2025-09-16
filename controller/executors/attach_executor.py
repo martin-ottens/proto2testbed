@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ import argparse
 from loguru import logger
 
 from executors.base_executor import BaseExecutor
-from utils.settings import CommonSettings
+from utils.state_provider import TestbedStateProvider
 
 
 class AttachExecutor(BaseExecutor):
@@ -39,20 +39,20 @@ class AttachExecutor(BaseExecutor):
         self.subparser.add_argument("-o", "--others", required=False, default=False, action="store_true",
                                     help="Also allow to connect to instances started by other users")
 
-    def invoke(self, args) -> int:
+    def invoke(self, args, provider: TestbedStateProvider) -> int:
         from constants import INSTANCE_TTY_SOCKET_PATH, MACHINE_STATE_FILE
         from helper.state_file_helper import StateFileReader
         from cli import CLI
         import os
 
-        cli_handler = CLI(CommonSettings.log_verbose, None)
+        cli_handler = CLI(provider.log_verbose, None)
 
-        statefile_reader = StateFileReader()
+        statefile_reader = StateFileReader(provider)
         all_states = statefile_reader.get_states(filter_running=True,
                                           filter_owned_by_executor=(not args.others))
 
         connect_to = None
-        if CommonSettings.experiment_generated:
+        if provider.experiment_generated:
             available = []
             for entry in all_states:
                 if entry.contents is None:
@@ -76,7 +76,7 @@ class AttachExecutor(BaseExecutor):
                 if entry.contents.instance != args.INSTANCE:
                     continue
 
-                if entry.contents.experiment == CommonSettings.experiment:
+                if entry.contents.experiment == provider.experiment:
                     connect_to = entry
                     break
 

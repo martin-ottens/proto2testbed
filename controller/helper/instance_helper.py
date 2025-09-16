@@ -32,7 +32,6 @@ from dataclasses import dataclass
 from utils.interfaces import Dismantable
 from utils.system_commands import invoke_subprocess, invoke_pexpect, get_asset_relative_to, get_dns_resolver
 from state_manager import InstanceState
-from utils.settings import CommonSettings
 from utils.networking import InstanceInterface
 from constants import SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE
 
@@ -95,7 +94,7 @@ class InstanceHelper(Dismantable):
  
         try:
             # Generate pseudo unique interface macs
-            hash_hex = hashlib.sha256((CommonSettings.unique_run_name + instance.name).encode()).hexdigest()
+            hash_hex = hashlib.sha256((instance.provider.unique_run_name + instance.name).encode()).hexdigest()
             base_mac = hash_hex[1:2] + 'e:' + hash_hex[2:4] + ':' + hash_hex[4:6] + ':' + hash_hex[6:8] + ':' + hash_hex[8:10] + ':' + hash_hex[10:11]
             interfaces_command = ""
             experiment_interfaces = []
