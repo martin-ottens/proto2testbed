@@ -20,6 +20,8 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Optional, Dict
 
+from common.instance_manager_message import LogMessageType
+
 """
 This is a generic/abstract class. It contains nothing that can be directly 
 loaded as an Application in your Testbed Configuration.
@@ -88,7 +90,9 @@ class GenericApplicationInterface(ABC):
         pass
 
     # Send extended message to the controller to store it in a log for each
-    # application
+    # application. With 'print_to_user' it will be shown in the controller's
+    # log output, 'store_in_log' will store details in the extended log
     @abstractmethod
-    def push_extended_status(self, message: str, stderr: bool = False) -> None:
+    def push_log_message(self, message: str, type: LogMessageType, 
+                         print_to_user: bool = False, store_in_log: bool = True) -> None:
         pass

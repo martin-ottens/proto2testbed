@@ -28,7 +28,7 @@ from management_client import ManagementClient
 from applications.base_application import BaseApplication
 from common.application_configs import ApplicationConfig, AppStartStatus
 from application_controller import ApplicationController
-from common.instance_manager_message import InstanceMessageType
+from common.instance_manager_message import InstanceMessageType, ApplicationStatus, LogMessageType
 from common.application_loader import ApplicationLoader
 from global_state import GlobalState
 
@@ -89,8 +89,9 @@ class ApplicationManager:
 
         if collected != (len(self.app_exec_deferred) + len(self.app_exec_init)):
             print(f"Not all Applications were completed yielding finished event!")
-            self.main.message_to_controller(InstanceMessageType.MSG_ERROR,
-                                            f"Not all Applications were completed yielding 'finished' event!")
+            self.main.extended_log_message(message_type=LogMessageType.MSG_ERROR,
+                                           message=f"Not all Applications were completed yielding 'finished' event!",
+                                           print_to_user=True)
             for app in self.running:
                 if app.config.runtime is None:
                     continue
@@ -120,24 +121,28 @@ class ApplicationManager:
 
         if apps is None:
             return True
-        
+
         for config in apps:
             app_cls, message = self.loader.load_app(config.application, True, config.load_from_instance)
 
+            app_name = f"{config.name}@{config.application}"
+
             if app_cls is None:
                 if message is not None:
-                    print(f"Unable to install app '{config.name}@{config.application}': {message}", file=sys.stderr, flush=True)
+                    print(f"Unable to install app '{app_name}': {message}", file=sys.stderr, flush=True)
                     self.main.message_to_controller(InstanceMessageType.FAILED, 
-                                                    f"Unable to install app '{config.name}@{config.application}': {message}")
+                                                    f"Unable to install app '{app_name}': {message}")
                 else:
-                    print(f"Unable to install app '{config.name}@{config.application}': Not found.", file=sys.stderr, flush=True)
+                    print(f"Unable to install app '{app_name}': Not found.", file=sys.stderr, flush=True)
                     self.main.message_to_controller(InstanceMessageType.FAILED, 
-                                                    f"Unable to install app '{config.name}@{config.application}': Not found.")
+                                                    f"Unable to install app '{app_name}': Not found.")
                 return False
                 
-            print(f"Loaded App '{config.application}': {message}", file=sys.stderr, flush=True)
-            self.main.message_to_controller(InstanceMessageType.MSG_DEBUG, 
-                                            f"Loaded App '{config.application}': {message}")
+            print(f"Loaded App '{app_name}': {message}", file=sys.stderr, flush=True)
+            
+            self.main.extended_log_message(message_type=LogMessageType.MSG_DEBUG,
+                                           message=f"Loaded App '{app_name}': {message}",
+                                           print_to_user=True)
 
             try:
                 app_instance: BaseApplication = app_cls()
@@ -145,26 +150,33 @@ class ApplicationManager:
 
                 if not status:
                     if message is not None:
-                        self.main.message_to_controller(InstanceMessageType.FAILED, 
-                                                        f"Unable to validate config for app '{config.name}@{config.application}': {message}")
+                        self.main.extended_app_status(config.name, ApplicationStatus.EARLY_FAILED, 
+                                                      LogMessageType.MSG_ERROR, 
+                                                      f"Unable to validate config: {message}", True)
                     else:
-                        self.main.message_to_controller(InstanceMessageType.FAILED, 
-                                                        f"Unable to validate config for app '{config.name}@{config.application}': Unspecified error.")
+                        self.main.extended_app_status(config.name, ApplicationStatus.EARLY_FAILED, 
+                                                      LogMessageType.MSG_ERROR, 
+                                                      f"Unable to validate config: Unspecified error.", True)
                 elif message is not None:
-                        self.main.message_to_controller(InstanceMessageType.MSG_INFO, 
-                                                        f"Message during config validation for app '{config.name}@{config.application}': {message}")
+                        self.main.extended_app_status(config.name, ApplicationStatus.UNCHANGED, 
+                                                      LogMessageType.MSG_INFO, 
+                                                      f"Message during config validation: {message}", True)
 
                 
                 if not status:
-                    print(f"Unable to validate config for app '{config.name}@{config.application}': {message}", file=sys.stdout, flush=True)
+                    print(f"Unable to validate config for app '{app_name}': {message}", file=sys.stdout, flush=True)
+                    self.main.message_to_controller(InstanceMessageType.FAILED, 
+                                                    f"Unable to initialize/validate an Application: Stopping loading.")
                     self._destory_apps()
                     return False
             except Exception as ex:
                 self.main.message_to_controller(InstanceMessageType.FAILED, 
-                                                        f"Unable to validate config for app '{config.name}@{config.application}': Unhandeled error: {ex}.")
-                print(f"Unhandeled error while validate config for app '{config.name}@{config.application}': {ex}", file=sys.stdout, flush=True)
+                                                        f"Unable to validate config for app '{app_name}': Unhandeled error: {ex}.")
+                print(f"Unhandeled error while validate config for app '{app_name}': {ex}", file=sys.stdout, flush=True)
                 self._destory_apps()
                 return False
+            
+            self.main.extended_app_status(config.name, ApplicationStatus.INITIALIZED)
             
             app_controller = ApplicationController(app_instance, config, self.manager, self.instance_name, self)
             self.app_collect_list.append(app_controller)
@@ -174,9 +186,10 @@ class ApplicationManager:
             else:
                 app_controller.start_defered = True
                 self.app_exec_deferred[config.name] = app_controller
-        
-        self.main.message_to_controller(InstanceMessageType.MSG_DEBUG, 
-                                                        f"Apps loaded: {self.loader.loaded_apps_size()}, Scheduled to execute instant: {len(self.app_exec_init)}, with dependency: {len(self.app_exec_deferred)}")
+
+        self.main.extended_log_message(message_type=LogMessageType.MSG_DEBUG,
+                                           message=f"Apps loaded: {self.loader.loaded_apps_size()}, Scheduled to execute instant: {len(self.app_exec_init)}, with dependency: {len(self.app_exec_deferred)}",
+                                           print_to_user=True)
         self.main.message_to_controller(InstanceMessageType.APPS_INSTALLED)
         self.colletor_thread.start()
         return True
@@ -205,8 +218,9 @@ class ApplicationManager:
                 continue
 
             value.start()
-            self.main.message_to_controller(InstanceMessageType.MSG_DEBUG, 
-                                            f"Deferred Application started: {value.config.name}")
+            self.main.extended_log_message(message_type=LogMessageType.MSG_DEBUG,
+                                           message= f"Deferred Application started: {value.config.name}",
+                                           print_to_user=True)
             self.running.append(value)
 
         return True

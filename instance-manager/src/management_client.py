@@ -222,14 +222,26 @@ class ManagementClient():
         message = DownstreamMessage(InstanceMessageType.DATA_POINT, data)
         self.send_to_server(message)
 
-    def send_extended_log(self, message: str, stderr: bool, application: str) -> None:
-        data = {
-            "message": message,
-            "stderr": stderr,
-            "application": application
-        }
+    def send_extended_app_log(self, message: str, type: LogMessageType, application: str, 
+                          print_to_user: bool = False, store_in_log: bool = True,
+                          new_status: ApplicationStatus = ApplicationStatus.UNCHANGED) -> None:
+        payload = ExtendedApplicationMessage(application=application,
+                                             status=new_status,
+                                             log_message_type=type,
+                                             log_message=message,
+                                             print_to_user=print_to_user,
+                                             store_in_log=store_in_log)
 
-        downstream = DownstreamMessage(InstanceMessageType.APPS_EXTENDED_STATUS, data)
+        downstream = DownstreamMessage(InstanceMessageType.APPS_EXTENDED_STATUS, payload)
+        self.send_to_server(downstream)
+    
+    def send_extended_system_log(self, message: str, type: LogMessageType,
+                                 print_to_user: bool = False, store_in_log: bool = True) -> None:
+        payload = ExtendedLogMessage(log_message_type=type,
+                                     message=message,
+                                     print_to_user=print_to_user,
+                                     store_in_log=store_in_log)
+        downstream = DownstreamMessage(InstanceMessageType.SYSTEM_EXTENDED_LOG, payload)
         self.send_to_server(downstream)
 
     def send_to_server(self, downstream_message: DownstreamMessage):

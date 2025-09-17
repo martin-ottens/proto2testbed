@@ -24,7 +24,7 @@ import select
 from typing import Dict, Optional
 
 from applications.generic_application_interface import LogMessageLevel, GenericApplicationInterface
-
+from common.instance_manager_message import LogMessageType
 
 class ApplicationInterface(GenericApplicationInterface):
     def __init__(self, app_name: str, socket_path: str, started_event):
@@ -120,12 +120,15 @@ class ApplicationInterface(GenericApplicationInterface):
         }
 
         return self._send_to_daemon(payload)
-    
-    def push_extended_status(self, message: str, stderr: bool = False) -> None:
+
+    def push_log_message(self, message: str, type: LogMessageType, 
+                         print_to_user: bool = False, store_in_log: bool = True) -> None:
         payload = {
             "type": "extended",
             "message": message,
-            "stderr": stderr,
+            "logtype": str(type),
+            "printtouser": print_to_user,
+            "storeinlog": store_in_log,
             "application": self.app_name
         }
 

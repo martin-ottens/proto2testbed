@@ -70,6 +70,29 @@ class InstanceManager:
     def message_to_controller(self, message_type: InstanceMessageType, payload = None):
         self.manager.send_to_server(DownstreamMessage(message_type, payload))
 
+    def extended_app_status(self, application: str, status: ApplicationStatus, 
+                            message_type: LogMessageType = LogMessageType.NONE,
+                            message: Optional[str] = None, print_to_user: bool = False,
+                            store_in_log: bool = True) -> None:
+        if message is not None and message_type == LogMessageType.NONE:
+            message_type = LogMessageType.MSG_INFO
+        
+        payload = ExtendedApplicationMessage(application=application, 
+                                             status=status,
+                                             log_message_type=message_type,
+                                             message=message,
+                                             print_to_user=print_to_user,
+                                             store_in_log=store_in_log)
+        self.manager.send_to_server(InstanceMessageType.APPS_EXTENDED_STATUS, payload)
+
+    def extended_log_message(self, message_type: LogMessageType, message: str,
+                             print_to_user: bool = False, store_in_log: bool = True) -> None:
+        payload = ExtendedLogMessage(log_message_type=message_type, 
+                                     message=message, 
+                                     print_to_user=print_to_user,
+                                     store_in_log=store_in_log)
+        self.manager.send_to_server(InstanceMessageType.SYSTEM_EXTENDED_LOG, payload)
+
     def handle_initialize(self, init_message: InitializeMessageUpstream) -> bool:
         print(f"Got 'initialize' instructions from Management Server", file=sys.stderr, flush=True)
 
@@ -85,9 +108,12 @@ class InstanceManager:
                 self.message_to_controller(InstanceMessageType.FAILED, f"Unable to mount testbed package: {ex}")
                 return False
 
+            self.extended_log_message(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
+            self.extended_log_message(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
+
             if proc is not None and proc.returncode != 0:
                 self.message_to_controller(InstanceMessageType.FAILED, 
-                                                        f"Mounting of testbed package failed with code ({proc.returncode})\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {proc.stderr.decode('utf-8')}")
+                                                        f"Mounting of testbed package failed with code ({proc.returncode})")
                 return False
             
             print(f"Testbed Package mounted to {TESTBED_PACKAGE_P9_DEV}", file=sys.stderr, flush=True)
@@ -109,9 +135,12 @@ class InstanceManager:
                     print(f"Unable to run setup_script: {ex}", file=sys.stderr, flush=True)
                     return False
 
+                self.extended_log_message(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
+                self.extended_log_message(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
+
                 if proc is not None and proc.returncode != 0:
                     self.message_to_controller(InstanceMessageType.FAILED, 
-                                                    f"Setup script failed ({proc.returncode})\nSTDOUT: {proc.stdout.decode('utf-8')}\nSTDERR: {proc.stderr.decode('utf-8')}")
+                                                    f"Setup script failed ({proc.returncode})")
                     print(f"Unable to run setup_script': {proc.stderr.decode('utf-8')}", file=sys.stderr, flush=True)
                     return False
                 
@@ -142,10 +171,13 @@ class InstanceManager:
         except Exception as ex:
             self.message_to_controller(InstanceMessageType.FAILED, f"Unable to sync ptp clock: {ex}")
             return False
+        
+        self.extended_log_message(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
+        self.extended_log_message(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
 
         if proc is not None and proc.returncode != 0:
             self.message_to_controller(InstanceMessageType.FAILED, 
-                                       f"Syncing of ptp clock failed with exit code ({proc.returncode})\nSTDERR: {proc.stderr.decode('utf-8')}")
+                                       f"Syncing of ptp clock failed with exit code ({proc.returncode})")
             print(f"Unable sync ptp clock': {proc.stderr.decode('utf-8')}", file=sys.stderr, flush=True)
             return False
         else:
@@ -154,14 +186,16 @@ class InstanceManager:
     def run_apps(self, config: RunApplicationsMessageUpstream) -> bool:
         if self.application_manager is None:
             print("Unable to run experiment: No application manager is installed")
-            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
-                                   f"Can't run Applications: No applications manager is configured.")
+            self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
+                                      message=f"Can't run Applications: No applications manager is configured.",
+                                      print_to_user=True)
             return False
         
         if config.t0 < time.time():
             print("Clock of this instance is running behind!")
-            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
-                                   f"Unable to start Applications at t0: Clock is running behind.")
+            self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
+                                      message=f"Unable to start Applications at t0: Clock is running behind.",
+                                      print_to_user=True)
             return False
         
         return self.application_manager.run_initial_apps(config.t0)
@@ -169,8 +203,9 @@ class InstanceManager:
     def run_deferred_app(self, message: ApplicationStatusMessageUpstream) -> None:
         if self.application_manager is None:
             print("Unable to start Application: No application manager is installed")
-            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
-                                   f"Can't start Application: No applications manager is configured.")
+            self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
+                                      message=f"Can't start Application: No applications manager is configured.",
+                                      print_to_user=True)
             return
         
         self.application_manager.run_deferred_app(message.app_name, message.app_status)
@@ -196,9 +231,10 @@ class InstanceManager:
         
     def handle_file_copy(self, copy_instructions: CopyFileMessageUpstream) -> bool:
         if copy_instructions.proc_id is None:
-            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
-                                       f"Copy failed, no proc_id was provided to Instance.")
             print(f"Invalid copy instruction packet: proc_id missing!")
+            self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
+                                      message=f"Copy failed, no proc_id was provided to Instance.",
+                                      print_to_user=True)
             return True
 
         source = Path(copy_instructions.source)
@@ -208,9 +244,10 @@ class InstanceManager:
             source_is_local = True
 
         if target.is_absolute() and source_is_local:
-            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
-                                       f"Can't copy from '{copy_instructions.source}' to '{copy_instructions.target}': Both are local.")
             print(f"Unable to process CopyFileMessage: Cannot copy from local to local", file=sys.stderr, flush=True)
+            self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
+                                      message=f"Can't copy from '{copy_instructions.source}' to '{copy_instructions.target}': Both are local.",
+                                      print_to_user=True)
             return True
         
         self.preserver.check_and_add_exchange_mount()
@@ -221,9 +258,10 @@ class InstanceManager:
             target = Path(EXCHANGE_MOUNT) / target
 
         if not source.exists():
-            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
-                                   f"Can't copy from '{source}': File or directory does not exist!")
             print(f"Unable to process CopyFileMessage: File or directory '{source}' does not exist!", file=sys.stderr, flush=True)
+            self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
+                                      message=f"Can't copy from '{source}': File or directory does not exist!",
+                                      print_to_user=True)
             return True
 
         try:
@@ -250,14 +288,17 @@ class InstanceManager:
                 os.rename(rename_path, rename_to)
         
         except Exception as ex:
-            self.message_to_controller(InstanceMessageType.MSG_ERROR, 
-                                   f"Copy failed on Instance: {ex}")
             print(f"Unable to copy from '{source}' to '{target}': {ex}", file=sys.stderr, flush=True)
+            self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
+                                      message=f"Copy failed on Instance: {ex}",
+                                      print_to_user=True)
             return True
 
-        self.message_to_controller(InstanceMessageType.MSG_DEBUG, 
-                                   f"Copied from to '{source}' to '{target}' on Instance.")
+
         print(f"Copied from to '{source}' to '{target}'", file=sys.stderr, flush=True)
+        self.extended_log_message(message_type=LogMessageType.MSG_DEBUG,
+                                  message=f"Copied from to '{source}' to '{target}' on Instance.",
+                                  print_to_user=True)
         message = DownstreamMessage(InstanceMessageType.COPIED_FILE, copy_instructions.proc_id)
         self.manager.send_to_server(message)
         return True
@@ -265,10 +306,10 @@ class InstanceManager:
     def single_app_status_changed(self, app: str, status: AppStartStatus) -> None:
         if status not in [AppStartStatus.FINISH, AppStartStatus.START]:
             return
-
-        messagetype = InstanceMessageType.APP_FINISHED_SIGNAL if status == AppStartStatus.FINISH else InstanceMessageType.APP_STARTED_SIGNAL
-        message = DownstreamMessage(messagetype, app)
-
+        
+        new_status = ApplicationStatus.EXECUTION_STARTED if status == AppStartStatus.FINISH else ApplicationStatus.EXECUTION_FINISHED
+        payload = ExtendedApplicationMessage(app, new_status)
+        message = DownstreamMessage(InstanceMessageType.APPS_EXTENDED_STATUS, payload)
         if self.state not in [IMState.EXPERIMENT_RUNNING, IMState.FAILED, IMState.READY_FOR_SHUTDOWN]:
             self.delayed_application_messages.append(message)
         else:
@@ -315,14 +356,18 @@ class InstanceManager:
                 case InstallApplicationsMessageUpstream():
                     if self.state != IMState.INITIALIZED and self.state != IMState.APPS_READY:
                         print(f"Got 'install_apps' message from controller, but im in state {self.state.value}, skipping.")
-                        self.message_to_controller(InstanceMessageType.MSG_ERROR, "Instance is not ready for app installation.")
+                        self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
+                                                  message= "Instance is not ready for app installation.",
+                                                  print_to_user=True)
                     else:
                         self.install_apps(data)
                         self.state = IMState.APPS_READY
                 case RunApplicationsMessageUpstream():
                     if self.state != IMState.APPS_READY:
                         print(f"Got 'run_apps' message from controller, but im in state {self.state.value}, skipping.")
-                        self.message_to_controller(InstanceMessageType.MSG_ERROR, "Instance has not yet installed apps.")
+                        self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
+                                                  message="Instance has not yet installed apps.",
+                                                  print_to_user=True)
                     else:
                         self.state = IMState.EXPERIMENT_RUNNING
 
@@ -337,7 +382,9 @@ class InstanceManager:
                 case ApplicationStatusMessageUpstream():
                     if self.state != IMState.EXPERIMENT_RUNNING:
                         print(f"Got message from controller to start deferred, but im in state {self.state.value}")
-                        self.message_to_controller(InstanceMessageType.MSG_ERROR, "Starting deferred Applications in invalid state!")
+                        self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
+                                                  message="Starting deferred Applications in invalid state!",
+                                                  print_to_user=True)
 
                     self.run_deferred_app(data)
                 case CopyFileMessageUpstream():

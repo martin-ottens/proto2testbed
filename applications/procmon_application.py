@@ -23,6 +23,7 @@ from typing import Dict, List, Optional, Tuple
 from applications.base_application import *
 from common.application_configs import ApplicationSettings
 from applications.generic_application_interface import LogMessageLevel
+from common.instance_manager_message import LogMessageType
 
 """
 Monitors different system and/or process parameters:
@@ -82,8 +83,11 @@ class ProcmonApplication(BaseApplication):
             return False
 
         if self.settings.system is False and self.settings.interfaces is None and self.settings.processes is None:
-            raise Exception("Procmon has nothing to do (system, process, and interface monitoring disabled!")
-        
+            self.interface.push_log_message("Procmon has nothing to do (system, process, and interface monitoring disabled!", 
+                                            LogMessageType.MSG_ERROR, 
+                                            True)
+            return False
+
         def proc_to_dict(process: psutil.Process) -> Dict[str, float]:
             cpu = process.cpu_times()
             mem = process.memory_info()
@@ -154,7 +158,10 @@ class ProcmonApplication(BaseApplication):
                     continue
                 
                 if found in processes.keys():
-                    raise Exception(f"Process cmdline identifier '{cmdline}' is ambiguous!")
+                    self.interface.push_log_message(f"Process cmdline identifier '{cmdline}' is ambiguous!", 
+                                                    LogMessageType.MSG_ERROR, 
+                                                    True)
+                    return False
 
                 processes[found] = {
                     "pid": psutil_proc.info["pid"],
@@ -164,7 +171,10 @@ class ProcmonApplication(BaseApplication):
             
             for proc_name in self.settings.processes:
                 if proc_name not in processes.keys():
-                    raise Exception(f"Unable to find process with cmdline '{proc_name}'!")
+                    self.interface.push_log_message(f"Unable to find process with cmdline '{proc_name}'!", 
+                                                    LogMessageType.MSG_ERROR, 
+                                                    True)
+                    return False
     
 
         # Interfaces -> t=0 Offset
@@ -173,7 +183,10 @@ class ProcmonApplication(BaseApplication):
             net_io_list = psutil.net_io_counters(pernic=True, nowrap=False)
             for if_name in self.settings.interfaces:
                 if if_name not in net_io_list.keys():
-                    raise Exception(f"Unable to find interface {if_name}")
+                    self.interface.push_log_message(f"Unable to find interface {if_name}", 
+                                                    LogMessageType.MSG_ERROR, 
+                                                    True)
+                    return False
                 interfaces[if_name] = snetio_to_dict(net_io_list[if_name])
         
         # System
@@ -192,7 +205,10 @@ class ProcmonApplication(BaseApplication):
             for proc_name, elem in processes.items():
                 try:
                     if not elem["proc"].is_running():
-                        raise Exception(f"Process {proc_name} no longer running!")
+                        self.interface.push_log_message(f"Process {proc_name} no longer running!",
+                                                        LogMessageType.MSG_ERROR,
+                                                        True)
+                        return False
                     run_processes[proc_name] = diff_two_dicts(elem["offset"], proc_to_dict(elem["proc"]))
                 except Exception:
                     run_processes[proc_name] = elem["offset"]
@@ -220,7 +236,7 @@ class ProcmonApplication(BaseApplication):
 
             if took >= self.settings.interval:
                 if print_cant_keep_up:
-                    self.interface.log(LogMessageLevel.WARNING, "Can't keep up with logging interval!")
+                    self.interface.push_log_message("Can't keep up with logging interval!", LogMessageType.MSG_WARNING)
                     print_cant_keep_up = False
                 if runtime is not None:
                     time_left -= took

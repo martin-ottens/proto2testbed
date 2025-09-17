@@ -135,6 +135,8 @@ class BaseApplication(ABC):
     # used as a daemon process. Must be implemented in a blocking way and returns whether the
     # execution was successful. This method may be interrupted when the upper runtime bound 
     # returned by get_runtime_upper_bound is exceeded.
+    # This method should not report errors with exceptions, use the extended application message
+    # interface provided by the ApplicationInterface for this.
     @abstractmethod
     def start(self, runtime: Optional[int]) -> bool:
         pass

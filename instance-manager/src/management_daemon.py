@@ -26,7 +26,7 @@ from typing import List, Optional
 
 from preserve_handler import PreserveHandler
 from management_client import ManagementClient, DownstreamMessage
-from common.instance_manager_message import InstanceMessageType
+from common.instance_manager_message import InstanceMessageType, LogMessageType
 from global_state import GlobalState
 
 
@@ -79,23 +79,22 @@ class IMClientThread(Thread):
         level = None
         match data["level"]:
             case "SUCCESS":
-                level = InstanceMessageType.MSG_SUCCESS
+                level = LogMessageType.MSG_SUCCESS
             case "INFO":
-                level = InstanceMessageType.MSG_INFO
+                level = LogMessageType.MSG_INFO
             case "WARNING":
-                level = InstanceMessageType.MSG_WARNING
+                level = LogMessageType.MSG_WARNING
             case "ERROR":
-                level = InstanceMessageType.MSG_ERROR
+                level = LogMessageType.MSG_ERROR
             case "DEBUG":
-                level = InstanceMessageType.MSG_DEBUG
+                level = LogMessageType.MSG_DEBUG
             case _:
                 return self._respond_to_client(False, f"Invalid log level '{data['level']}'")
             
         if not isinstance(data["message"], str):
             return self._respond_to_client(False, f"Field 'message' is not a string")
         
-        message: DownstreamMessage = DownstreamMessage(level, data["message"])
-        self.manager.send_to_server(message)
+        self.manager.send_extended_system_log(data['message'], level, True, True)
         return self._respond_to_client(True)
     
     def _handle_data(self, data) -> bool:
@@ -132,22 +131,36 @@ class IMClientThread(Thread):
         return self._respond_to_client(True)
 
     def _handle_extended(self, data) -> bool:
-        if "message" not in data or "stderr" not in data or "application" not in data:
-            return self._respond_to_client(False, "'message', 'stderr' or 'application' missing for data")
+        if "message" not in data or "logtype" not in data or "application" not in data:
+            return self._respond_to_client(False, "'message', 'logtype' or 'application' missing for data")
         
         if not isinstance(data["message"], str):
             return self._respond_to_client(False, f"Field 'message' is not a string")
         message = data["message"]
 
-        if not isinstance(data["stderr"], bool):
-            return self._respond_to_client(False, f"Field 'stderr' is not a boolean")
-        stderr = data["stderr"]
+        if not isinstance(data["logtype"], str):
+            return self._respond_to_client(False, f"Field 'logtype' is not a string")
+        logtype = LogMessageType.from_str(data["stderr"])
+        if logtype == LogMessageType.NONE:
+            return self._respond_to_client(False, f"Field 'logtype' has an invalid value")
 
         if not isinstance(data["application"], str):
             return self._respond_to_client(False, f"Field 'application' is not a string")
         application = data["application"]
 
-        self.manager.send_extended_log(message, stderr, application)
+        printtouser = False
+        if not "printtouser" in data or not isinstance(data["printtouser"], bool):
+            printtouser = bool(data["printtouser"])
+
+        storeinlog = True
+        if not "storeinlog" in data or not isinstance(data["storeinlog"], bool):
+            storeinlog = bool(data["storeinlog"])
+
+        self.manager.send_extended_app_log(message=message, 
+                                       type=logtype, 
+                                       pplication=application, 
+                                       print_to_user=printtouser,
+                                       store_in_log=storeinlog)
         return self._respond_to_client(True)
 
     def _process_one_message(self, data) -> bool:
@@ -178,8 +191,8 @@ class IMClientThread(Thread):
 
         if connected_app is not None and status is False:
             print(f"Daemon Thread: Client {self.id} ({connected_app}) got error during command '{json_data['type']}'", file=sys.stderr, flush=True)
-            message: DownstreamMessage = DownstreamMessage(InstanceMessageType.MSG_ERROR, f"App {connected_app}: Command '{json_data['type']}' failed.")
-            self.manager.send_to_server(message)
+            self.manager.send_extended_app_log(message=f"Command from app '{json_data['type']}' failed.", application=connected_app,
+                                               type=LogMessageType.MSG_ERROR, print_to_user=True)
             return True # Keep connection alive
         else:
             return status
@@ -244,8 +257,7 @@ class IMClientThread(Thread):
             except Exception as ex:
                 print(f"Daemon Thread: Client {self.id} error: {ex}", file=sys.stderr, flush=True)
                 raise ex
-                break
-        
+
         print(f"Daemon Thread: Client {self.id}: Connection closed.", file=sys.stderr, flush=True)
         self.client_socket.close()
 
