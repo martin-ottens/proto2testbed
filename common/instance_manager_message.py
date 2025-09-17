@@ -38,6 +38,7 @@ class InstanceMessageType(Enum):
     APP_STARTED_SIGNAL = "app_started"
     APP_FINISHED_SIGNAL = "app_finished"
     APPS_DONE = "apps_done"
+    APPS_EXTENDED_STATUS = "apps_extended_status"
     FINISHED = "finished"
     COPIED_FILE = "copied_file"
     SHUTDOWN = "shutdown"

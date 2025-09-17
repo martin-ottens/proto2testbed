@@ -34,6 +34,7 @@ from utils.influxdb import InfluxDBAdapter
 
 import state_manager
 from state_manager import AgentManagementState
+from full_result_wrapper import ApplicationStatusType
 
 
 class ManagementClientConnection(threading.Thread):
@@ -61,6 +62,13 @@ class ManagementClientConnection(threading.Thread):
         self.client = None
         self.connected = False
         self.client_socket = None
+
+    def _update_application_status(self, application: str, status: ApplicationStatusType) -> None:
+        if self.client.name is None:
+            return
+        
+        if not self.manager.provider.result_wrapper.change_status(self.client.name, application, status):
+            logger.warning(f"Management: Unable to update application status wrapper for {application}@{self.client.name}")
 
     def _process_one_message(self, data) -> bool:
         message_obj: Optional[InstanceManagerMessageDownstream] = None
@@ -112,7 +120,7 @@ class ManagementClientConnection(threading.Thread):
                 self.client.set_state(AgentManagementState.INITIALIZED)
                 logger.info(f"Management: Client {self.client.name} initialized.")
 
-            case InstanceMessageType.MSG_ERROR | InstanceMessageType.MSG_INFO | InstanceMessageType.MSG_SUCCESS | InstanceMessageType.MSG_WARNING | InstanceMessageType.MSG_DEBUG | InstanceMessageType.DATA_POINT:
+            case InstanceMessageType.MSG_ERROR | InstanceMessageType.MSG_INFO | InstanceMessageType.MSG_SUCCESS | InstanceMessageType.MSG_WARNING | InstanceMessageType.MSG_DEBUG | InstanceMessageType.DATA_POINT | InstanceMessageType.APPS_EXTENDED_STATUS:
                 pass
 
             case InstanceMessageType.FAILED | InstanceMessageType.APPS_FAILED:
@@ -138,6 +146,13 @@ class ManagementClientConnection(threading.Thread):
                 app = message_obj.payload
                 logger.debug(f"Management: Client {self.client.name} reported Application '{app}' is now '{state}'.")
                 self.manager.report_app_state_change(self.client.name, app, state)
+
+                # TODO: Handle other stages.
+                if message_obj.status == InstanceMessageType.APP_FINISHED_SIGNAL:
+                    self._update_application_status(app, ApplicationStatusType.FINISHED)
+                else:
+                    self._update_application_status(app, ApplicationStatusType.STARTED)
+                
                 return True
 
             case InstanceMessageType.FINISHED:
@@ -163,6 +178,23 @@ class ManagementClientConnection(threading.Thread):
             if message_obj.status == InstanceMessageType.DATA_POINT:
                 if not self.influx_adapter.insert(message_obj.payload):
                     logger.warning(f"Management: Client {self.client.name}: Unable to add reported point to InfluxDB")
+                return True
+            
+            if message_obj.status == InstanceMessageType.APPS_EXTENDED_STATUS:
+                if "message" not in message_obj.payload or "stderr" not in message_obj.payload or "application" not in message_obj.payload:
+                    logger.warning(f"Management: Got invalid extended log message from Client {self.client.name}.")
+                    return True
+                
+                if self.manager.provider.result_wrapper is None:
+                    return True
+                
+                res = self.manager.provider.result_wrapper.append_extended_log(self.client.name, 
+                                                                                message_obj.application, 
+                                                                                message_obj.message, 
+                                                                                message_obj.stderr)
+                if not res:
+                    logger.warning(f"Management: Could not find application {message_obj.application}@{self.client.name} for extended log message")
+                
                 return True
 
             match message_obj.status:

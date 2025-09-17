@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024-2025 Martin Ottens
+# Copyright (C) 2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -16,11 +16,6 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
-import jsonpickle
-
-from abc import ABC
-
-
-class JSONMessage(ABC):
-    def as_json(self) -> bytes:
-        return jsonpickle.encode(self).encode("utf-8")
+class Proto2TestbedAPI:
+    def __init__() -> None:
+        pass

@@ -22,7 +22,6 @@ import sys
 import select
 
 from typing import Dict, Optional
-from multiprocessing import Event
 
 from applications.generic_application_interface import LogMessageLevel, GenericApplicationInterface
 
@@ -118,6 +117,16 @@ class ApplicationInterface(GenericApplicationInterface):
         payload = {
             "type": "preserve",
             "path": path
+        }
+
+        return self._send_to_daemon(payload)
+    
+    def push_extended_status(self, message: str, stderr: bool = False) -> None:
+        payload = {
+            "type": "extended",
+            "message": message,
+            "stderr": stderr,
+            "application": self.app_name
         }
 
         return self._send_to_daemon(payload)

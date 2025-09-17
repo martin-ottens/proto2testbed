@@ -30,6 +30,7 @@ from utils.concurrency_reservation import ConcurrencyReservation
 from utils.state_lock import StateLock
 from state_manager import InstanceStateManager
 from cli import CLI
+from full_result_wrapper import FullResultWrapper
 from constants import DEFAULT_CONFIG_PATH, DEFAULT_STATE_DIR
 
 
@@ -53,6 +54,7 @@ class TestbedStateProvider:
         self.state_lock = StateLock(self.statefile_base)
         self.cli: Optional[CLI] = None
         self.instance_manager: Optional[InstanceStateManager] = None
+        self.result_wrapper: Optional[FullResultWrapper] = None
     
     def update_experiment_tag(self, experiment: Optional[str], accuire: bool) -> str:
         if self.experiment is not None and accuire:
@@ -99,3 +101,6 @@ class TestbedStateProvider:
 
     def set_instance_manager(self, instance_manager: InstanceStateManager) -> None:
         self.instance_manager = instance_manager
+
+    def set_full_result_wrapper(self, result_wrapper: FullResultWrapper) -> None:
+        self.result_wrapper = result_wrapper

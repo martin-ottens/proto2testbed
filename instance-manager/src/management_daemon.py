@@ -131,6 +131,25 @@ class IMClientThread(Thread):
         self.manager.send_to_server(message)
         return self._respond_to_client(True)
 
+    def _handle_extended(self, data) -> bool:
+        if "message" not in data or "stderr" not in data or "application" not in data:
+            return self._respond_to_client(False, "'message', 'stderr' or 'application' missing for data")
+        
+        if not isinstance(data["message"], str):
+            return self._respond_to_client(False, f"Field 'message' is not a string")
+        message = data["message"]
+
+        if not isinstance(data["stderr"], bool):
+            return self._respond_to_client(False, f"Field 'stderr' is not a boolean")
+        stderr = data["stderr"]
+
+        if not isinstance(data["application"], str):
+            return self._respond_to_client(False, f"Field 'application' is not a string")
+        application = data["application"]
+
+        self.manager.send_extended_log(message, stderr, application)
+        return self._respond_to_client(True)
+
     def _process_one_message(self, data) -> bool:
         json_data = json.loads(data)
         if "type" not in json_data:
@@ -152,6 +171,8 @@ class IMClientThread(Thread):
                 status = self._handle_data(json_data)
             case "shutdown":
                 status = self._handle_shutdown(json_data)
+            case "extended":
+                status = self._handle_extended(json_data)
             case _:
                 status = self._respond_to_client(False, f"Invalid 'type' {json_data['type']}")
 

@@ -219,9 +219,18 @@ class ManagementClient():
             for k, v in tags.items():
                 data[0]["tags"][k] = v
 
-        message: DownstreamMessage = DownstreamMessage(InstanceMessageType.DATA_POINT, data)
+        message = DownstreamMessage(InstanceMessageType.DATA_POINT, data)
         self.send_to_server(message)
 
+    def send_extended_log(self, message: str, stderr: bool, application: str) -> None:
+        data = {
+            "message": message,
+            "stderr": stderr,
+            "application": application
+        }
+
+        downstream = DownstreamMessage(InstanceMessageType.APPS_EXTENDED_STATUS, data)
+        self.send_to_server(downstream)
 
     def send_to_server(self, downstream_message: DownstreamMessage):
         try:

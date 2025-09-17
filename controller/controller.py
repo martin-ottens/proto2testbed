@@ -40,6 +40,7 @@ from management_server import ManagementServer
 from cli import CLI
 from state_manager import InstanceStateManager, AgentManagementState, WaitResult
 from common.instance_manager_message import *
+from full_result_wrapper import FullResultWrapper
 from constants import SUPPORTED_INSTANCE_NUMBER
 
 
@@ -94,6 +95,9 @@ class Controller(Dismantable):
             self.integration_helper = IntegrationHelper(provider.run_parameters.config,
                                                         str(provider.app_base_path),
                                                         provider.default_configs.get_defaults("disable_integrations", False))
+            full_result_wrapper = FullResultWrapper(provider.testbed_config)
+            provider.set_full_result_wrapper(full_result_wrapper)
+
         except Exception as ex:
             raise Exception("Error during config validation error!") from ex
     

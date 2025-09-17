@@ -194,7 +194,7 @@ class ProcmonApplication(BaseApplication):
                     if not elem["proc"].is_running():
                         raise Exception(f"Process {proc_name} no longer running!")
                     run_processes[proc_name] = diff_two_dicts(elem["offset"], proc_to_dict(elem["proc"]))
-                except Exception as ex:                    
+                except Exception:
                     run_processes[proc_name] = elem["offset"]
                     tracking_error_flag += 1
             
@@ -204,7 +204,7 @@ class ProcmonApplication(BaseApplication):
             for int_name, elem in interfaces.items():
                 try:
                     run_interfaces[int_name] = diff_two_dicts(elem, snetio_to_dict(net_io_list[int_name]))
-                except Exception as _:
+                except Exception:
                     run_interfaces[int_name] = elem
                     tracking_error_flag += 1
             

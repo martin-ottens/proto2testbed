@@ -18,7 +18,7 @@
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 
 """
 This is a generic/abstract class. It contains nothing that can be directly 
@@ -85,4 +85,10 @@ class GenericApplicationInterface(ABC):
     # for reference.
     @abstractmethod
     def preserve_file(self, path: str) -> bool:
+        pass
+
+    # Send extended message to the controller to store it in a log for each
+    # application
+    @abstractmethod
+    def push_extended_status(self, message: str, stderr: bool = False) -> None:
         pass
