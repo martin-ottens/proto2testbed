@@ -61,7 +61,6 @@ class NS3Integration(BaseIntegration):
         return 300 if at_shutdown else 0
 
     def start(self) -> bool:
-        # TODO: Generate interfaces random with "random" option!
         # 0. Search for existing interfaces
         sub_process = invoke_subprocess(["/usr/sbin/ip", "--json", "--details", "link", "show"])
         if sub_process.returncode != 0:

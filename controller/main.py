@@ -120,7 +120,7 @@ def main():
         sys.exit(1)
 
     try:
-        sys.exit(executor.invoke(args))
+        sys.exit(executor.invoke(args, provider))
     except Exception as ex:
         logger.opt(exception=ex).critical(f"Error calling invoke of subcommand '{mode}'")
         sys.exit(1)

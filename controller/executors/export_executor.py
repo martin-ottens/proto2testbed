@@ -52,7 +52,7 @@ class ExportExecutor(BaseExecutor):
     def invoke(self, args, provider: TestbedStateProvider) -> int:
         from cli import CLI
 
-        CLI(provider.log_verbose, None)
+        CLI(provider, None)
 
         if provider.experiment_generated:
             logger.critical(f"No experiment tag was specified, use -e to specify an experiment tag.")
@@ -67,8 +67,7 @@ class ExportExecutor(BaseExecutor):
         from utils.config_tools import load_config
 
         try:
-            config_path = testbed_config_path / "testbed.json"
-            testbed_config = load_config(config_path, args.skip_substitution)
+            testbed_config = load_config(testbed_config_path, args.skip_substitution)
         except Exception as ex:
             logger.opt(exception=ex).critical("Error loading testbed config")
             return 1

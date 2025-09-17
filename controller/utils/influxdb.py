@@ -90,12 +90,10 @@ class InfluxDBAdapter(Dismantable):
         logger.info(f"InfluxDBAdapter: InfluxDB is up & running, database '{self.database}' was found.")
         return True
 
-    # TODO: Check what can be supplied by 'provider'
-    def __init__(self, provider: TestbedStateProvider, 
-                 series_name: Optional[str] = None,
+    def __init__(self, provider: TestbedStateProvider,
                  warn_on_no_database: bool = False) -> None:
         self.store_disabled = warn_on_no_database
-        self.series_name = series_name
+        self.series_name = provider.experiment
 
         if "INFLUXDB_DATABASE" not in os.environ.keys():
             default_database = provider.default_configs.get_defaults("influx_database")

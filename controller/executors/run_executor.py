@@ -71,32 +71,21 @@ class RunExecutor(BaseExecutor):
             logger.error("TTY does not allow user interaction, disabling 'interact' parameter")
             parameters.interact = PauseAfterSteps.DISABLE
         
-        # TODO: Move
         from pathlib import Path
+        parameters.preserve = None
         if args.preserve is not None:
-            try:
-                parameters.preserve = Path(args.preserve)
-                if not bool(parameters.preserve.anchor or parameters.preserve.name):
-                    raise Exception("Preserve Path invalid")
-            except Exception as e:
-                logger.critical("Unable to start: Preserve Path is not valid!")
-                return 1
-        else:
-            parameters.preserve = None
+            parameters.preserve = Path(args.preserve)
 
         provider.set_run_parameters(parameters)
-
-        from helper.state_file_helper import StateFileReader
-        reader = StateFileReader(provider)
-        all_experiments = reader.get_other_experiments(provider.experiment)
-
-        # TODO: Move
-        if len(all_experiments) != 0:
-            logger.critical(f"Other testbeds with same experiment tag are running:")
-            for user, pid in all_experiments.items():
-                logger.info(f"- User: {user}, PID: {pid}")
+        
+        from utils.settings import TestbedConfig
+        from utils.config_tools import load_config
+        try:
+            config: TestbedConfig = load_config(parameters.config, parameters.skip_substitution)
+            provider.set_testbed_config(config)
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Error during loading of testbed config.")
             return 1
-
 
         from controller import Controller
         import signal

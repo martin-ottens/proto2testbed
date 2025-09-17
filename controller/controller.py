@@ -27,12 +27,13 @@ from threading import Event, Thread
 from helper.network_helper import *
 from helper.instance_helper import InstanceHelper, InstanceManagementSettings
 from helper.integration_helper import IntegrationHelper
+from helper.app_dependency_helper import AppDependencyHelper
+from helper.state_file_helper import StateFileReader
 from utils.interfaces import Dismantable
-from utils.config_tools import load_config, load_vm_initialization, check_preserve_dir
+from utils.config_tools import load_vm_initialization, check_preserve_dir
 from utils.state_provider import TestbedStateProvider
 from utils.settings import InvokeIntegrationAfter
 from utils.influxdb import InfluxDBAdapter
-from helper.app_dependency_helper import AppDependencyHelper
 from utils.networking import *
 from utils.continue_mode import *
 from management_server import ManagementServer
@@ -45,6 +46,10 @@ from constants import SUPPORTED_INSTANCE_NUMBER
 class Controller(Dismantable):
     def __init__(self, provider: TestbedStateProvider) -> None:
         self.provider = provider
+        
+        if self.provider.testbed_config is None:
+            raise Exception("Cannot start controller without testbed config!")
+
         self.dismantables: List[Dismantable] = []
         self.state_manager: InstanceStateManager = InstanceStateManager(provider)
         self.dismantables.insert(0, self.state_manager)
@@ -55,7 +60,6 @@ class Controller(Dismantable):
         self.influx_db = None
 
         self.base_path = Path(provider.run_parameters.config)
-        self.config_path = self.base_path / "testbed.json"
         self.pause_after: PauseAfterSteps = provider.run_parameters.interact
         self.interact_finished_event: Optional[Event] = None
 
@@ -64,14 +68,26 @@ class Controller(Dismantable):
         self.interrupted_event.clear()
         self.app_dependencies: Optional[AppDependencyHelper] = None
 
+        reader = StateFileReader(provider)
+        all_experiments = reader.get_other_experiments(provider.experiment)
+
+        if len(all_experiments) != 0:
+            err = f"Other testbeds with same experiment tag are running: "
+            err += ', '.join([f"User:{user}/PID:{pid}" for user, pid in all_experiments.items()])
+            raise Exception(err)
+        
+        if provider.run_parameters.preserve is not None:
+            try:
+                if not bool(provider.run_parameters.preserve.anchor or provider.run_parameters.preserve.name):
+                    raise Exception("Invalid preserve path")
+            except Exception as ex:
+                raise Exception("Unable to start: Preserve Path is not valid!") from ex
+
         try:
-            self.cli = CLI(provider.log_verbose, self.state_manager)
+            self.cli = CLI(self.provider)
             self.cli.start()
             self.dismantables.insert(0, self.cli)
 
-            # TODO: Move
-            provider.set_testbed_config(load_config(self.config_path,
-                                                    provider.run_parameters.skip_substitution));
             self.app_dependencies = AppDependencyHelper(provider.testbed_config)
             self.app_dependencies.compile_dependency_list()
             self.state_manager.set_app_dependecy_helper(self.app_dependencies)
@@ -79,8 +95,7 @@ class Controller(Dismantable):
                                                         str(provider.app_base_path),
                                                         provider.default_configs.get_defaults("disable_integrations", False))
         except Exception as ex:
-            logger.opt(exception=ex).critical("Internal error loading config!")
-            raise Exception("Internal config loading error!")
+            raise Exception("Error during config validation error!") from ex
     
     def _destroy(self, spawn_threads: bool = True, force: bool = False) -> None:
         self.setup_env = None
@@ -414,8 +429,7 @@ class Controller(Dismantable):
         self.dismantables.insert(0, self.integration_helper)
 
         try:
-            self.influx_db = InfluxDBAdapter(self.provider, self.provider.experiment,
-                                             self.provider.run_parameters.dont_use_influx)
+            self.influx_db = InfluxDBAdapter(self.provider, self.provider.run_parameters.dont_use_influx)
             self.influx_db.start()
             self.dismantables.insert(0, self.influx_db)
         except Exception as ex:

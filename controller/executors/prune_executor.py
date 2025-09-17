@@ -44,7 +44,7 @@ class PruneExecutor(BaseExecutor):
         from helper.state_file_helper import StateFileReader
         from helper.network_helper import NetworkBridge
 
-        CLI(provider.log_verbose, None)
+        CLI(provider, None)
 
         statefile_reader = StateFileReader(provider)
         all_states = statefile_reader.get_states(filter_owned_by_executor=(not args.all))

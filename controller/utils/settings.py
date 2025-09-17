@@ -25,6 +25,7 @@ from enum import Enum
 from abc import ABC
 from dataclasses import dataclass
 from loguru import logger
+from pathlib import Path
 
 from common.application_configs import ApplicationConfig
 from utils.continue_mode import PauseAfterSteps
@@ -172,4 +173,4 @@ class RunParameters:
     dont_use_influx: Optional[bool] = False
     skip_integration: bool = False
     skip_substitution: bool = False
-    preserve: Optional[str] = None
+    preserve: Optional[Path] = None

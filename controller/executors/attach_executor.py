@@ -45,7 +45,7 @@ class AttachExecutor(BaseExecutor):
         from cli import CLI
         import os
 
-        cli_handler = CLI(provider.log_verbose, None)
+        cli_handler = CLI(provider, None)
 
         statefile_reader = StateFileReader(provider)
         all_states = statefile_reader.get_states(filter_running=True,

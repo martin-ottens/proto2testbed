@@ -25,7 +25,6 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict
 
 from constants import MACHINE_STATE_FILE, INTERCHANGE_DIR_PREFIX
-from utils.state_provider import TestbedStateProvider
 from utils.networking import InstanceInterface
 from utils.state_lock import StateLock
 
@@ -61,7 +60,7 @@ class StateFileEntry:
 
 
 class StateFileReader:
-    def __init__(self, provider: TestbedStateProvider) -> None:
+    def __init__(self, provider) -> None:
         self.provider = provider
         self.files: List[StateFileEntry] = []
         self.reload()

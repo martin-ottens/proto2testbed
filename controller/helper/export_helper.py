@@ -43,7 +43,6 @@ class SeriesContainer:
 
 
 class ResultExportHelper:
-    # TODO: Check which arguments can be supplied by 'provider'
     def __init__(self, output_path: str, config: TestbedConfig,
                  testbed_package_path: str, provider: TestbedStateProvider,
                  exclude_instances: Optional[List[str]] = None,

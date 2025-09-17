@@ -37,7 +37,6 @@ from helper.state_file_helper import InstanceStateFile
 from common.application_configs import ApplicationConfig, AppStartStatus
 from common.instance_manager_message import UpstreamMessage, ApplicationStatusMessageUpstream
 from utils.interfaces import Dismantable
-from utils.state_provider import TestbedStateProvider
 from constants import *
 
 
@@ -79,7 +78,7 @@ class InstanceState:
     def __init__(self, name: str, script_file: str, 
                  setup_env: Optional[Dict[str, str]], manager,
                  init_preserve_files: Optional[List[str]], 
-                 numeric_id: int, provider: TestbedStateProvider) -> None:
+                 numeric_id: int, provider) -> None:
         self.name: str = name
         self.provider = provider
         self.script_file: str = script_file
@@ -308,10 +307,9 @@ class InstanceStateManager(Dismantable):
         else:
             return False
 
-    # TODO: Check args by 'provider'
-    # TODO: Check if InstanceStateManager could be linked to 'provider'
-    def __init__(self, provider: TestbedStateProvider) -> None:
+    def __init__(self, provider) -> None:
         self.provider = provider
+        self.provider.set_instance_manager(self)
         self.map: dict[str, InstanceState] = {}
         self.state_change_lock: Lock = Lock()
         self.file_preservation: Optional[Path] = None
@@ -357,10 +355,7 @@ class InstanceStateManager(Dismantable):
         if not self.enable_vsock:
             return
         
-        vsock_cids = self.provider.concurrency_reservation.generate_new_vsock_cids(
-                        self.provider.statefile_base, 
-                        self.provider.experiment, 
-                        len(self.map))
+        vsock_cids = self.provider.concurrency_reservation.generate_new_vsock_cids(len(self.map))
         index = 0
         for instance in self.map.values():
             instance.set_vsock_cid(vsock_cids[index])

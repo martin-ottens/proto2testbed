@@ -38,7 +38,7 @@ class ListExecutor(BaseExecutor):
         from cli import CLI
         from helper.state_file_helper import StateFileReader
 
-        CLI(provider.log_verbose, None)
+        CLI(provider, None)
 
         statefile_reader = StateFileReader(provider)
         states = statefile_reader.get_states(filter_owned_by_executor=(not args.all))

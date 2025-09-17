@@ -28,7 +28,6 @@ from dataclasses import dataclass, field
 from typing import List
 
 from helper.network_helper import NetworkBridge
-from utils.state_provider import TestbedStateProvider
 from constants import *
 
 
@@ -40,7 +39,7 @@ class ReservationMapping:
 
 
 class ConcurrencyReservation:
-    def __init__(self, provider: TestbedStateProvider) -> None:
+    def __init__(self, provider) -> None:
         self.provider = provider
         self.current_reservation = ReservationMapping()
         self._write_reservation()
@@ -109,7 +108,7 @@ class ConcurrencyReservation:
                             break
 
                 self.current_reservation.vsock_cids.extend(vsock_cids)
-                self.write_reservation()
+                self._write_reservation()
 
             one_match = False
             for vsock_cid in vsock_cids:
