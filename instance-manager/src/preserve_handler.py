@@ -57,8 +57,10 @@ class PreserveHandler:
             self.manager.send_to_server(message)
             raise Exception("Unable to mount exchange directory!") from ex
 
-        self.manager.send_extended_system_log(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
-        self.manager.send_extended_system_log(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
+        if proc.stdout is not None:
+            self.manager.send_extended_system_log(type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
+        if proc.stderr is not None:
+            self.manager.send_extended_system_log(type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
         
         if proc is not None and proc.returncode != 0:
             message = DownstreamMessage(InstanceMessageType.FAILED, 
@@ -78,7 +80,7 @@ class PreserveHandler:
                 path = Path(preserve_file)
                 if not path.is_absolute():
                     print(f"Preservation of '{preserve_file}' failed: No absolute path.", file=sys.stderr, flush=True)
-                    self.manager.send_extended_system_log(message=LogMessageType.MSG_ERROR,
+                    self.manager.send_extended_system_log(type=LogMessageType.MSG_ERROR,
                                                           message=f"Unable to preserve '{preserve_file}': Not an absolute path",
                                                           print_to_user=True)
                     continue
@@ -88,7 +90,7 @@ class PreserveHandler:
 
                 if not path.exists():
                     print(f"Preservation of '{preserve_file}' failed: Path does not exists.", file=sys.stderr, flush=True)
-                    self.manager.send_extended_system_log(message=LogMessageType.MSG_ERROR,
+                    self.manager.send_extended_system_log(type=LogMessageType.MSG_ERROR,
                                                           message=f"Unable to preserve '{preserve_file}': Path does not exists",
                                                           print_to_user=True)
                     continue
@@ -101,9 +103,9 @@ class PreserveHandler:
                     shutil.copy2(path, destination_path)
             except Exception as ex:
                 print(f"Preservation of '{preserve_file}' failed: Unhandled error: {ex}", file=sys.stderr, flush=True)
-                self.manager.send_extended_system_log(message=LogMessageType.MSG_ERROR,
-                                                          message=f"Unable to preserve '{preserve_file}': Unhandled error: {ex}",
-                                                          print_to_user=True)
+                self.manager.send_extended_system_log(type=LogMessageType.MSG_ERROR,
+                                                      message=f"Unable to preserve '{preserve_file}': Unhandled error: {ex}",
+                                                      print_to_user=True)
                 print(f"Error during preservation of '{preserve_file}': {ex}", flush=True, file=sys.stderr)
         
         return True

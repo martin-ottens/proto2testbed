@@ -38,7 +38,7 @@ class CleanExecutor(BaseExecutor):
         from cli import CLI
         from utils.influxdb import InfluxDBAdapter
 
-        CLI(provider, None)
+        CLI(provider)
 
         if provider.experiment_generated and not args.all:
             logger.critical(f"No experiment tag was specified, use -e to specify an experiment tag.")

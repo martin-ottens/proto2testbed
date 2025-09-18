@@ -16,43 +16,27 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
-from enum import Enum
+import sys
+
+from loguru import logger
 from dataclasses import dataclass, field
 from typing import List, Tuple, Dict
 from datetime import datetime
 
 from utils.settings import TestbedConfig, ApplicationConfig
-from common.instance_manager_message import LogMessageType
-
-
-class ApplicationStatusType(Enum):
-    INITIALIZED = "initialized"
-    INSTALLATION_FAILED = "install_failed"
-    INSTALLED = "installed"
-    STARTED = "started"
-    FINISHED = "finished"
-    FAILED = "failed"
-
-    def __str__(self):
-        return str(self.value)
-    
-    @staticmethod
-    def from_str(status: str):
-        try: return ApplicationStatusType(status)
-        except Exception:
-            return ApplicationStatusType.FAILED
-
+from common.instance_manager_message import LogMessageType, ApplicationStatus
 
 @dataclass
 class LogEntry:
-    time: int
+    time: datetime
+    type: LogMessageType
     message: str
 
 
 @dataclass
 class ApplicationStatusReport:
     config: ApplicationConfig
-    status: ApplicationStatusType = ApplicationStatusType.INITIALIZED
+    status: ApplicationStatus = ApplicationStatus.PENDING
     logs: List[LogEntry] = field(default_factory=list)
 
 
@@ -68,21 +52,22 @@ class FullResultWrapper:
                 val = ApplicationStatusReport(config=ApplicationConfig)
                 self.application_status_map[key] = val
 
-    def append_extended_log(self, instance: str, application: str, 
-                            message: str, type: LogMessageType) -> bool:
+    def append_application_log(self, instance: str, application: str, 
+                               message: str, type: LogMessageType) -> bool:
         if (instance, application) not in self.application_status_map.keys():
+            logger.warning(f"ResultWrapper: Unable to find application {application}@{instance}")
             return False
         
         if type == LogMessageType.NONE:
             return True
         
         entry: ApplicationStatusReport = self.application_status_map.get((instance, application))
-        entry.logs.append(LogEntry(time=datetime.now(), message=f"{type.prefix}{message}"))
+        entry.logs.append(LogEntry(time=datetime.now(), type=type, message=message))
 
         return True
     
     def change_status(self, instance: str, application: str, 
-                      new_status: ApplicationStatusType) -> bool:
+                      new_status: ApplicationStatus) -> bool:
         if (instance, application) not in self.application_status_map.keys():
             return False
         
@@ -91,11 +76,26 @@ class FullResultWrapper:
     
     def append_instance_log(self, instance: str, message: str, type: LogMessageType) -> bool:
         if instance not in self.instance_log_map.keys():
+            logger.warning(f"ResultWrapper: Unable to find instance {instance}")
             return False
         
         if type == LogMessageType.NONE:
             return True
 
-        entry = LogEntry(time=datetime.now(), message=f"{type.prefix}{message}")
+        entry = LogEntry(time=datetime.now(), type=type, message=message)
         self.instance_log_map[instance].append(entry)
         return True
+    
+    def dump_state(self, file=sys.stdout) -> None:
+        print("APPLICATIONS \n", file=file)
+        for tup, application in self.application_status_map.items():
+            instance, name = tup
+            print(f"----- {name}@{instance}: {application.status}", file=file)
+            for log in application.logs:
+                print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)
+
+        print("\nINSTANCES\n", file=file)
+        for name, instance_logs in self.instance_log_map.items():
+            print(f"----- {name}", file=file)
+            for log in instance_logs:
+                print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)

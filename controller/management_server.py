@@ -34,7 +34,6 @@ from utils.influxdb import InfluxDBAdapter
 
 import state_manager
 from state_manager import AgentManagementState
-from full_result_wrapper import ApplicationStatusType
 
 
 class ManagementClientConnection(threading.Thread):
@@ -63,12 +62,23 @@ class ManagementClientConnection(threading.Thread):
         self.connected = False
         self.client_socket = None
 
-    def _update_application_status(self, application: str, status: ApplicationStatusType) -> None:
-        if self.client.name is None:
-            return
-        
-        if not self.manager.provider.result_wrapper.change_status(self.client.name, application, status):
-            logger.warning(f"Management: Unable to update application status wrapper for {application}@{self.client.name}")
+    @staticmethod
+    def _message_type_to_logger(type: LogMessageType, message: str) -> None:
+        match type:
+            case LogMessageType.MSG_SUCCESS:
+                logger.opt(ansi=True).success(message)
+            case LogMessageType.MSG_INFO:
+                logger.opt(ansi=True).info(message)
+            case LogMessageType.MSG_DEBUG:
+                logger.opt(ansi=True).debug(message)
+            case LogMessageType.MSG_WARNING:
+                logger.opt(ansi=True).warning(message)
+            case LogMessageType.MSG_ERROR:
+                logger.opt(ansi=True).error(message)
+            case LogMessageType.STDERR:
+                logger.opt(ansi=True).trace(f"STDERR: {message}")
+            case LogMessageType.STDOUT:
+                logger.opt(ansi=True).trace(f"STDOUT: {message}")
 
     def _process_one_message(self, data) -> bool:
         message_obj: Optional[InstanceManagerMessageDownstream] = None
@@ -89,6 +99,7 @@ class ManagementClientConnection(threading.Thread):
                 logger.error(f"Management: Client '{self.expected_instance.name}': reported name {self.client.name} before, now {message_obj.name}")
                 return False
 
+        # Handle state transition messages
         match message_obj.status:
             case InstanceMessageType.STARTED:
                 previous = self.client.get_state()
@@ -120,13 +131,13 @@ class ManagementClientConnection(threading.Thread):
                 self.client.set_state(AgentManagementState.INITIALIZED)
                 logger.info(f"Management: Client {self.client.name} initialized.")
 
-            case InstanceMessageType.MSG_ERROR | InstanceMessageType.MSG_INFO | InstanceMessageType.MSG_SUCCESS | InstanceMessageType.MSG_WARNING | InstanceMessageType.MSG_DEBUG | InstanceMessageType.DATA_POINT | InstanceMessageType.APPS_EXTENDED_STATUS:
-                pass
-
             case InstanceMessageType.FAILED | InstanceMessageType.APPS_FAILED:
                 self.client.set_state(AgentManagementState.FAILED)
                 if message_obj.payload is not None:
                     logger.error(f"Management: Client {self.client.name} reported failure with message: {message_obj.payload}")
+                    self.manager.provider.result_wrapper.append_instance_log(instance=self.client.name,
+                                                                             message=f"Instance failed: {message_obj.payload}",
+                                                                             type=LogMessageType.MSG_ERROR)
                 else:
                     logger.error(f"Management: Client {self.client.name} reported failure without message.")
                 return True
@@ -139,20 +150,6 @@ class ManagementClientConnection(threading.Thread):
             case InstanceMessageType.APPS_DONE:
                 self.client.set_state(AgentManagementState.FINISHED)
                 logger.info(f"Management: Client {self.client.name} completed its applications.")
-                return True
-            
-            case InstanceMessageType.APP_FINISHED_SIGNAL | InstanceMessageType.APP_STARTED_SIGNAL:
-                state = AppStartStatus.FINISH if message_obj.status == InstanceMessageType.APP_FINISHED_SIGNAL else AppStartStatus.START
-                app = message_obj.payload
-                logger.debug(f"Management: Client {self.client.name} reported Application '{app}' is now '{state}'.")
-                self.manager.report_app_state_change(self.client.name, app, state)
-
-                # TODO: Handle other stages.
-                if message_obj.status == InstanceMessageType.APP_FINISHED_SIGNAL:
-                    self._update_application_status(app, ApplicationStatusType.FINISHED)
-                else:
-                    self._update_application_status(app, ApplicationStatusType.STARTED)
-                
                 return True
 
             case InstanceMessageType.FINISHED:
@@ -171,29 +168,66 @@ class ManagementClientConnection(threading.Thread):
                 self.controller.stop_interaction(restart=restart)
                 return True
             
+            case InstanceMessageType.DATA_POINT | InstanceMessageType.APPS_EXTENDED_STATUS | InstanceMessageType.SYSTEM_EXTENDED_LOG:
+                # Just payload depended messages
+                pass
+            
             case _:
                 logger.warning(f"Management: Client {self.client.name}: Unknown message type '{message_obj.status}'")
 
+        # Handle payload dependend messages
         if message_obj.payload is not None:
             if message_obj.status == InstanceMessageType.DATA_POINT:
                 if not self.influx_adapter.insert(message_obj.payload):
                     logger.warning(f"Management: Client {self.client.name}: Unable to add reported point to InfluxDB")
                 return True
             
+            if message_obj.status == InstanceMessageType.SYSTEM_EXTENDED_LOG:
+                if not isinstance(message_obj.payload, ExtendedLogMessage):
+                    logger.warning(f"Management: Got invalid payload type for instance log message from client {self.client.name}.")
+                    return True
+                
+                extended_log: ExtendedLogMessage = message_obj.payload
+                
+                if extended_log.print_to_user:
+                    ManagementClientConnection._message_type_to_logger(extended_log.log_message_type, 
+                                                                       f"<y>[Instance {self.client.name} log]</y> {extended_log.message}")
+                
+                if self.manager.provider.result_wrapper is not None and extended_log.store_in_log:
+                    self.manager.provider.result_wrapper.append_instance_log(instance=self.client.name,
+                                                                             message=extended_log.message,
+                                                                             type=extended_log.log_message_type)
+                return True
+            
             if message_obj.status == InstanceMessageType.APPS_EXTENDED_STATUS:
-                if "message" not in message_obj.payload or "stderr" not in message_obj.payload or "application" not in message_obj.payload:
-                    logger.warning(f"Management: Got invalid extended log message from Client {self.client.name}.")
+                if not isinstance(message_obj.payload, ExtendedApplicationMessage):
+                    logger.warning(f"Management: Got invalid payload type for application log message from client {self.client.name}")
                     return True
                 
-                if self.manager.provider.result_wrapper is None:
-                    return True
-                
-                res = self.manager.provider.result_wrapper.append_extended_log(self.client.name, 
-                                                                                message_obj.application, 
-                                                                                message_obj.message, 
-                                                                                message_obj.stderr)
-                if not res:
-                    logger.warning(f"Management: Could not find application {message_obj.application}@{self.client.name} for extended log message")
+                application_log: ExtendedApplicationMessage = message_obj.payload
+
+                if application_log.print_to_user:
+                    ManagementClientConnection._message_type_to_logger(application_log.log_message_type,
+                                                                       f"<y>[Application {application_log.application} from {self.client.name} log]</y> {application_log.log_message}")
+
+                if self.manager.provider.result_wrapper is not None and application_log.store_in_log:
+                    self.manager.provider.result_wrapper.append_application_log(instance=self.client.name,
+                                                                                application=application_log.application,
+                                                                                message=application_log.log_message,
+                                                                                type=application_log.log_message_type)
+
+                if application_log.status != ApplicationStatus.UNCHANGED:
+                    if self.manager.provider.result_wrapper is not None:
+                        logger.trace(f"Application {application_log.application}@{self.client.name} changed its state to {application_log.status}")
+                        self.manager.provider.result_wrapper.change_status(instance=self.client.name,
+                                                                           application=application_log.application,
+                                                                           new_status=application_log.status)
+
+                    if application_log.status == ApplicationStatus.EXECUTION_STARTED:
+                        self.manager.report_app_state_change(self.client.name, application_log.application, AppStartStatus.START)
+                    elif application_log.status == ApplicationStatus.EXECUTION_FINISHED:
+                        self.manager.report_app_state_change(self.client.name, application_log.application, AppStartStatus.FINISH)
+                        
                 
                 return True
 

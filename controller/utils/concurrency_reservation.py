@@ -42,7 +42,6 @@ class ConcurrencyReservation:
     def __init__(self, provider) -> None:
         self.provider = provider
         self.current_reservation = ReservationMapping()
-        self._write_reservation()
 
     def _write_reservation(self) -> None:
         with open(self.provider.statefile_base / self.provider.experiment / EXPERIMENT_RESERVATION_FILE, "w+") as handle:

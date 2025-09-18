@@ -157,10 +157,10 @@ class IMClientThread(Thread):
             storeinlog = bool(data["storeinlog"])
 
         self.manager.send_extended_app_log(message=message, 
-                                       type=logtype, 
-                                       pplication=application, 
-                                       print_to_user=printtouser,
-                                       store_in_log=storeinlog)
+                                           type=logtype, 
+                                           application=application, 
+                                           print_to_user=printtouser,
+                                           store_in_log=storeinlog)
         return self._respond_to_client(True)
 
     def _process_one_message(self, data) -> bool:
@@ -191,8 +191,10 @@ class IMClientThread(Thread):
 
         if connected_app is not None and status is False:
             print(f"Daemon Thread: Client {self.id} ({connected_app}) got error during command '{json_data['type']}'", file=sys.stderr, flush=True)
-            self.manager.send_extended_app_log(message=f"Command from app '{json_data['type']}' failed.", application=connected_app,
-                                               type=LogMessageType.MSG_ERROR, print_to_user=True)
+            self.manager.send_extended_app_log(message=f"Command from app '{json_data['type']}' failed.", 
+                                               application=connected_app,
+                                               type=LogMessageType.MSG_ERROR, 
+                                               print_to_user=True)
             return True # Keep connection alive
         else:
             return status

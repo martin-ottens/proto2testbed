@@ -25,6 +25,7 @@ from common.interfaces import JSONMessage
 
 class ApplicationStatus(Enum):
     UNCHANGED = "unchanged"
+    PENDING = "pending"
     INITIALIZED = "initialized"
     EARLY_FAILED = "loadfailed"
     EXECUTION_STARTED = "started"
@@ -40,7 +41,6 @@ class ApplicationStatus(Enum):
         except Exception:
             return ApplicationStatus.UNCHANGED
 
-# TODO: Rename
 class LogMessageType(Enum):
     NONE = "none", None
     MSG_SUCCESS = "msg_success", "[SUCCESS] "
@@ -91,16 +91,9 @@ class InstanceMessageType(Enum):
     STARTED = "started"
     INITIALIZED = "initialized"
     DATA_POINT = "data_point"
-    #MSG_SUCCESS = "msg_success" # TODO: Remove
-    #MSG_INFO = "msg_info" # TODO: Remove
-    #MSG_WARNING = "msg_warning" # TODO: Remove
-    #MSG_DEBUG = "msg_debug" # TODO: Remove
-    #MSG_ERROR = "msg_error" # TODO: Remove
     FAILED = "failed"
     APPS_INSTALLED = "apps_installed"
     APPS_FAILED = "apps_failed"
-    #APP_STARTED_SIGNAL = "app_started" # -> TODO: Extended Status
-    #APP_FINISHED_SIGNAL = "app_finished" # -> TODO: Extended Status
     APPS_DONE = "apps_done"
     APPS_EXTENDED_STATUS = "apps_extended_status"
     SYSTEM_EXTENDED_LOG = "system_extended_log"

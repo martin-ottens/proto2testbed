@@ -52,7 +52,7 @@ class ExportExecutor(BaseExecutor):
     def invoke(self, args, provider: TestbedStateProvider) -> int:
         from cli import CLI
 
-        CLI(provider, None)
+        CLI(provider)
 
         if provider.experiment_generated:
             logger.critical(f"No experiment tag was specified, use -e to specify an experiment tag.")

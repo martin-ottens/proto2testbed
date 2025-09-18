@@ -77,21 +77,19 @@ class InstanceManager:
         if message is not None and message_type == LogMessageType.NONE:
             message_type = LogMessageType.MSG_INFO
         
-        payload = ExtendedApplicationMessage(application=application, 
-                                             status=status,
-                                             log_message_type=message_type,
-                                             message=message,
-                                             print_to_user=print_to_user,
-                                             store_in_log=store_in_log)
-        self.manager.send_to_server(InstanceMessageType.APPS_EXTENDED_STATUS, payload)
+        self.manager.send_extended_app_log(message=message, 
+                                           type=message_type, 
+                                           application=application, 
+                                           print_to_user=print_to_user, 
+                                           store_in_log=store_in_log, 
+                                           new_status=status)
 
     def extended_log_message(self, message_type: LogMessageType, message: str,
                              print_to_user: bool = False, store_in_log: bool = True) -> None:
-        payload = ExtendedLogMessage(log_message_type=message_type, 
-                                     message=message, 
-                                     print_to_user=print_to_user,
-                                     store_in_log=store_in_log)
-        self.manager.send_to_server(InstanceMessageType.SYSTEM_EXTENDED_LOG, payload)
+        self.manager.send_extended_system_log(message=message, 
+                                              type=message_type, 
+                                              print_to_user=print_to_user, 
+                                              store_in_log=store_in_log)
 
     def handle_initialize(self, init_message: InitializeMessageUpstream) -> bool:
         print(f"Got 'initialize' instructions from Management Server", file=sys.stderr, flush=True)
@@ -108,8 +106,10 @@ class InstanceManager:
                 self.message_to_controller(InstanceMessageType.FAILED, f"Unable to mount testbed package: {ex}")
                 return False
 
-            self.extended_log_message(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
-            self.extended_log_message(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
+            if proc.stdout is not None:
+                self.extended_log_message(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
+            if proc.stderr is not None:
+                self.extended_log_message(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
 
             if proc is not None and proc.returncode != 0:
                 self.message_to_controller(InstanceMessageType.FAILED, 
@@ -135,8 +135,10 @@ class InstanceManager:
                     print(f"Unable to run setup_script: {ex}", file=sys.stderr, flush=True)
                     return False
 
-                self.extended_log_message(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
-                self.extended_log_message(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
+                if proc.stdout is not None:
+                    self.extended_log_message(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
+                if proc.stderr is not None:
+                    self.extended_log_message(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
 
                 if proc is not None and proc.returncode != 0:
                     self.message_to_controller(InstanceMessageType.FAILED, 
@@ -172,8 +174,10 @@ class InstanceManager:
             self.message_to_controller(InstanceMessageType.FAILED, f"Unable to sync ptp clock: {ex}")
             return False
         
-        self.extended_log_message(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
-        self.extended_log_message(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
+        if proc.stdout is not None:
+            self.extended_log_message(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
+        if proc.stderr is not None:
+            self.extended_log_message(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
 
         if proc is not None and proc.returncode != 0:
             self.message_to_controller(InstanceMessageType.FAILED, 

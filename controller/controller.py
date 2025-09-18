@@ -567,5 +567,6 @@ class Controller(Dismantable):
                 self.start_interaction(PauseAfterSteps.EXPERIMENT)
             
             self.send_finish_message()
-
+            
+            self.provider.result_wrapper.dump_state()
             return succeeded # Dismantling handled by main

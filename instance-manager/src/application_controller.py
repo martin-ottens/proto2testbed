@@ -28,7 +28,7 @@ from threading import Event, Thread
 from typing import cast, Optional
 
 from common.application_configs import ApplicationConfig, AppStartStatus
-from common.instance_manager_message import LogMessageType
+from common.instance_manager_message import LogMessageType, ApplicationStatus
 from management_client import ManagementClient
 from application_interface import ApplicationInterface
 from applications.base_application import BaseApplication
@@ -113,9 +113,11 @@ class ApplicationController(Thread):
             wait_for_init = time.time()
 
         if not self.started_event.wait(total_wait):
-            self.mgmt_client.send_extended_app_log(f"Application has not reported start event!", 
-                                               LogMessageType.MSG_ERROR, 
-                                               True)
+            self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                   message=f"Application has not reported start event!", 
+                                                   type=LogMessageType.MSG_ERROR, 
+                                                   print_to_user=True,
+                                                   new_status=ApplicationStatus.EXECUTION_FAILED)
         
         self.application_manager.report_app_status(self, AppStartStatus.START)
         wait_left = None
@@ -129,42 +131,53 @@ class ApplicationController(Thread):
             process.join(wait_left)
 
             if process.is_alive():
-                self.mgmt_client.send_extended_app_log(f"Application still runs after timeout.", 
-                                                   LogMessageType.MSG_ERROR, 
-                                                   True)
+                self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                       message=f"Application still runs after timeout.", 
+                                                       type=LogMessageType.MSG_ERROR, 
+                                                       print_to_user=True,
+                                                       new_status=ApplicationStatus.EXECUTION_FAILED)
                 try:
                     parent = psutil.Process(process.ident)
                     for child in parent.children(recursive=True):
                         try: child.send_signal(signal.SIGTERM)
                         except Exception as ex:
-                            self.mgmt_client.send_extended_app_log(f"Application is unable to kill children: {ex}", 
-                                                               LogMessageType.MSG_ERROR, 
-                                                               True)
+                            self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                                   message=f"Application is unable to kill children: {ex}", 
+                                                                   type=LogMessageType.MSG_ERROR, 
+                                                                   print_to_user=True,
+                                                                   new_status=ApplicationStatus.EXECUTION_FAILED)
                             continue
                 except Exception as ex:
-                    self.mgmt_client.send_extended_app_log(f"Application is unable get children: {ex}", 
-                                                       LogMessageType.MSG_ERROR, 
-                                                       True)
+                    self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                           message=f"Application is unable get children: {ex}", 
+                                                           type=LogMessageType.MSG_ERROR, 
+                                                           print_to_user=True,
+                                                           new_status=ApplicationStatus.EXECUTION_STARTED)
 
                 process.terminate()
-
+            
             self.application_manager.report_app_status(self, AppStartStatus.FINISH)
             process.join()
 
         if not self.shared_state["error_flag"]:
             if self.config.runtime is None:
-                self.mgmt_client.send_extended_app_log(f"Application started as daemon", 
-                                                   LogMessageType.MSG_SUCCESS, 
-                                                   True)
+                self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                       message=f"Application started as daemon", 
+                                                       type=LogMessageType.MSG_SUCCESS, 
+                                                       print_to_user=True)
                 self.application_manager.report_app_status(self, AppStartStatus.DAEMON)
             else:
-                self.mgmt_client.send_extended_app_log(f"Application finished", 
-                                                   LogMessageType.MSG_SUCCESS, 
-                                                   True)
+                self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                       message=f"Application finished", 
+                                                       type=LogMessageType.MSG_SUCCESS, 
+                                                       print_to_user=True)
         else:
-            self.mgmt_client.send_extended_app_log(f"Application reported error: \n{self.shared_state['error_string']}", 
-                                                LogMessageType.MSG_SUCCESS, 
-                                                True)
+            # TODO: Check failed transition.
+            self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                   message=f"Application reported error: \n{self.shared_state['error_string']}", 
+                                                   type=LogMessageType.MSG_ERROR, 
+                                                   print_to_user=True,
+                                                   new_status=ApplicationStatus.EXECUTION_FAILED)
         
         self.is_terminated.set()
 
