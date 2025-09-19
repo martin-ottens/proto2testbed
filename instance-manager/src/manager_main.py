@@ -311,8 +311,13 @@ class InstanceManager:
         if status not in [AppStartStatus.FINISH, AppStartStatus.START]:
             return
         
-        new_status = ApplicationStatus.EXECUTION_STARTED if status == AppStartStatus.FINISH else ApplicationStatus.EXECUTION_FINISHED
-        payload = ExtendedApplicationMessage(app, new_status)
+        new_status = ApplicationStatus.EXECUTION_FINISHED if status == AppStartStatus.FINISH else ApplicationStatus.EXECUTION_STARTED
+        log_string = f"Application '{app}' finished" if status == AppStartStatus.FINISH else f"Application '{app}' started"
+        payload = ExtendedApplicationMessage(application=app, 
+                                             status=new_status, 
+                                             log_message_type=LogMessageType.MSG_INFO, 
+                                             print_to_user=False, 
+                                             log_message=log_string)
         message = DownstreamMessage(InstanceMessageType.APPS_EXTENDED_STATUS, payload)
         if self.state not in [IMState.EXPERIMENT_RUNNING, IMState.FAILED, IMState.READY_FOR_SHUTDOWN]:
             self.delayed_application_messages.append(message)

@@ -191,7 +191,7 @@ class ManagementClientConnection(threading.Thread):
                 
                 if extended_log.print_to_user:
                     ManagementClientConnection._message_type_to_logger(extended_log.log_message_type, 
-                                                                       f"<y>[Instance {self.client.name} log]</y> {extended_log.message}")
+                                                                       f"<y>[Instance {self.client.name}]</y> {extended_log.message}")
                 
                 if self.manager.provider.result_wrapper is not None and extended_log.store_in_log:
                     self.manager.provider.result_wrapper.append_instance_log(instance=self.client.name,
@@ -208,7 +208,7 @@ class ManagementClientConnection(threading.Thread):
 
                 if application_log.print_to_user:
                     ManagementClientConnection._message_type_to_logger(application_log.log_message_type,
-                                                                       f"<y>[Application {application_log.application} from {self.client.name} log]</y> {application_log.log_message}")
+                                                                       f"<y>[Application {application_log.application} from {self.client.name}]</y> {application_log.log_message}")
 
                 if self.manager.provider.result_wrapper is not None and application_log.store_in_log:
                     self.manager.provider.result_wrapper.append_application_log(instance=self.client.name,

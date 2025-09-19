@@ -156,7 +156,6 @@ class ApplicationController(Thread):
 
                 process.terminate()
             
-            self.application_manager.report_app_status(self, AppStartStatus.FINISH)
             process.join()
 
         if not self.shared_state["error_flag"]:
@@ -171,6 +170,7 @@ class ApplicationController(Thread):
                                                        message=f"Application finished", 
                                                        type=LogMessageType.MSG_SUCCESS, 
                                                        print_to_user=True)
+                self.application_manager.report_app_status(self, AppStartStatus.FINISH)
         else:
             # TODO: Check failed transition.
             self.mgmt_client.send_extended_app_log(application=self.config.name,
