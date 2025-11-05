@@ -77,6 +77,9 @@ class RunExecutor(BaseExecutor):
             parameters.preserve = Path(args.preserve)
 
         provider.set_run_parameters(parameters)
+
+        from controller import Controller
+        controller = Controller(provider)
         
         from utils.settings import TestbedConfig
         from utils.config_tools import load_config
@@ -87,14 +90,13 @@ class RunExecutor(BaseExecutor):
             logger.opt(exception=ex).critical("Error during loading of testbed config.")
             return 1
 
-        from controller import Controller
-        import signal
         try:
-            controller = Controller(provider)
+            controller.init_config()
         except Exception as ex:
             logger.opt(exception=ex).critical("Error during config initialization")
             return 1
 
+        import signal
         try:
             status = controller.main()
         except Exception as ex:

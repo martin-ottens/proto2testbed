@@ -16,6 +16,24 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
+
+from typing import Optional
+
+from utils.settings import TestbedConfig, RunParameters
+from full_result_wrapper import FullResultWrapper
+
 class Proto2TestbedAPI:
     def __init__() -> None:
+        pass
+
+    def set_testbed_config(config: TestbedConfig) -> None:
+        pass
+
+    def run_testbed(parameters: RunParameters) -> Optional[FullResultWrapper]:
+        pass
+
+    def list_testbeds() -> None:
+        pass
+
+    def export_results() -> None:
         pass

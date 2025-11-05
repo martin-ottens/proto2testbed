@@ -25,19 +25,36 @@ from threading import Thread, Event, Lock
 from loguru import logger
 from typing import Optional, List
 from pathlib import Path
+from dataclasses import dataclass
+from datetime import datetime
 
 from utils.interfaces import Dismantable
 from utils.continue_mode import *
 
+
+@dataclass
+class GeneralLogEntry:
+    message: str
+    level: str
+    at: datetime
+
 class CLI(Dismantable):
     _CLEAN_LOG_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>"
 
+    @staticmethod
     def setup_early_logging():
         logger.remove()
         logger.add(sys.stdout, level="DEBUG", format=CLI._CLEAN_LOG_FORMAT)
 
     def _enable_logging(self):
         def filter_logging_scoped(record):
+            if self.log_to_storage:
+                if self.full_result_wrapper is not None:
+                    self.full_result_wrapper.append_controller_log(message=record["message"],
+                                                              level=record["level"].name,
+                                                              time=record["time"])
+                return False
+
             return self.enable_output.is_set()
 
         logger.level(name="CLI", no=45, color="<magenta>")
@@ -296,10 +313,16 @@ class CLI(Dismantable):
         self.signal_lock = Lock()
         self.kill_input = Event()
         self.kill_input.clear()
+        self.log_to_storage = self.provider.from_api_call
+        self.full_result_wrapper = None
 
         self.enable_interaction.clear()
         self.enable_output.set()
         self._enable_logging()
+
+    def set_full_result_wrapper(self, full_result_wrapper):
+        self.full_result_wrapper = full_result_wrapper
+
 
     def toggle_output(self, state: bool):
         if state:

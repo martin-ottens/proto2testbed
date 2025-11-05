@@ -26,6 +26,7 @@ from datetime import datetime
 from utils.settings import TestbedConfig, ApplicationConfig
 from common.instance_manager_message import LogMessageType, ApplicationStatus
 
+
 @dataclass
 class LogEntry:
     time: datetime
@@ -44,6 +45,7 @@ class FullResultWrapper:
     def __init__(self, testbed_config: TestbedConfig) -> None:
         self.application_status_map: Dict[Tuple[str, str], ApplicationStatusReport] = {}
         self.instance_log_map: Dict[str, List[LogEntry]] = {}
+        self.controller_log: List[LogEntry] = []
 
         for instance in testbed_config.instances:
             self.instance_log_map[instance.name] = []
@@ -65,6 +67,25 @@ class FullResultWrapper:
         entry.logs.append(LogEntry(time=datetime.now(), type=type, message=message))
 
         return True
+    
+    def append_controller_log(self, message: str, level: str, time: datetime) -> None:
+        matched_level = LogMessageType.NONE
+        match (level):
+            case "INFO":
+                matched_level = LogMessageType.MSG_INFO
+            case "DEBUG":
+                matched_level = LogMessageType.MSG_DEBUG
+            case "SUCCESS":
+                matched_level = LogMessageType.MSG_SUCCESS
+            case "WARNING":
+                matched_level = LogMessageType.MSG_WARNING
+            case "ERROR" | "CRITICAL":
+                matched_level = LogMessageType.MSG_ERROR
+        
+        if matched_level == LogMessageType.NONE:
+            return
+        
+        self.controller_log.append(LogEntry(message=message, type=matched_level, time=time))
     
     def change_status(self, instance: str, application: str, 
                       new_status: ApplicationStatus) -> bool:
@@ -99,3 +120,7 @@ class FullResultWrapper:
             print(f"----- {name}", file=file)
             for log in instance_logs:
                 print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)
+
+        print("\nCONTROLLER\n", file=file)
+        for log in self.controller_log:
+            print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)

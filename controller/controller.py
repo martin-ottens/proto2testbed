@@ -47,12 +47,14 @@ from constants import SUPPORTED_INSTANCE_NUMBER
 class Controller(Dismantable):
     def __init__(self, provider: TestbedStateProvider) -> None:
         self.provider = provider
-        
+        self.cli = CLI(self.provider)
+
+    def init_config(self) -> None:
         if self.provider.testbed_config is None:
             raise Exception("Cannot start controller without testbed config!")
 
         self.dismantables: List[Dismantable] = []
-        self.state_manager: InstanceStateManager = InstanceStateManager(provider)
+        self.state_manager: InstanceStateManager = InstanceStateManager(self.provider)
         self.dismantables.insert(0, self.state_manager)
         self.mgmt_bridge: Optional[ManagementNetworkBridge] = None
         self.mgmt_bridge_mapping: Optional[BridgeMapping] = None
@@ -60,8 +62,8 @@ class Controller(Dismantable):
         self.request_restart = False
         self.influx_db = None
 
-        self.base_path = Path(provider.run_parameters.config)
-        self.pause_after: PauseAfterSteps = provider.run_parameters.interact
+        self.base_path = Path(self.provider.run_parameters.config)
+        self.pause_after: PauseAfterSteps = self.provider.run_parameters.interact
         self.interact_finished_event: Optional[Event] = None
 
         self.interrupted_event = Event()
@@ -69,34 +71,33 @@ class Controller(Dismantable):
         self.interrupted_event.clear()
         self.app_dependencies: Optional[AppDependencyHelper] = None
 
-        reader = StateFileReader(provider)
-        all_experiments = reader.get_other_experiments(provider.experiment)
+        reader = StateFileReader(self.provider)
+        all_experiments = reader.get_other_experiments(self.provider.experiment)
 
         if len(all_experiments) != 0:
             err = f"Other testbeds with same experiment tag are running: "
             err += ', '.join([f"User:{user}/PID:{pid}" for user, pid in all_experiments.items()])
             raise Exception(err)
         
-        if provider.run_parameters.preserve is not None:
+        if self.provider.run_parameters.preserve is not None:
             try:
-                if not bool(provider.run_parameters.preserve.anchor or provider.run_parameters.preserve.name):
+                if not bool(self.provider.run_parameters.preserve.anchor or self.provider.run_parameters.preserve.name):
                     raise Exception("Invalid preserve path")
             except Exception as ex:
                 raise Exception("Unable to start: Preserve Path is not valid!") from ex
 
         try:
-            self.cli = CLI(self.provider)
             self.cli.start()
             self.dismantables.insert(0, self.cli)
-
-            self.app_dependencies = AppDependencyHelper(provider.testbed_config)
+            self.app_dependencies = AppDependencyHelper(self.provider.testbed_config)
             self.app_dependencies.compile_dependency_list()
             self.state_manager.set_app_dependecy_helper(self.app_dependencies)
-            self.integration_helper = IntegrationHelper(provider.run_parameters.config,
-                                                        str(provider.app_base_path),
-                                                        provider.default_configs.get_defaults("disable_integrations", False))
-            full_result_wrapper = FullResultWrapper(provider.testbed_config)
-            provider.set_full_result_wrapper(full_result_wrapper)
+            self.integration_helper = IntegrationHelper(self.provider.run_parameters.config,
+                                                        str(self.provider.app_base_path),
+                                                        self.provider.default_configs.get_defaults("disable_integrations", False))
+            full_result_wrapper = FullResultWrapper(self.provider.testbed_config)
+            self.provider.set_full_result_wrapper(full_result_wrapper)
+            self.cli.set_full_result_wrapper(full_result_wrapper)
 
         except Exception as ex:
             raise Exception("Error during config validation error!") from ex
