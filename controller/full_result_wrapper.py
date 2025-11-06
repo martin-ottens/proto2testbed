@@ -20,7 +20,7 @@ import sys
 
 from loguru import logger
 from dataclasses import dataclass, field
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Any
 from datetime import datetime
 
 from utils.settings import TestbedConfig, ApplicationConfig, TestbedInstance
@@ -40,7 +40,7 @@ class ApplicationStatusReport:
     config: ApplicationConfig
     status: ApplicationStatus = ApplicationStatus.PENDING
     logs: List[LogEntry] = field(default_factory=list)
-    data_series = None # TODO: Add option to directly store data series
+    data_series: List[Any] = field(default_factory=list)
 
 
 @dataclass
@@ -131,6 +131,20 @@ class FullResultWrapper:
         self.instance_status_map.get(instance).preserve = (target, amount)
         return True
     
+    def add_data_point(self, point: Dict) -> bool:
+        tags = point.get("tags", None)
+        if tags is None:
+            return False
+
+        instance = tags.get("instance", None)
+        application = tags.get("application", None)
+
+        if (instance, application) not in self.application_status_map.keys():
+            return False
+        
+        self.application_status_map.get((instance, application)).data_series.append(point)
+        return True
+    
     def dump_state(self, file=sys.stdout) -> None:
         print("APPLICATIONS \n", file=file)
         for tup, application in self.application_status_map.items():
@@ -138,6 +152,10 @@ class FullResultWrapper:
             print(f"----- {name}@{instance}: {application.status}", file=file)
             for log in application.logs:
                 print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)
+
+            print("Datapoints:")
+            for entry in application.data_series:
+                print(f"{entry}")
 
         print("\nINSTANCES\n", file=file)
         for name, instance in self.instance_status_map.items():

@@ -36,7 +36,7 @@ from constants import DEFAULT_CONFIG_PATH, DEFAULT_STATE_DIR
 
 class TestbedStateProvider:
     def __init__(self, basepath: Path, verbose: int, sudo: bool, invoker: int,
-                 from_api_call: bool = False) -> None:
+                 from_api_call: bool = False, cache_datapoints: bool = False) -> None:
 
         self.default_configs = DefaultConfigs(DEFAULT_CONFIG_PATH)
         self.statefile_base = Path(self.default_configs.get_defaults("statefile_basedir", DEFAULT_STATE_DIR))
@@ -54,6 +54,7 @@ class TestbedStateProvider:
         self.concurrency_reservation: Optional[ConcurrencyReservation] = None
         self.state_lock = StateLock(self.statefile_base)
         self.from_api_call = from_api_call
+        self.cache_datapoints = cache_datapoints
         self.cli: Optional[CLI] = None
         self.instance_manager: Optional[InstanceStateManager] = None
         self.result_wrapper: Optional[FullResultWrapper] = None

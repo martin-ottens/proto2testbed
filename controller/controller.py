@@ -101,6 +101,18 @@ class Controller(Dismantable):
 
         except Exception as ex:
             raise Exception("Error during config validation error!") from ex
+        
+        self.integration_helper.apply_configured_integrations(self.provider.testbed_config.integrations)
+        self.dismantables.insert(0, self.integration_helper)
+
+        try:
+            self.influx_db = InfluxDBAdapter(self.provider, self.provider.run_parameters.dont_use_influx, 
+                                             full_result_wrapper=self.provider.result_wrapper if self.provider.cache_datapoints else None)
+            self.influx_db.start()
+            self.dismantables.insert(0, self.influx_db)
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Unable to load InfluxDB data!")
+            return False
     
     def _destroy(self, spawn_threads: bool = True, force: bool = False) -> None:
         self.setup_env = None
@@ -430,17 +442,6 @@ class Controller(Dismantable):
             return True
         
     def main(self) -> bool:
-        self.integration_helper.apply_configured_integrations(self.provider.testbed_config.integrations)
-        self.dismantables.insert(0, self.integration_helper)
-
-        try:
-            self.influx_db = InfluxDBAdapter(self.provider, self.provider.run_parameters.dont_use_influx)
-            self.influx_db.start()
-            self.dismantables.insert(0, self.influx_db)
-        except Exception as ex:
-            logger.opt(exception=ex).critical("Unable to load InfluxDB data!")
-            return False
-        
         if not check_preserve_dir(self.provider.run_parameters.preserve, self.provider.executor):
             logger.critical("Unable to set up File Preservation")
             return False
@@ -462,6 +463,8 @@ class Controller(Dismantable):
         
         if self.influx_db.store_disabled:
             logger.warning("InfluxDB experiment data storage is disabled!")
+        elif self.influx_db.full_result_wrapper is not None:
+            logger.info("InfluxDB is disabled, data points are stored in FullResultWrapper for API usage!")
         else:
             logger.success(f"Experiment data will be saved to InfluxDB {self.influx_db.database} with tag experiment={self.influx_db.series_name}")
 
