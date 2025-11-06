@@ -53,7 +53,6 @@ class ApplicationController(Thread):
         self.started_event = MultiprocessingEvent()
         self.instance_name = instance_name
         self.shared_state["error_flag"] = False
-        self.shared_state["error_string"] = None 
         self.t0: Optional[float] = None
         self.start_defered: bool = False
         self.daemon = True
@@ -86,11 +85,9 @@ class ApplicationController(Thread):
             interface.disconnect()
             if not rc:
                 self.shared_state["error_flag"] = True
-                self.shared_state["error_string"] = f"Application finished with return code: {rc}"
         except Exception as ex:
             traceback.print_exception(ex)
             self.shared_state["error_flag"] = True
-            self.shared_state["error_string"] = str(ex)
 
     def update_t0(self, t0: float) -> None:
         self.t0 = t0
@@ -172,9 +169,8 @@ class ApplicationController(Thread):
                                                        print_to_user=True)
                 self.application_manager.report_app_status(self, AppStartStatus.FINISH)
         else:
-            # TODO: Check failed transition.
             self.mgmt_client.send_extended_app_log(application=self.config.name,
-                                                   message=f"Application reported error: \n{self.shared_state['error_string']}", 
+                                                   message=f"Application failed", 
                                                    type=LogMessageType.MSG_ERROR, 
                                                    print_to_user=True,
                                                    new_status=ApplicationStatus.EXECUTION_FAILED)

@@ -20,11 +20,12 @@ import sys
 
 from loguru import logger
 from dataclasses import dataclass, field
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 from datetime import datetime
 
-from utils.settings import TestbedConfig, ApplicationConfig
+from utils.settings import TestbedConfig, ApplicationConfig, TestbedInstance
 from common.instance_manager_message import LogMessageType, ApplicationStatus
+from state_manager import AgentManagementState
 
 
 @dataclass
@@ -39,19 +40,28 @@ class ApplicationStatusReport:
     config: ApplicationConfig
     status: ApplicationStatus = ApplicationStatus.PENDING
     logs: List[LogEntry] = field(default_factory=list)
+    data_series = None # TODO: Add option to directly store data series
+
+
+@dataclass
+class InstanceStatusReport:
+    config: TestbedInstance
+    logs: List[LogEntry] = field(default_factory=list)
+    status: AgentManagementState = AgentManagementState.UNKNOWN
+    preserve: Optional[Tuple[str, int]] = None
 
 
 class FullResultWrapper:
     def __init__(self, testbed_config: TestbedConfig) -> None:
         self.application_status_map: Dict[Tuple[str, str], ApplicationStatusReport] = {}
-        self.instance_log_map: Dict[str, List[LogEntry]] = {}
+        self.instance_status_map: Dict[str, InstanceStatusReport] = {}
         self.controller_log: List[LogEntry] = []
 
         for instance in testbed_config.instances:
-            self.instance_log_map[instance.name] = []
+            self.instance_status_map[instance.name] = InstanceStatusReport(config=instance)
             for application in instance.applications:
                 key = (instance.name, application.name)
-                val = ApplicationStatusReport(config=ApplicationConfig)
+                val = ApplicationStatusReport(config=application)
                 self.application_status_map[key] = val
 
     def append_application_log(self, instance: str, application: str, 
@@ -87,7 +97,7 @@ class FullResultWrapper:
         
         self.controller_log.append(LogEntry(message=message, type=matched_level, time=time))
     
-    def change_status(self, instance: str, application: str, 
+    def change_application_status(self, instance: str, application: str, 
                       new_status: ApplicationStatus) -> bool:
         if (instance, application) not in self.application_status_map.keys():
             return False
@@ -95,8 +105,15 @@ class FullResultWrapper:
         self.application_status_map.get((instance, application)).status = new_status
         return True
     
+    def change_instance_status(self, instance: str, new_status: AgentManagementState) -> bool:
+        if instance not in self.instance_status_map.keys():
+            return False
+        
+        self.instance_status_map.get(instance).status = new_status
+        return True
+    
     def append_instance_log(self, instance: str, message: str, type: LogMessageType) -> bool:
-        if instance not in self.instance_log_map.keys():
+        if instance not in self.instance_status_map.keys():
             logger.warning(f"ResultWrapper: Unable to find instance {instance}")
             return False
         
@@ -104,7 +121,14 @@ class FullResultWrapper:
             return True
 
         entry = LogEntry(time=datetime.now(), type=type, message=message)
-        self.instance_log_map[instance].append(entry)
+        self.instance_status_map[instance].logs.append(entry)
+        return True
+    
+    def add_instance_preserved_files(self, instance: str, target: str, amount: int) -> bool:
+        if instance not in self.instance_status_map.keys():
+            return False
+        
+        self.instance_status_map.get(instance).preserve = (target, amount)
         return True
     
     def dump_state(self, file=sys.stdout) -> None:
@@ -116,9 +140,13 @@ class FullResultWrapper:
                 print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)
 
         print("\nINSTANCES\n", file=file)
-        for name, instance_logs in self.instance_log_map.items():
-            print(f"----- {name}", file=file)
-            for log in instance_logs:
+        for name, instance in self.instance_status_map.items():
+            print(f"----- {name}: {instance.status}", file=file)
+
+            if instance.preserve is not None:
+                print(f"----- Preserved {instance.preserve[1]} files to {instance.preserve[0]}")
+
+            for log in instance.logs:
                 print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)
 
         print("\nCONTROLLER\n", file=file)

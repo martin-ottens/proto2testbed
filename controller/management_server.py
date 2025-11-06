@@ -219,9 +219,9 @@ class ManagementClientConnection(threading.Thread):
                 if application_log.status != ApplicationStatus.UNCHANGED:
                     if self.manager.provider.result_wrapper is not None:
                         logger.trace(f"Application {application_log.application}@{self.client.name} changed its state to {application_log.status}")
-                        self.manager.provider.result_wrapper.change_status(instance=self.client.name,
-                                                                           application=application_log.application,
-                                                                           new_status=application_log.status)
+                        self.manager.provider.result_wrapper.change_application_status(instance=self.client.name,
+                                                                                       application=application_log.application,
+                                                                                       new_status=application_log.status)
 
                     if application_log.status == ApplicationStatus.EXECUTION_STARTED:
                         self.manager.report_app_state_change(self.client.name, application_log.application, AppStartStatus.START)

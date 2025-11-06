@@ -79,8 +79,8 @@ class RunProgramApplication(BaseApplication):
             self.settings = RunProgramApplicationConfig(**config)
 
             parts = self.settings.command.split(" ", maxsplit=1)
-            self.relative_command = Path(parts[0])
-            self.command = Path(parts[0])
+            self.relative_command = Path(parts[0].rstrip())
+            self.command = Path(parts[0].rstrip())
             self.args = parts[1] if len(parts) >= 2 else ""
 
             self.from_tbp = False

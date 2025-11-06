@@ -176,6 +176,10 @@ class InstanceState:
             return
         
         self._state = new_state
+
+        if self.provider.result_wrapper is not None:
+            self.provider.result_wrapper.change_instance_status(self.name, new_state)
+
         self.manager.notify_state_change(new_state)
 
     def prepare_interchange_dir(self) -> None:
@@ -209,6 +213,10 @@ class InstanceState:
                 shutil.copytree(self.get_p9_data_path(), target, dirs_exist_ok=True)
                 if self.provider.executor is not None:
                     set_owner(target, self.provider.executor)
+
+                if self.provider.result_wrapper is not None:
+                    self.provider.result_wrapper.add_instance_preserved_files(self.name, target, len(flist))
+
                 logger.info(f"File Preservation: Preserved {len(flist)} files for Instance {self.name} to '{target}'")
             
         

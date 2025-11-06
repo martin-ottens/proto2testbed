@@ -140,7 +140,7 @@ class IMClientThread(Thread):
 
         if not isinstance(data["logtype"], str):
             return self._respond_to_client(False, f"Field 'logtype' is not a string")
-        logtype = LogMessageType.from_str(data["stderr"])
+        logtype = LogMessageType.from_str(data["logtype"])
         if logtype == LogMessageType.NONE:
             return self._respond_to_client(False, f"Field 'logtype' has an invalid value")
 
@@ -260,7 +260,7 @@ class IMClientThread(Thread):
                 print(f"Daemon Thread: Client {self.id} error: {ex}", file=sys.stderr, flush=True)
                 raise ex
 
-        print(f"Daemon Thread: Client {self.id}: Connection closed.", file=sys.stderr, flush=True)
+        print(f"Daemon Thread: Client {self.id} disconnected.", file=sys.stderr, flush=True)
         self.client_socket.close()
 
     def stop(self):

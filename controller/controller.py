@@ -560,7 +560,7 @@ class Controller(Dismantable):
 
             if self.wait_for_to_become(experiment_timeout, 'Experiment', 
                                     AgentManagementState.FINISHED, 
-                                    self.pause_after == PauseAfterSteps.EXPERIMENT, False):
+                                    False, False):
                 succeeded = True
                 logger.success("All Instances reported finished applications!")
             
