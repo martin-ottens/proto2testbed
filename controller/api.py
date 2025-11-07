@@ -16,10 +16,7 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
-import os
-
 from typing import Optional, List
-from pathlib import Path
 
 from utils.settings import TestbedConfig, RunParameters
 from full_result_wrapper import FullResultWrapper
@@ -31,18 +28,15 @@ from cli import CLI
 class Proto2TestbedAPI:
     def __init__(self, verbose: int = 0, sudo: bool = False, 
                  log_to_influx: bool = True) -> None:
-        CLI.setup_early_logging()
+        if verbose not in [0, 1, 2]:
+            raise ValueError("Inavlid verbose mode, select from 0, 1, 2.")
 
-        original_uid = os.environ.get("SUDO_UID", None)
-        if original_uid is None:
-            original_uid = os.getuid()
+        CLI.setup_early_logging()
 
         self.testbed_config: Optional[TestbedConfig] = None
         self.experiment_tag: Optional[str] = None
-        self.provider = TestbedStateProvider(basepath=Path(__file__).parent.resolve(),
-                                             verbose=verbose,
+        self.provider = TestbedStateProvider(verbose=verbose,
                                              sudo=sudo,
-                                             invoker=int(original_uid),
                                              from_api_call=True,
                                              cache_datapoints=(not log_to_influx))
         

@@ -134,11 +134,12 @@ class IntegrationLoader:
 
 
 class IntegrationHelper(Dismantable):
-    def __init__(self, testbed_package_base: str, app_base: str, 
-                 provider: TestbedStateProvider, disabled: bool = False) -> None:
+    def __init__(self, testbed_package_base: str, app_base: str, provider: TestbedStateProvider, 
+                 skip_integrations: bool = False, disabled: bool = False) -> None:
         self.provider = provider
         self.loader = IntegrationLoader(testbed_package_base, app_base)
         self.integrations = None
+        self.skip_integrations = skip_integrations
         self.disabled = disabled
 
         self.mapped_integrations = {
@@ -257,7 +258,7 @@ class IntegrationHelper(Dismantable):
         if fire_integrations is None or len(fire_integrations) == 0:
             return None
         
-        if self.provider.run_parameters is not None and self.provider.run_parameters.skip_integration:
+        if self.skip_integrations:
             for integration in fire_integrations:
                 logger.warning(f"Integration: Start of '{integration.obj.name}' integration at stage {str(stage).upper()} skipped.")
             return None

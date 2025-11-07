@@ -24,7 +24,7 @@ import string
 from pathlib import Path
 from typing import Optional
 
-from utils.settings import DefaultConfigs, RunParameters, TestbedConfig
+from utils.settings import DefaultConfigs, TestbedConfig
 from helper.state_file_helper import StateFileReader
 from utils.concurrency_reservation import ConcurrencyReservation
 from utils.state_lock import StateLock
@@ -35,21 +35,25 @@ from constants import DEFAULT_CONFIG_PATH, DEFAULT_STATE_DIR
 
 
 class TestbedStateProvider:
-    def __init__(self, basepath: Path, verbose: int, sudo: bool, invoker: int,
-                 from_api_call: bool = False, cache_datapoints: bool = False) -> None:
+    def __init__(self, verbose: int, sudo: bool, from_api_call: bool = False, 
+                 cache_datapoints: bool = False) -> None:
 
         self.default_configs = DefaultConfigs(DEFAULT_CONFIG_PATH)
         self.statefile_base = Path(self.default_configs.get_defaults("statefile_basedir", DEFAULT_STATE_DIR))
-        self.executor = invoker
+        
+        original_uid = os.environ.get("SUDO_UID", None)
+        if original_uid is None:
+            original_uid = os.getuid()
+        
+        self.executor = int(original_uid)
         self.main_pid = os.getpid()
         self.cmdline = " ".join(psutil.Process(self.main_pid).cmdline())
-        self.app_base_path = basepath
+        self.app_base_path = Path(__file__).parent.parent.resolve()
         self.log_verbose = verbose
         self.sudo_mode = sudo
         self.experiment: Optional[str] = None
         self.experiment_generated = False
         self.unique_run_name = f"{self.main_pid}-{self.executor}"
-        self.run_parameters: Optional[RunParameters] = None
         self.testbed_config: Optional[TestbedConfig] = None
         self.concurrency_reservation: Optional[ConcurrencyReservation] = None
         self.state_lock = StateLock(self.statefile_base)
@@ -92,9 +96,6 @@ class TestbedStateProvider:
         self.experiment = None
         self.experiment_generated = False
         self.concurrency_reservation = None
-
-    def set_run_parameters(self, parameters: RunParameters) -> None:
-        self.run_parameters = parameters
 
     def set_testbed_config(self, config: TestbedConfig) -> None:
         self.testbed_config = config

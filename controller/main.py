@@ -86,10 +86,6 @@ def main():
 
     CLI.setup_early_logging()
 
-    original_uid = os.environ.get("SUDO_UID", None)
-    if original_uid is None:
-        original_uid = os.getuid()
-
     mode = args.mode
     if mode in aliases.keys():
         mode = aliases.get(mode)
@@ -109,10 +105,8 @@ def main():
         experiment = os.environ.get("EXPERIMENT_TAG")
 
     from utils.state_provider import TestbedStateProvider
-    provider = TestbedStateProvider(basepath=app_base_path,
-                                    verbose=args.verbose,
-                                    sudo=args.sudo,
-                                    invoker=int(original_uid))
+    provider = TestbedStateProvider(verbose=args.verbose,
+                                    sudo=args.sudo)
     try:
         provider.update_experiment_tag(experiment, executor.dumps_to_state_files())
     except Exception as ex:

@@ -53,10 +53,11 @@ class RunExecutor(BaseExecutor):
 
     def invoke(self, args, provider: TestbedStateProvider) -> int:
         parameters = RunParameters()
+        testbed_path = ""
         if os.path.isabs(args.TESTBED_CONFIG):
-            parameters.config = args.TESTBED_CONFIG
+            testbed_path = args.TESTBED_CONFIG
         else:
-            parameters.config = f"{os.getcwd()}/{args.TESTBED_CONFIG}"
+            testbed_path = f"{os.getcwd()}/{args.TESTBED_CONFIG}"
 
         parameters.interact = PauseAfterSteps[args.interact]
         parameters.disable_kvm = args.no_kvm
@@ -76,22 +77,20 @@ class RunExecutor(BaseExecutor):
         if args.preserve is not None:
             parameters.preserve = Path(args.preserve)
 
-        provider.set_run_parameters(parameters)
-
         from controller import Controller
         controller = Controller(provider)
         
         from utils.settings import TestbedConfig
         from utils.config_tools import load_config
         try:
-            config: TestbedConfig = load_config(parameters.config, parameters.skip_substitution)
+            config: TestbedConfig = load_config(testbed_path, parameters.skip_substitution)
             provider.set_testbed_config(config)
         except Exception as ex:
             logger.opt(exception=ex).critical("Error during loading of testbed config.")
             return 1
 
         try:
-            controller.init_config()
+            controller.init_config(parameters, testbed_path)
         except Exception as ex:
             logger.opt(exception=ex).critical("Error during config initialization")
             return 1

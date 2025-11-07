@@ -32,7 +32,7 @@ from helper.state_file_helper import StateFileReader
 from utils.interfaces import Dismantable
 from utils.config_tools import load_vm_initialization, check_preserve_dir
 from utils.state_provider import TestbedStateProvider
-from utils.settings import InvokeIntegrationAfter
+from utils.settings import InvokeIntegrationAfter, RunParameters
 from utils.influxdb import InfluxDBAdapter
 from utils.networking import *
 from utils.continue_mode import *
@@ -49,10 +49,12 @@ class Controller(Dismantable):
         self.provider = provider
         self.cli = CLI(self.provider)
 
-    def init_config(self) -> None:
+    def init_config(self, run_parameters: RunParameters, testbed_basepath: str) -> None:
         if self.provider.testbed_config is None:
             raise Exception("Cannot start controller without testbed config!")
 
+        self.run_parameters = run_parameters
+        self.testbed_basepath = testbed_basepath
         self.dismantables: List[Dismantable] = []
         self.state_manager: InstanceStateManager = InstanceStateManager(self.provider)
         self.dismantables.insert(0, self.state_manager)
@@ -62,8 +64,8 @@ class Controller(Dismantable):
         self.request_restart = False
         self.influx_db = None
 
-        self.base_path = Path(self.provider.run_parameters.config)
-        self.pause_after: PauseAfterSteps = self.provider.run_parameters.interact
+        self.base_path = Path(testbed_basepath)
+        self.pause_after: PauseAfterSteps = self.run_parameters.interact
         self.interact_finished_event: Optional[Event] = None
 
         self.interrupted_event = Event()
@@ -79,9 +81,9 @@ class Controller(Dismantable):
             err += ', '.join([f"User:{user}/PID:{pid}" for user, pid in all_experiments.items()])
             raise Exception(err)
         
-        if self.provider.run_parameters.preserve is not None:
+        if self.run_parameters.preserve is not None:
             try:
-                if not bool(self.provider.run_parameters.preserve.anchor or self.provider.run_parameters.preserve.name):
+                if not bool(self.run_parameters.preserve.anchor or self.run_parameters.preserve.name):
                     raise Exception("Invalid preserve path")
             except Exception as ex:
                 raise Exception("Unable to start: Preserve Path is not valid!") from ex
@@ -92,7 +94,7 @@ class Controller(Dismantable):
             self.app_dependencies = AppDependencyHelper(self.provider.testbed_config)
             self.app_dependencies.compile_dependency_list()
             self.state_manager.set_app_dependecy_helper(self.app_dependencies)
-            self.integration_helper = IntegrationHelper(self.provider.run_parameters.config,
+            self.integration_helper = IntegrationHelper(testbed_basepath,
                                                         str(self.provider.app_base_path),
                                                         self.provider.default_configs.get_defaults("disable_integrations", False))
             full_result_wrapper = FullResultWrapper(self.provider.testbed_config)
@@ -106,7 +108,7 @@ class Controller(Dismantable):
         self.dismantables.insert(0, self.integration_helper)
 
         try:
-            self.influx_db = InfluxDBAdapter(self.provider, self.provider.run_parameters.dont_use_influx, 
+            self.influx_db = InfluxDBAdapter(self.provider, self.run_parameters.dont_use_influx,
                                              full_result_wrapper=self.provider.result_wrapper if self.provider.cache_datapoints else None)
             self.influx_db.start()
             self.dismantables.insert(0, self.influx_db)
@@ -294,7 +296,7 @@ class Controller(Dismantable):
                                         cores=instance_config.cores,
                                         memory=instance_config.memory,
                                         allow_gso_gro=self.provider.testbed_config.settings.allow_gso_gro,
-                                        disable_kvm=self.provider.run_parameters.disable_kvm)
+                                        disable_kvm=self.run_parameters.disable_kvm)
                 self.dismantables.insert(0, helper)
                 helper.start_instance()
             except Exception as ex:
@@ -363,7 +365,7 @@ class Controller(Dismantable):
                 continue
 
             message = FinishInstanceMessageUpstream(instance.preserve_files,
-                                                    self.provider.run_parameters.preserve is not None)
+                                                    self.run_parameters.preserve is not None)
             instance.send_message(message)
 
         result: WaitResult = self.state_manager.wait_for_instances_to_become_state([AgentManagementState.STARTED,
@@ -387,7 +389,7 @@ class Controller(Dismantable):
         continue_mode = CLIContinue(at_step)
         self.interaction_event.clear()
 
-        if self.provider.run_parameters.interact is not PauseAfterSteps.DISABLE:
+        if self.run_parameters.interact is not PauseAfterSteps.DISABLE:
             self.cli.start_cli(self.interaction_event, continue_mode)
             logger.success(f"Testbed paused after stage {self.pause_after.name}, Interactive mode enabled (CRTL+C to exit).")
         else:
@@ -399,7 +401,7 @@ class Controller(Dismantable):
             self.interrupted_event.set()
             status = False
 
-        if self.provider.run_parameters.interact is not PauseAfterSteps.DISABLE:
+        if self.run_parameters.interact is not PauseAfterSteps.DISABLE:
             self.cli.stop_cli()
         
         if not status:
@@ -442,10 +444,10 @@ class Controller(Dismantable):
             return True
         
     def main(self) -> bool:
-        if not check_preserve_dir(self.provider.run_parameters.preserve, self.provider.executor):
+        if not check_preserve_dir(self.run_parameters.preserve, self.provider.executor):
             logger.critical("Unable to set up File Preservation")
             return False
-        self.state_manager.enable_file_preservation(self.provider.run_parameters.preserve)
+        self.state_manager.enable_file_preservation(self.run_parameters.preserve)
 
         start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP)
         if start_status is None:
