@@ -26,6 +26,7 @@ from executors.base_executor import BaseExecutor
 from utils.continue_mode import PauseAfterSteps
 from utils.settings import RunParameters
 from utils.state_provider import TestbedStateProvider
+from full_result_wrapper import FullResultWrapper
 
 
 class RunExecutor(BaseExecutor):
@@ -88,6 +89,9 @@ class RunExecutor(BaseExecutor):
         except Exception as ex:
             logger.opt(exception=ex).critical("Error during loading of testbed config.")
             return 1
+        
+        full_result_wrapper = FullResultWrapper(config)
+        provider.set_full_result_wrapper(full_result_wrapper)
 
         try:
             controller.init_config(parameters, testbed_path)

@@ -57,6 +57,7 @@ class FullResultWrapper:
         self.instance_status_map: Dict[str, InstanceStatusReport] = {}
         self.controller_log: List[LogEntry] = []
         self.controller_failed: bool = False
+        self.experiment_tag: Optional[str] = None
 
         for instance in testbed_config.instances:
             self.instance_status_map[instance.name] = InstanceStatusReport(config=instance)

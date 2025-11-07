@@ -97,9 +97,7 @@ class Controller(Dismantable):
             self.integration_helper = IntegrationHelper(testbed_basepath,
                                                         str(self.provider.app_base_path),
                                                         self.provider.default_configs.get_defaults("disable_integrations", False))
-            full_result_wrapper = FullResultWrapper(self.provider.testbed_config)
-            self.provider.set_full_result_wrapper(full_result_wrapper)
-            self.cli.set_full_result_wrapper(full_result_wrapper)
+            self.cli.set_full_result_wrapper(self.provider.result_wrapper)
 
         except Exception as ex:
             raise Exception("Error during config validation error!") from ex
@@ -573,6 +571,5 @@ class Controller(Dismantable):
                 self.start_interaction(PauseAfterSteps.EXPERIMENT)
             
             self.send_finish_message()
-            
-            self.provider.result_wrapper.dump_state()
+
             return succeeded # Dismantling handled by main

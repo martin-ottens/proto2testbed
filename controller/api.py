@@ -46,17 +46,35 @@ class Proto2TestbedAPI:
         self.testbed_config = config
 
     def set_experiment_tag(self, tag: Optional[str]) -> None:
-        self.experiment_tag = self.provider.update_experiment_tag(tag, False)
+        self.experiment_tag = tag
 
-    def run_testbed(self, parameters: RunParameters) -> Optional[FullResultWrapper]:
+    def run_testbed(self, parameters: RunParameters, 
+                    testbed_package_path: str) -> Optional[FullResultWrapper]:
         if self.testbed_config is None:
             raise ValueError("No testbed config is defined")
         
         if self.experiment_tag is None:
             raise ValueError("No experiment tag is defined")
         
-        # TODO self.provider.update_experiment_tag(tag, False)
-        # TODO self.provider.release_experiment_tag()
+        self.provider.set_testbed_config(self.testbed_config)
+        full_result_wrapper = FullResultWrapper(self.testbed_config)
+        self.provider.set_full_result_wrapper(full_result_wrapper)
+        
+        self.provider.update_experiment_tag(self.experiment_tag, True)
+
+        from controller import Controller
+        controller = Controller(self.provider)
+        controller.init_config(parameters, testbed_package_path)
+
+        status = controller.main()
+        full_result_wrapper.controller_failed = not status
+        full_result_wrapper.experiment_tag = self.provider.experiment
+
+        controller.dismanlte()
+
+        self.provider.release_experiment_tag()
+
+        return FullResultWrapper
 
     def list_testbeds(self, from_all_users: bool = False) -> List[StateFileEntry]:
         from helper.state_file_helper import StateFileReader
@@ -69,12 +87,36 @@ class Proto2TestbedAPI:
             raise ValueError("No testbed config defined")
         
         if self.experiment_tag is None:
-            raise ValueError("No experiment tag is defined")
+            raise ValueError("No experiment tag is defined, random generation not possible for export")
 
         from helper.export_helper import ResultExportHelper
+        self.provider.update_experiment_tag(self.experiment_tag, False)
+        self.provider.set_testbed_config(self.testbed_config)
 
         exporter = ResultExportHelper(self.testbed_config, additional_applications_path, self.provider)
         return exporter.output_to_list()
 
-    def clean_results(self) -> None:
-        pass
+    def clean_results(self, all: bool = False) -> None:
+        if not all and self.experiment_tag is None:
+            raise ValueError("No experiment tag is defined, random generation not possible for non-all clean")
+        
+        self.provider.update_experiment_tag(self.experiment_tag, False)
+        
+        from utils.influxdb import InfluxDBAdapter
+        adapter = InfluxDBAdapter(self.provider)
+        client = adapter.get_access_client()
+
+        if client is None:
+            raise Exception("Unable to create InfluxDB client")
+        
+        try:
+            if not all:
+                client.delete_series(tags={"experiment": self.provider.experiment})
+            else:
+                for measurement in client.get_list_measurements():
+                    name = measurement["name"]
+                    client.drop_measurement(name)
+        except Exception as ex:
+            raise ex
+        finally:
+            adapter.close_access_client()
