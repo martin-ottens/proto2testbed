@@ -73,7 +73,7 @@ class ExportExecutor(BaseExecutor):
             return 1
 
         try:
-            exporter = ResultExportHelper(args.output, testbed_config, testbed_config_path, args.exclude_instance, args.exclude_application)
+            exporter = ResultExportHelper(testbed_config, testbed_config_path, args.exclude_instance, args.exclude_application)
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to start data exporter")
             return 1

@@ -42,12 +42,23 @@ class SeriesContainer:
     y: List[Any]
 
 
+@dataclass
+class APISeriesContainer:
+    name: str
+    instance: str
+    application_name: str
+    application_type: str
+    type_name: str
+    y_unit: str
+    x: List[int]
+    y: List[Any]
+
+
 class ResultExportHelper:
-    def __init__(self, output_path: str, config: TestbedConfig,
-                 testbed_package_path: str, provider: TestbedStateProvider,
+    def __init__(self, config: TestbedConfig,
+                 testbed_package_path: Optional[str], provider: TestbedStateProvider,
                  exclude_instances: Optional[List[str]] = None,
                  exclude_applications: Optional[List[str]] = None) -> None:
-        self.output_path = output_path
         self.config = config
         self.provider = provider
         self.exclude_instances = exclude_instances
@@ -284,7 +295,7 @@ class ResultExportHelper:
     def output_to_flatfile(self, output_path: str) -> bool:
         path = Path(output_path)
 
-        def flatfile_export_callback(container: SeriesContainer):
+        def flatfile_export_callback(container: SeriesContainer) -> bool:
             basepath = path / container.instance / container.app_config.name
 
             if len(container.x) != len(container.y):
@@ -308,3 +319,29 @@ class ResultExportHelper:
             return True
 
         return self._process_series(flatfile_export_callback)
+    
+    def output_to_list(self) -> List[APISeriesContainer]:
+        result: List[APISeriesContainer] = []
+
+        def list_output_callback(container: SeriesContainer) -> bool:
+            nonlocal result
+
+            if len(container.x) != len(container.y):
+                raise ValueError(f"Exporting of {container.type_name} from series {container.export_mapping.name} failed: len(x) != len(y)")
+
+            result_container = APISeriesContainer(
+                name=container.export_mapping.name,
+                instance=container.instance,
+                application_name=container.app_config.name,
+                application_type=container.app_config.application,
+                type_name=container.type_name,
+                y_unit=container.export_mapping.type.value[1],
+                x=container.x,
+                y=container.y
+            )
+
+            result.append(result_container)
+
+        self._process_series(list_output_callback)
+        return result
+

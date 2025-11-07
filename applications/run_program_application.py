@@ -137,8 +137,19 @@ class RunProgramApplication(BaseApplication):
                     self.interface.push_log_message(f"Program '{self.command}' exited with code {status}.\nSTDOUT: {process.stdout.readline().decode('utf-8')}\nSTDERR: {process.stderr.readline().decode('utf-8')}", 
                                                     LogMessageType.MSG_ERROR,
                                                     True)
-                self.interface.push_log_message(process.stdout.readline().decode('utf-8'), LogMessageType.STDOUT)
-                self.interface.push_log_message(process.stderr.readline().decode('utf-8'), LogMessageType.STDERR)
+                    
+                if process.stdout is not None:
+                    for line in process.stdout.readlines():
+                        if line == "":
+                            continue
+                        self.interface.push_log_message(line.replace('\n').decode('utf-8'), LogMessageType.STDOUT)
+
+                if process.stderr is not None:
+                    for line in process.stderr.readlines():
+                        if line == "":
+                            continue
+                    self.interface.push_log_message(line.replace('\n').decode('utf-8'), LogMessageType.STDERR)
+
                 return False
 
             return True

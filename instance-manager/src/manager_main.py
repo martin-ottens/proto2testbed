@@ -136,9 +136,16 @@ class InstanceManager:
                     return False
 
                 if proc.stdout is not None:
-                    self.extended_log_message(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
+                    for line in proc.stdout.decode("utf-8").split("\n"):
+                        if line == "":
+                            continue
+                        self.extended_log_message(message_type=LogMessageType.STDOUT, message=line, print_to_user=False)
+
                 if proc.stderr is not None:
-                    self.extended_log_message(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
+                    for line in proc.stderr.decode("utf-8").split("\n"):
+                        if line == "":
+                            continue
+                        self.extended_log_message(message_type=LogMessageType.STDERR, message=line, print_to_user=False)
 
                 if proc is not None and proc.returncode != 0:
                     self.message_to_controller(InstanceMessageType.FAILED, 

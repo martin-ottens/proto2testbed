@@ -149,11 +149,17 @@ class IMClientThread(Thread):
         application = data["application"]
 
         printtouser = False
-        if not "printtouser" in data or not isinstance(data["printtouser"], bool):
+        if "printtouser" in data:
+            if not isinstance(data["printtouser"], bool):
+                return self._respond_to_client(False, f"Field 'printtouser' is not a boolean")
+            
             printtouser = bool(data["printtouser"])
 
         storeinlog = True
-        if not "storeinlog" in data or not isinstance(data["storeinlog"], bool):
+        if "storeinlog" in data:
+            if not isinstance(data["storeinlog"], bool):
+                return self._respond_to_client(False, f"Field 'storeinlog' is not a boolean")
+
             storeinlog = bool(data["storeinlog"])
 
         self.manager.send_extended_app_log(message=message, 
