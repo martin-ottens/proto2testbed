@@ -29,6 +29,7 @@ from pathlib import Path
 
 from utils.interfaces import Dismantable
 from utils.settings import *
+from utils.state_provider import TestbedStateProvider
 from base_integration import BaseIntegration, IntegrationStatusContainer
 
 
@@ -47,8 +48,12 @@ class IntegrationLoader:
     __COMPATIBLE_API_VERSION = "1.0"
     __PACKAGED_INTEGRATIONS = "integrations/"
 
-    def __init__(self, testbed_package_base: str, app_base: str) -> None:
-        self.testbed_package_base = Path(testbed_package_base)
+    def __init__(self, testbed_package_base: Optional[str], app_base: str) -> None:
+        if testbed_package_base is not None:
+            self.testbed_package_base = Path(testbed_package_base)
+        else:
+            self.testbed_package_base = None
+
         self.app_base = Path(app_base)
         self.integration_map: Dict[str, BaseIntegration] = {}
 
@@ -119,6 +124,9 @@ class IntegrationLoader:
         integration = self.integration_map.get(name, None)
         if integration is not None:
             return integration
+        
+        if self.testbed_package_base is None:
+            return None
 
         file_name = name
         if not name.endswith(".py"):
@@ -133,10 +141,12 @@ class IntegrationLoader:
 
 
 class IntegrationHelper(Dismantable):
-    def __init__(self, testbed_package_base: str, app_base: str, 
-                 disabled: bool = False) -> None:
+    def __init__(self, testbed_package_base: Optional[str], app_base: str, provider: TestbedStateProvider, 
+                 skip_integrations: bool = False, disabled: bool = False) -> None:
+        self.provider = provider
         self.loader = IntegrationLoader(testbed_package_base, app_base)
         self.integrations = None
+        self.skip_integrations = skip_integrations
         self.disabled = disabled
 
         self.mapped_integrations = {
@@ -160,6 +170,7 @@ class IntegrationHelper(Dismantable):
             integration_status = IntegrationStatusContainer()
             integration_impl: BaseIntegration = integration_obj(integration.name,
                                                                 integration_status,
+                                                                self.provider,
                                                                 integration.environment)
             
             status, message = integration_impl.set_and_validate_config(integration.settings)
@@ -254,7 +265,7 @@ class IntegrationHelper(Dismantable):
         if fire_integrations is None or len(fire_integrations) == 0:
             return None
         
-        if TestbedSettingsWrapper.cli_parameters.skip_integration:
+        if self.skip_integrations:
             for integration in fire_integrations:
                 logger.warning(f"Integration: Start of '{integration.obj.name}' integration at stage {str(stage).upper()} skipped.")
             return None

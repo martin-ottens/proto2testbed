@@ -23,6 +23,7 @@ from typing import Tuple, Optional, List
 from applications.base_application import *
 from applications.iperf_common import run_iperf
 from common.application_configs import ApplicationSettings
+from common.instance_manager_message import LogMessageType
 
 """
 Wraps iPerf3 in server mode ('iperf3 -s') to perform speed tests. Bind to the
@@ -93,7 +94,10 @@ class IperfServerApplication(BaseApplication):
            return run_iperf(command, self.interface, True) == 0
         except Exception as ex:
             traceback.print_exception(ex)
-            raise Exception(f"Iperf3 server error: {ex}")
+            self.interface.push_log_message(f"Iperf3 server error: {ex}", 
+                                            LogMessageType.MSG_ERROR, 
+                                            True)
+            return False
 
     def get_export_mapping(self, subtype: ExportSubtype) -> Optional[List[ExportResultMapping]]:
         match subtype.name:

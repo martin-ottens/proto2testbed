@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -20,44 +20,56 @@ import sys
 import readline # Not unused, when imported, used by input()
 import termios
 import pexpect
-import os
 
 from threading import Thread, Event, Lock
 from loguru import logger
 from typing import Optional, List
 from pathlib import Path
+from dataclasses import dataclass
+from datetime import datetime
 
 from utils.interfaces import Dismantable
 from utils.continue_mode import *
-from state_manager import InstanceStateManager
-from utils.settings import TestbedSettingsWrapper
 
+
+@dataclass
+class GeneralLogEntry:
+    message: str
+    level: str
+    at: datetime
 
 class CLI(Dismantable):
     _CLEAN_LOG_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>"
-    instance = None
 
+    @staticmethod
     def setup_early_logging():
         logger.remove()
         logger.add(sys.stdout, level="DEBUG", format=CLI._CLEAN_LOG_FORMAT)
 
-    def _filter_logging(record):
-        return CLI.instance.enable_output.is_set()
-
     def _enable_logging(self):
+        def filter_logging_scoped(record):
+            if self.log_to_storage:
+                if self.full_result_wrapper is not None:
+                    self.full_result_wrapper.append_controller_log(message=record["message"],
+                                                              level=record["level"].name,
+                                                              time=record["time"])
+                return False
+
+            return self.enable_output.is_set()
+
         logger.level(name="CLI", no=45, color="<magenta>")
         logger.remove()
-        if self.log_verbose == 0:
+        if self.provider.log_verbose == 0:
             logger.add(sys.stdout, level="INFO", 
                        format=CLI._CLEAN_LOG_FORMAT,
-                       filter=CLI._filter_logging)
-        elif self.log_verbose == 1:
+                       filter=filter_logging_scoped)
+        elif self.provider.log_verbose == 1:
             logger.add(sys.stdout, level="DEBUG", 
-                       filter=CLI._filter_logging, 
+                       filter=filter_logging_scoped, 
                        format=CLI._CLEAN_LOG_FORMAT)
         else:
             logger.add(sys.stdout, level="TRACE", 
-                       filter=CLI._filter_logging)
+                       filter=filter_logging_scoped)
 
 
     def attach_to_tty(self, socket_path: str):
@@ -105,8 +117,13 @@ class CLI(Dismantable):
                 if args is None or len(args) < 1:
                     logger.log("CLI", f"No Instance name provided. Usage: {base_command} <Instance Name>")
                     return True
+                
+                if self.provider.instance_manager is None:
+                    logger.log("CLI", f"No Instances available to attach to.")
+                    return True
+                
                 target = args[0]
-                instance = self.manager.get_instance(target)
+                instance = self.provider.instance_manager.get_instance(target)
                 if instance is None:
                     logger.log("CLI", f"Unable to get Instance with name '{instance}'")
                     return True
@@ -123,6 +140,10 @@ class CLI(Dismantable):
             case "copy" | "cp":
                 if args is None or len(args) < 2:
                     logger.log("CLI", f"No source and/or destination provided. Usage {base_command} (<From Instance>:)<From Path> (<To Instance>:)<To Path>")
+                    return True
+                
+                if self.provider.instance_manager is None:
+                    logger.log("CLI", f"No Instances available to perform copy.")
                     return True
                 
                 source_str = args[0]
@@ -158,7 +179,7 @@ class CLI(Dismantable):
                 if instance is None:
                     raise Exception("Instance not given after parsing.")
                 
-                instance = self.manager.get_instance(instance)
+                instance = self.provider.instance_manager.get_instance(instance)
                 if instance is None:
                     logger.log("CLI", f"Unable to get Instance with name '{instance}'")
                     return True
@@ -174,13 +195,18 @@ class CLI(Dismantable):
                 if args is None or len(args) < 2:
                     logger.log("CLI", f"No Instance name or path provided. Usage: {base_command} <Instance Name> <Path>")
                     return True
+                
+                if self.provider.instance_manager is None:
+                    logger.log("CLI", f"No Instances available to preserve files from.")
+                    return True
+
                 target = args[0]
-                instance = self.manager.get_instance(target)
+                instance = self.provider.instance_manager.get_instance(target)
                 if instance is None:
                     logger.log("CLI", f"Unable to get Instance with name '{instance}'")
                     return True
                 
-                if TestbedSettingsWrapper.cli_parameters.preserve is None:
+                if self.provider.run_parameters is None or self.provider.run_parameters.preserve is None:
                     logger.log("CLI", f"File preservation is not enabled in this testbed run.")
                     return True
                 
@@ -188,7 +214,11 @@ class CLI(Dismantable):
                 logger.log("CLI", f"File '{args[1]}' was as added to preserve list of Instance '{target}'")
                 return True
             case "list" | "ls":
-                for instance in self.manager.get_all_instances():
+                if self.provider.instance_manager is None:
+                    logger.log("CLI", f"No Instances available to list.")
+                    return True
+
+                for instance in self.provider.instance_manager.get_all_instances():
                     line = f"- Instance '{instance.name}' ({instance.uuid}) | {instance.get_state().name}"
                     if len(instance.interfaces) != 0:
                         line += f" | Interfaces: {', '.join(list(map(lambda x: f'{x.bridge.name} -> {x.interface_on_instance}', instance.interfaces)))}"
@@ -274,20 +304,25 @@ class CLI(Dismantable):
                 logger.log("CLI", f"Unknown command '{command}' or error running it, use 'help' to show available commands.")
 
 
-    def __init__(self, log_verbose: int, manager: InstanceStateManager = None):
-        CLI.instance = self
-        self.manager: Optional[InstanceStateManager] = manager
-        self.log_verbose = log_verbose
+    def __init__(self, provider) -> None:
+        self.provider = provider
+        self.provider.set_cli(self)
         self.enable_interaction = Event()
         self.enable_output = Event()
         self.continue_event = None
         self.signal_lock = Lock()
         self.kill_input = Event()
         self.kill_input.clear()
+        self.log_to_storage = self.provider.from_api_call
+        self.full_result_wrapper = None
 
         self.enable_interaction.clear()
         self.enable_output.set()
         self._enable_logging()
+
+    def set_full_result_wrapper(self, full_result_wrapper):
+        self.full_result_wrapper = full_result_wrapper
+
 
     def toggle_output(self, state: bool):
         if state:
@@ -305,7 +340,7 @@ class CLI(Dismantable):
             self.enable_interaction.clear()
 
     def start_cli(self, event: Event, continue_mode: CLIContinue):
-        if self.manager is None:
+        if self.provider.instance_manager is None:
             return
 
         self.continue_event = event
@@ -313,14 +348,14 @@ class CLI(Dismantable):
         self.toggle_interaction(True)
 
     def stop_cli(self):
-        if self.manager is None:
+        if self.provider.instance_manager is None:
             return
         
         self.continue_event = None
         self.toggle_interaction(False)
 
     def start(self):
-        if self.manager is None:
+        if self.provider.instance_manager is None:
             return
         
         self.thread = Thread(target=self._run, daemon=True)

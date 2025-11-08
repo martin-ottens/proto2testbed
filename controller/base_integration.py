@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024 Martin Ottens
+# Copyright (C) 2024-2025 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ from multiprocessing import Process, Manager
 
 from utils.settings import IntegrationSettings
 from utils.system_commands import invoke_subprocess
-from utils.settings import TestbedSettingsWrapper
+from utils.state_provider import TestbedStateProvider
 
 class IntegrationStatusContainer():
     def __init__(self) -> None:
@@ -82,11 +82,12 @@ class BaseIntegration(ABC):
     # subprocesses to communicate with the Testbed Controller. Subclasses should call the
     # BaeeIntegration's constructor using super.
     def __init__(self, name: str, status_container: IntegrationStatusContainer, 
-                 environment: Optional[Dict[str, str]] = None) -> None:
+                 provider: TestbedStateProvider, environment: Optional[Dict[str, str]] = None) -> None:
         self.name = name
         self.environment = environment
         self.status = status_container
-        self.base_path = Path(TestbedSettingsWrapper.cli_parameters.config)
+        self.provider = provider
+        self.base_path = Path(provider.run_parameters.config)
         self.settings = None
 
     # Helper function to kill a process with all of its child. Do not overwrite.

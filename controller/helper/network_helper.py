@@ -28,7 +28,6 @@ from loguru import logger
 
 from utils.interfaces import Dismantable
 from utils.system_commands import invoke_subprocess
-from utils.settings import CommonSettings
 from constants import TAP_PREFIX, BRIDGE_PREFIX
 
 
@@ -81,10 +80,10 @@ class NetworkBridge(Dismantable):
         return all(x in NetworkBridge.get_running_interfaces() for x in interfaces)
     
     @staticmethod
-    def generate_auto_management_network(seed: str) -> Optional[ipaddress.IPv4Network]:
+    def generate_auto_management_network(seed: str, management_supernet: str) -> Optional[ipaddress.IPv4Network]:
         random.seed(seed)
 
-        supernet = ipaddress.ip_network(CommonSettings.default_configs.get_defaults("management_network"))
+        supernet = ipaddress.ip_network(management_supernet)
         possible_subnets = list(supernet.subnets(new_prefix=26))
 
         tries_left = 10

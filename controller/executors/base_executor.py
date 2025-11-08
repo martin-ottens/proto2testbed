@@ -20,6 +20,8 @@ import argparse
 
 from abc import ABC, abstractmethod
 
+from utils.state_provider import TestbedStateProvider
+
 
 class BaseExecutor(ABC):
     SUBCOMMAND = "##DONT_LOAD##"
@@ -30,7 +32,7 @@ class BaseExecutor(ABC):
         self.subparser = subparser
 
     @abstractmethod
-    def invoke(self, args) -> int:
+    def invoke(self, args, provider: TestbedStateProvider) -> int:
         pass
 
     def requires_priviledges(self) -> bool:

@@ -27,7 +27,8 @@ from loguru import logger
 from influxdb import InfluxDBClient
 
 from utils.interfaces import Dismantable
-from utils.settings import CommonSettings
+from utils.state_provider import TestbedStateProvider
+from full_result_wrapper import FullResultWrapper
 
 
 class InfluxDBAdapter(Dismantable):
@@ -90,13 +91,25 @@ class InfluxDBAdapter(Dismantable):
         logger.info(f"InfluxDBAdapter: InfluxDB is up & running, database '{self.database}' was found.")
         return True
 
-    def __init__(self, series_name: Optional[str] = None,
-                 warn_on_no_database: bool = False) -> None:
+    def __init__(self, provider: TestbedStateProvider,
+                 warn_on_no_database: bool = False,
+                 full_result_wrapper: Optional[FullResultWrapper] = None) -> None:
         self.store_disabled = warn_on_no_database
-        self.series_name = series_name
+        self.series_name = provider.experiment
+        self.full_result_wrapper = full_result_wrapper
+
+        self._queue = queue.Queue()
+        self._lock = threading.Lock()
+        self._running = False
+        self._thread = None
+        self._reader = None
+
+        if full_result_wrapper is not None:
+            # Store to Full Result Wrapper object.
+            return
 
         if "INFLUXDB_DATABASE" not in os.environ.keys():
-            default_database = CommonSettings.default_configs.get_defaults("influx_database")
+            default_database = provider.default_configs.get_defaults("influx_database")
             if default_database is None:
                 logger.critical("InfluxDBAdapter: INFLUXDB_DATABASE not set in environment. Set variable or specify config.")
                 raise Exception("INFLUXDB_DATABASE not set in environment")
@@ -106,24 +119,18 @@ class InfluxDBAdapter(Dismantable):
             self.database = os.environ.get("INFLUXDB_DATABASE")
 
         self.host = os.environ.get("INFLUXDB_HOST", 
-                                   CommonSettings.default_configs.get_defaults("influx_host", "127.0.0.1"))
+                                   provider.default_configs.get_defaults("influx_host", "127.0.0.1"))
         self.port = os.environ.get("INFLUXDB_PORT", 
-                                   int(CommonSettings.default_configs.get_defaults("influx_port", 8086)))
+                                   int(provider.default_configs.get_defaults("influx_port", 8086)))
         self.user  = os.environ.get("INFLUXDB_USER", 
-                                   CommonSettings.default_configs.get_defaults("influx_user", None))
+                                   provider.default_configs.get_defaults("influx_user", None))
         self.password = os.environ.get("INFLUXDB_PASSWORD", 
-                                   CommonSettings.default_configs.get_defaults("influx_password", None))
-        self.timeout = int(CommonSettings.default_configs.get_defaults("influx_timeout", 20))
-        self.retries = int(CommonSettings.default_configs.get_defaults("influx_retries", 4))
+                                   provider.default_configs.get_defaults("influx_password", None))
+        self.timeout = int(provider.default_configs.get_defaults("influx_timeout", 20))
+        self.retries = int(provider.default_configs.get_defaults("influx_retries", 4))
 
         if not self._check_connection():
             raise Exception("InfluxDBAdapter: Unable to verify InfluxDB connection!")
-
-        self._queue = queue.Queue()
-        self._lock = threading.Lock()
-        self._running = False
-        self._thread = None
-        self._reader = None
 
     def get_selected_database(self) -> str:
         return self.database
@@ -161,6 +168,10 @@ class InfluxDBAdapter(Dismantable):
         except Exception:
             logger.warning("InfluxDBAdapter: Unable to add experiment tag to data point, skipping insert.")
             return False
+        
+        if self.full_result_wrapper is not None:
+            self.full_result_wrapper.add_data_point(point[0])
+            return True
 
         with self._lock:
             if not self._running:
@@ -174,7 +185,7 @@ class InfluxDBAdapter(Dismantable):
         return True
 
     def start(self):
-        if self.store_disabled:
+        if self.store_disabled or self.full_result_wrapper is not None:
             return
 
         self._thread = threading.Thread(target=self._insert_thread, daemon=True)
@@ -184,7 +195,7 @@ class InfluxDBAdapter(Dismantable):
     def stop(self):
         self.close_access_client()
 
-        if self.store_disabled:
+        if self.store_disabled or self.full_result_wrapper is not None:
             return
 
         with self._lock:

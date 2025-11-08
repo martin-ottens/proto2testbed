@@ -22,7 +22,7 @@ import re
 import os
 import shutil
 
-from typing import List
+from typing import List, Optional
 from loguru import logger
 from pathlib import Path
 
@@ -92,7 +92,7 @@ def set_owner(path: Path | str, owner: int) -> bool:
     return True
 
 
-def copy_file_or_directory(source: Path, target: Path, change_owner: bool = False) -> bool:
+def copy_file_or_directory(source: Path, target: Path, executor: Optional[str] = None) -> bool:
     try:
         destination = target
         if target.is_dir():
@@ -106,13 +106,8 @@ def copy_file_or_directory(source: Path, target: Path, change_owner: bool = Fals
 
         logger.trace(f"Copied {'directory' if source.is_dir() else 'file'} from {source} to {destination}")
 
-        if change_owner:
-            from utils.settings import CommonSettings
-            if CommonSettings.executor is None:
-                logger.warning("Unable to change owner after copy: No executor is set!")
-                return True
-
-            set_owner(destination, CommonSettings.executor)
+        if executor is not None:
+            set_owner(destination, executor)
 
         return True
     except Exception as ex:

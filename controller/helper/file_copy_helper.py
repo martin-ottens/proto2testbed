@@ -37,8 +37,9 @@ class FileCopyAction:
 
 
 class FileCopyHelper:
-    def __init__(self, instance):
+    def __init__(self, instance, executor: str):
         self.instance = instance
+        self.executor = executor
         self.pending: Dict[str, FileCopyAction] = {}
 
     def copy(self, source_path: Path, destination_path: Path, copy_to_instance: bool) -> Tuple[bool, str]:
@@ -55,7 +56,7 @@ class FileCopyHelper:
             
             target = target_on_mount / Path(proc_id)
             
-            if not copy_file_or_directory(source_path, target, True):
+            if not copy_file_or_directory(source_path, target, self.executor):
                 return False, f"Copy to {target} failed."
             
             # Instruct the Instance to copy from exchange mount to target
@@ -106,7 +107,7 @@ class FileCopyHelper:
                 return
 
             success = True
-            if not copy_file_or_directory(source, action.destination, True):
+            if not copy_file_or_directory(source, action.destination, self.executor):
                 logger.error(f"Error while copying '{source}' to '{action.destination}'")
                 success = False
             

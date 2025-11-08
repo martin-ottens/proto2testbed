@@ -27,8 +27,6 @@ from loguru import logger
 from dataclasses import dataclass, field
 from typing import List
 
-from utils.state_lock import StateLock
-from utils.settings import CommonSettings
 from helper.network_helper import NetworkBridge
 from constants import *
 
@@ -41,31 +39,22 @@ class ReservationMapping:
 
 
 class ConcurrencyReservation:
-    _instance = None
-
-    @classmethod
-    def get_instance(cls):
-        if cls._instance is None:
-            cls._instance = cls()
-        
-        return cls._instance
-
-    def __init__(self) -> None:
+    def __init__(self, provider) -> None:
+        self.provider = provider
         self.current_reservation = ReservationMapping()
-        self._write_reservation()
 
     def _write_reservation(self) -> None:
-        with open(CommonSettings.statefile_base / CommonSettings.experiment / EXPERIMENT_RESERVATION_FILE, "w+") as handle:
+        with open(self.provider.statefile_base / self.provider.experiment / EXPERIMENT_RESERVATION_FILE, "w+") as handle:
             handle.write(jsonpickle.encode(self.current_reservation))
 
     def _collect_all_reservations(self) -> ReservationMapping:
         mapping = ReservationMapping()
 
-        for experiment in os.listdir(CommonSettings.statefile_base):
-            if not os.path.isdir(os.path.join(CommonSettings.statefile_base, experiment)):
+        for experiment in os.listdir(self.provider.statefile_base):
+            if not os.path.isdir(os.path.join(self.provider.statefile_base, experiment)):
                 continue
             
-            reservation_file = os.path.join(CommonSettings.statefile_base, experiment, EXPERIMENT_RESERVATION_FILE)
+            reservation_file = os.path.join(self.provider.statefile_base, experiment, EXPERIMENT_RESERVATION_FILE)
 
             if not os.path.exists(reservation_file):
                 continue
@@ -85,7 +74,7 @@ class ConcurrencyReservation:
     def generate_new_tap_names(self, count: int = 1) -> List[str]:
         tap_names: List[str] = []
 
-        with StateLock.get_instance():
+        with self.provider.state_lock:
             reservations = self._collect_all_reservations()
 
             for _ in range(count):
@@ -107,7 +96,7 @@ class ConcurrencyReservation:
         while True:
             vsock_cids: List[int] = []
 
-            with StateLock.get_instance():
+            with self.provider.state_lock:
                 reservations = self._collect_all_reservations()
 
                 for _ in range(count):
@@ -143,7 +132,7 @@ class ConcurrencyReservation:
             if one_match:
                 logger.warning("Regenerating VSOCK CID list since CIDs are in use without reservation.")
                 self.current_reservation.vsock_cids = filter(lambda x: x not in vsock_cids, self.current_reservation.vsock_cids)
-                with StateLock.get_instance():
+                with self.provider.state_lock:
                     self._write_reservation()
             else:
                 return vsock_cids
@@ -152,7 +141,7 @@ class ConcurrencyReservation:
     def generate_new_bridge_names(self, count: int = 1) -> List[str]:
         bridge_names: List[str] = []
 
-        with StateLock.get_instance():
+        with self.provider.state_lock:
             reservations = self._collect_all_reservations()
 
             for _ in range(count):

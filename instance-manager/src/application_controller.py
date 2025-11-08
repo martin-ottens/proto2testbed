@@ -28,8 +28,8 @@ from threading import Event, Thread
 from typing import cast, Optional
 
 from common.application_configs import ApplicationConfig, AppStartStatus
-from common.instance_manager_message import InstanceMessageType
-from management_client import ManagementClient, DownstreamMessage
+from common.instance_manager_message import LogMessageType, ApplicationStatus
+from management_client import ManagementClient
 from application_interface import ApplicationInterface
 from applications.base_application import BaseApplication
 from applications.generic_application_interface import GenericApplicationInterface
@@ -53,7 +53,6 @@ class ApplicationController(Thread):
         self.started_event = MultiprocessingEvent()
         self.instance_name = instance_name
         self.shared_state["error_flag"] = False
-        self.shared_state["error_string"] = None 
         self.t0: Optional[float] = None
         self.start_defered: bool = False
         self.daemon = True
@@ -74,7 +73,8 @@ class ApplicationController(Thread):
             try:
                 interface = ApplicationInterface(self.config.name, 
                                                  GlobalState.im_daemon_socket_path,
-                                                 self.started_event)
+                                                 self.started_event,
+                                                 self.config.dont_store)
                 interface.connect()
                 self.app.attach_interface(cast(GenericApplicationInterface, interface))
             except Exception as ex:
@@ -86,11 +86,9 @@ class ApplicationController(Thread):
             interface.disconnect()
             if not rc:
                 self.shared_state["error_flag"] = True
-                self.shared_state["error_string"] = f"Application finished with return code: {rc}"
         except Exception as ex:
             traceback.print_exception(ex)
             self.shared_state["error_flag"] = True
-            self.shared_state["error_string"] = str(ex)
 
     def update_t0(self, t0: float) -> None:
         self.t0 = t0
@@ -113,9 +111,11 @@ class ApplicationController(Thread):
             wait_for_init = time.time()
 
         if not self.started_event.wait(total_wait):
-            message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
-                                            f"Application {self.config.name} has not reported start event!")
-            self.mgmt_client.send_to_server(message)
+            self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                   message=f"Application has not reported start event!", 
+                                                   type=LogMessageType.MSG_ERROR, 
+                                                   print_to_user=True,
+                                                   new_status=ApplicationStatus.EXECUTION_FAILED)
         
         self.application_manager.report_app_status(self, AppStartStatus.START)
         wait_left = None
@@ -129,41 +129,52 @@ class ApplicationController(Thread):
             process.join(wait_left)
 
             if process.is_alive():
-                message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
-                                            f"Application {self.config.name} still runs after timeout.")
-                self.mgmt_client.send_to_server(message)
+                self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                       message=f"Application still runs after timeout.", 
+                                                       type=LogMessageType.MSG_ERROR, 
+                                                       print_to_user=True,
+                                                       new_status=ApplicationStatus.EXECUTION_FAILED)
                 try:
                     parent = psutil.Process(process.ident)
                     for child in parent.children(recursive=True):
                         try: child.send_signal(signal.SIGTERM)
                         except Exception as ex:
-                            message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
-                                                        f"Application {self.config.name}:\n Unable to kill children: {ex}")
-                            self.mgmt_client.send_to_server(message)
+                            self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                                   message=f"Application is unable to kill children: {ex}", 
+                                                                   type=LogMessageType.MSG_ERROR, 
+                                                                   print_to_user=True,
+                                                                   new_status=ApplicationStatus.EXECUTION_FAILED)
                             continue
                 except Exception as ex:
-                    message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
-                                                f"Application {self.config.name}:\n Unable get children: {ex}")
-                    self.mgmt_client.send_to_server(message)
+                    self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                           message=f"Application is unable get children: {ex}", 
+                                                           type=LogMessageType.MSG_ERROR, 
+                                                           print_to_user=True,
+                                                           new_status=ApplicationStatus.EXECUTION_STARTED)
 
                 process.terminate()
-
-            self.application_manager.report_app_status(self, AppStartStatus.FINISH)
+            
             process.join()
 
         if not self.shared_state["error_flag"]:
             if self.config.runtime is None:
-                message = DownstreamMessage(InstanceMessageType.MSG_SUCCESS, 
-                                            f"Application {self.config.name} started as daemon")
+                self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                       message=f"Application started as daemon", 
+                                                       type=LogMessageType.MSG_SUCCESS, 
+                                                       print_to_user=True)
                 self.application_manager.report_app_status(self, AppStartStatus.DAEMON)
             else:
-                message = DownstreamMessage(InstanceMessageType.MSG_SUCCESS, 
-                                            f"Application {self.config.name} finished")
-            self.mgmt_client.send_to_server(message)
+                self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                       message=f"Application finished", 
+                                                       type=LogMessageType.MSG_SUCCESS, 
+                                                       print_to_user=True)
+                self.application_manager.report_app_status(self, AppStartStatus.FINISH)
         else:
-            message = DownstreamMessage(InstanceMessageType.MSG_ERROR, 
-                                        f"Application {self.config.name} reported error: \n{self.shared_state['error_string']}")
-            self.mgmt_client.send_to_server(message)
+            self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                   message=f"Application failed", 
+                                                   type=LogMessageType.MSG_ERROR, 
+                                                   print_to_user=True,
+                                                   new_status=ApplicationStatus.EXECUTION_FAILED)
         
         self.is_terminated.set()
 

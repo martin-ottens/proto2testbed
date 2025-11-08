@@ -21,10 +21,13 @@ import os
 import sys
 
 from loguru import logger
+from pathlib import Path
 
 from executors.base_executor import BaseExecutor
 from utils.continue_mode import PauseAfterSteps
-from utils.settings import CommonSettings, RunCLIParameters, TestbedSettingsWrapper
+from utils.settings import RunParameters
+from utils.state_provider import TestbedStateProvider
+from full_result_wrapper import FullResultWrapper
 
 
 class RunExecutor(BaseExecutor):
@@ -50,61 +53,59 @@ class RunExecutor(BaseExecutor):
         self.subparser.add_argument("-p", "--preserve", type=str, help="Path for instance data preservation, disabled with omitted",
                                     required=False, default=None)
 
-    def invoke(self, args) -> int:
-        parameters = RunCLIParameters()
+    def invoke(self, args, provider: TestbedStateProvider) -> int:
+        parameters = RunParameters()
+        testbed_path = ""
         if os.path.isabs(args.TESTBED_CONFIG):
-            parameters.config = args.TESTBED_CONFIG
+            testbed_path = args.TESTBED_CONFIG
         else:
-            parameters.config = f"{os.getcwd()}/{args.TESTBED_CONFIG}"
+            testbed_path = f"{os.getcwd()}/{args.TESTBED_CONFIG}"
 
-        parameters.interact = PauseAfterSteps[args.interact]
+        from constants import TESTBED_CONFIG_JSON_FILENAME
+        testbed_config_path = Path(testbed_path) / Path(TESTBED_CONFIG_JSON_FILENAME)
+
+        interact = PauseAfterSteps[args.interact]
         parameters.disable_kvm = args.no_kvm
         parameters.dont_use_influx = args.dont_store
         parameters.skip_integration = args.skip_integrations
-        parameters.skip_substitution = args.skip_substitution
         
-        if CommonSettings.experiment_generated:
-            logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {CommonSettings.experiment}")
+        if provider.experiment_generated:
+            logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {provider.experiment}")
         
-        if parameters.interact != PauseAfterSteps.DISABLE and not os.isatty(sys.stdout.fileno()):
+        if interact != PauseAfterSteps.DISABLE and not os.isatty(sys.stdout.fileno()):
             logger.error("TTY does not allow user interaction, disabling 'interact' parameter")
-            parameters.interact = PauseAfterSteps.DISABLE
-        
-        from pathlib import Path
+            interact = PauseAfterSteps.DISABLE
+
+        parameters.preserve = None
         if args.preserve is not None:
-            try:
-                parameters.preserve = Path(args.preserve)
-                if not bool(parameters.preserve.anchor or parameters.preserve.name):
-                    raise Exception("Preserve Path invalid")
-            except Exception as e:
-                logger.critical("Unable to start: Preserve Path is not valid!")
-                return 1
-        else:
-            parameters.preserve = None
-
-        TestbedSettingsWrapper.cli_parameters = parameters
-
-        from helper.state_file_helper import StateFileReader
-        reader = StateFileReader()
-        all_experiments = reader.get_other_experiments(CommonSettings.experiment)
-
-        if len(all_experiments) != 0:
-            logger.critical(f"Other testbeds with same experiment tag are running:")
-            for user, pid in all_experiments.items():
-                logger.info(f"- User: {user}, PID: {pid}")
-            return 1
-
+            parameters.preserve = Path(args.preserve)
 
         from controller import Controller
-        import signal
+        from cli import CLI
+        cli = CLI(provider)
+        controller = Controller(provider, cli)
+        
+        from utils.settings import TestbedConfig
+        from utils.config_tools import load_config
         try:
-            controller = Controller()
+            config: TestbedConfig = load_config(testbed_config_path, args.skip_substitution)
+            provider.set_testbed_config(config)
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Error during loading of testbed config.")
+            return 1
+        
+        full_result_wrapper = FullResultWrapper(config)
+        provider.set_full_result_wrapper(full_result_wrapper)
+
+        try:
+            controller.init_config(parameters, testbed_path)
         except Exception as ex:
             logger.opt(exception=ex).critical("Error during config initialization")
             return 1
 
+        import signal
         try:
-            status = controller.main()
+            status = controller.main(interact)
         except Exception as ex:
             logger.opt(exception=ex).critical("Uncaught Controller Exception")
             status = False
@@ -127,7 +128,7 @@ class RunExecutor(BaseExecutor):
             logger.success(f"Files preserved to '{parameters.preserve}' (if any)")
         
         if not parameters.dont_use_influx:
-            logger.success(f"Data series stored with experiment tag '{CommonSettings.experiment}' (if any)")
+            logger.success(f"Data series stored with experiment tag '{provider.experiment}' (if any)")
 
         exit_code = 0
         if status:

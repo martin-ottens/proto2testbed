@@ -18,26 +18,85 @@
 
 from enum import Enum
 from typing import Dict, List, Any, Optional
+from dataclasses import dataclass
 
 from common.application_configs import ApplicationConfig, AppStartStatus
 from common.interfaces import JSONMessage
+
+class ApplicationStatus(Enum):
+    UNCHANGED = "unchanged"
+    PENDING = "pending"
+    INITIALIZED = "initialized"
+    EARLY_FAILED = "loadfailed"
+    EXECUTION_STARTED = "started"
+    EXECUTION_FINISHED = "finished"
+    EXECUTION_FAILED = "failed"
+
+    def __str__(self):
+        return str(self.value)
+    
+    @staticmethod
+    def from_str(status: str):
+        try: return ApplicationStatus(status)
+        except Exception:
+            return ApplicationStatus.UNCHANGED
+
+class LogMessageType(Enum):
+    NONE = "none", None
+    MSG_SUCCESS = "msg_success", "[SUCCESS] "
+    MSG_INFO = "msg_info", "[INFO] "
+    MSG_DEBUG = "msg_debug", "[DEBUG] "
+    MSG_WARNING = "msg_warning", "[WARNING] "
+    MSG_ERROR = "msg_error", "[ERROR] "
+    STDOUT = "stdout", "[STDOUT] "
+    STDERR = "stderr", "[STDERR] "
+
+    def __init__(self, key: str, prefix: str):
+        self._key = key
+        self._prefix = prefix
+
+    def __str__(self):
+        return self._key
+    
+    @property
+    def prefix(self):
+        return self._prefix
+    
+    @staticmethod
+    def from_str(key: str):
+        for item in LogMessageType:
+            if item._key == key:
+                return item
+
+        return LogMessageType.NONE
+
+@dataclass
+class ExtendedApplicationMessage:
+    application: str
+    status: ApplicationStatus
+    log_message_type: LogMessageType = LogMessageType.NONE
+    log_message: Optional[str] = None
+    print_to_user: bool = False
+    store_in_log: bool = True
+
+@dataclass
+class ExtendedLogMessage:
+    log_message_type: LogMessageType
+    message: str
+    print_to_user: bool = False
+    store_in_log: bool = True
 
 
 class InstanceMessageType(Enum):
     STARTED = "started"
     INITIALIZED = "initialized"
     DATA_POINT = "data_point"
-    MSG_SUCCESS = "msg_success"
-    MSG_INFO = "msg_info"
-    MSG_WARNING = "msg_warning"
-    MSG_DEBUG = "msg_debug"
-    MSG_ERROR = "msg_error"
     FAILED = "failed"
     APPS_INSTALLED = "apps_installed"
     APPS_FAILED = "apps_failed"
-    APP_STARTED_SIGNAL = "app_started"
-    APP_FINISHED_SIGNAL = "app_finished"
     APPS_DONE = "apps_done"
+    APPS_EXTENDED_STATUS = "apps_extended_status"
+    SYSTEM_EXTENDED_LOG = "system_extended_log"
     FINISHED = "finished"
     COPIED_FILE = "copied_file"
     SHUTDOWN = "shutdown"

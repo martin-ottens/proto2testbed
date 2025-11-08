@@ -31,10 +31,13 @@ class ApplicationLoader:
     __PACKAGED_APPS = "applications/"
 
     def __init__(self, app_base: Path, 
-                 testbed_package_base: Path, 
+                 testbed_package_base: Optional[str], 
                  required_methods: List[str]) -> None:
         self.app_base = app_base
-        self.testbed_package_base = testbed_package_base
+        if testbed_package_base is None:
+            self.testbed_package_base = None
+        else:
+            self.testbed_package_base = Path(testbed_package_base)
         self.required_methods = required_methods
         self.app_map: Dict[str, Any] = {}
 
@@ -114,10 +117,10 @@ class ApplicationLoader:
         if not app_file.endswith(".py"):
             app_file += ".py"
 
-        if absolute_path:
-            module_path = Path(app_file)
-        else:
+        if not absolute_path and self.testbed_package_base is not None:
             module_path = self.testbed_package_base / Path(app_file)
+        else:
+            module_path = Path(app_file)
 
         status, message = self._load_single_app(application, module_path, True)
 

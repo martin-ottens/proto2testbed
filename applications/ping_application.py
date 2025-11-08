@@ -22,6 +22,7 @@ from typing import Tuple, Optional, List
 
 from applications.base_application import *
 from common.application_configs import ApplicationSettings
+from common.instance_manager_message import LogMessageType
 
 """
 Wraps the 'ping' command to monitor ICMP RTT and TTL values. "target" is the
@@ -102,7 +103,10 @@ class PingApplication(BaseApplication):
                                        stdout=subprocess.PIPE, 
                                        stderr=subprocess.STDOUT)
         except Exception as ex:
-            raise Exception(f"Unable to start ping: {ex}")
+            self.interface.push_log_message(f"Unable to start ping: {ex}", 
+                                            LogMessageType.MSG_ERROR, 
+                                            True)
+            return False
 
         current_seq = 0
         try:
@@ -145,7 +149,10 @@ class PingApplication(BaseApplication):
                 self.interface.data_point("ping", data)
 
         except Exception as ex:
-            raise Exception(f"Ping error: {ex}")
+            self.interface.push_log_message(f"Ping error: {ex}", 
+                                            LogMessageType.MSG_ERROR, 
+                                            True)
+            return False
 
         return process.wait() == 0
     

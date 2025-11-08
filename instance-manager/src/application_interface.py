@@ -22,17 +22,17 @@ import sys
 import select
 
 from typing import Dict, Optional
-from multiprocessing import Event
 
 from applications.generic_application_interface import LogMessageLevel, GenericApplicationInterface
-
+from common.instance_manager_message import LogMessageType
 
 class ApplicationInterface(GenericApplicationInterface):
-    def __init__(self, app_name: str, socket_path: str, started_event):
+    def __init__(self, app_name: str, socket_path: str, started_event, dont_store: bool):
         super().__init__(app_name, socket_path)
         self.socket = None
         self.is_connected = False
         self.started_event = started_event
+        self.dont_store = dont_store
 
     def connect(self):
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -97,7 +97,12 @@ class ApplicationInterface(GenericApplicationInterface):
     def report_startup(self) -> None:
         self.started_event.set()
 
-    def data_point(self, series_name: str, points: Dict[str, int | float], additional_tags: Optional[Dict[str, str]] = None) -> bool:
+    def data_point(self, series_name: str, points: Dict[str, int | float], 
+                   additional_tags: Optional[Dict[str, str]] = None) -> bool:
+
+        if self.dont_store:
+            return True
+        
         payload = {
             "type": "data",
             "measurement": series_name,
@@ -118,6 +123,19 @@ class ApplicationInterface(GenericApplicationInterface):
         payload = {
             "type": "preserve",
             "path": path
+        }
+
+        return self._send_to_daemon(payload)
+
+    def push_log_message(self, message: str, type: LogMessageType, 
+                         print_to_user: bool = False, store_in_log: bool = True) -> None:
+        payload = {
+            "type": "extended",
+            "message": message,
+            "logtype": str(type),
+            "printtouser": print_to_user,
+            "storeinlog": store_in_log,
+            "application": self.app_name
         }
 
         return self._send_to_daemon(payload)

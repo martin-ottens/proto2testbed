@@ -21,8 +21,6 @@ import random
 import string
 import os
 import shutil
-import socket
-import errno
 import jsonpickle
 
 from enum import Enum
@@ -39,8 +37,6 @@ from helper.state_file_helper import InstanceStateFile
 from common.application_configs import ApplicationConfig, AppStartStatus
 from common.instance_manager_message import UpstreamMessage, ApplicationStatusMessageUpstream
 from utils.interfaces import Dismantable
-from utils.settings import CommonSettings
-from utils.concurrency_reservation import ConcurrencyReservation
 from constants import *
 
 
@@ -82,8 +78,9 @@ class InstanceState:
     def __init__(self, name: str, script_file: str, 
                  setup_env: Optional[Dict[str, str]], manager,
                  init_preserve_files: Optional[List[str]], 
-                 numeric_id: int) -> None:
+                 numeric_id: int, provider) -> None:
         self.name: str = name
+        self.provider = provider
         self.script_file: str = script_file
         self.uuid = ''.join(random.choices(string.ascii_letters, k=8))
         self.numeric_id = numeric_id
@@ -107,7 +104,7 @@ class InstanceState:
             self.preserve_files: List[str] = []
         self.apps = Optional[List[ApplicationConfig]]
         self.mgmt_ip_addr: Optional[str] = None
-        self.file_copy_helper = FileCopyHelper(self)
+        self.file_copy_helper = FileCopyHelper(self, provider.executor)
 
     def __str__(self) -> str:
         return f"{self.name} ({self.uuid})"
@@ -179,10 +176,14 @@ class InstanceState:
             return
         
         self._state = new_state
+
+        if self.provider.result_wrapper is not None:
+            self.provider.result_wrapper.change_instance_status(self.name, new_state)
+
         self.manager.notify_state_change(new_state)
 
     def prepare_interchange_dir(self) -> None:
-        self.interchange_dir = CommonSettings.statefile_base / Path(CommonSettings.experiment) / Path(INTERCHANGE_DIR_PREFIX + self.uuid)
+        self.interchange_dir = self.provider.statefile_base / Path(self.provider.experiment) / Path(INTERCHANGE_DIR_PREFIX + self.uuid)
 
         if self.interchange_dir.exists():
             raise Exception(f"Error during setup of interchange directory: {self.interchange_dir} already exists!")
@@ -210,8 +211,12 @@ class InstanceState:
                 target = file_preservation / self.name
                 target.mkdir(parents=True, exist_ok=True)
                 shutil.copytree(self.get_p9_data_path(), target, dirs_exist_ok=True)
-                if CommonSettings.executor is not None:
-                    set_owner(target, CommonSettings.executor)
+                if self.provider.executor is not None:
+                    set_owner(target, self.provider.executor)
+
+                if self.provider.result_wrapper is not None:
+                    self.provider.result_wrapper.add_instance_preserved_files(self.name, target, len(flist))
+
                 logger.info(f"File Preservation: Preserved {len(flist)} files for Instance {self.name} to '{target}'")
             
         
@@ -282,10 +287,10 @@ class InstanceState:
         state = InstanceStateFile(
             instance=self.name,
             uuid=self.uuid,
-            executor=int(CommonSettings.executor),
-            cmdline=CommonSettings.cmdline,
-            experiment=CommonSettings.experiment,
-            main_pid=CommonSettings.main_pid,
+            executor=int(self.provider.executor),
+            cmdline=self.provider.cmdline,
+            experiment=self.provider.experiment,
+            main_pid=self.provider.main_pid,
             mgmt_ip=str(self.mgmt_ip_addr),
             interfaces=self.interfaces
         )
@@ -298,7 +303,21 @@ class InstanceState:
 
 
 class InstanceStateManager(Dismantable):
-    def __init__(self, enable_vsock: bool = False) -> None:
+    @staticmethod
+    def _check_vsock_status(report_vsock: bool) -> bool:
+        if report_vsock:
+            if not os.path.exists("/dev/vsock"):
+                logger.warning("VSOCK was requested, but Testbed Host lacks support, falling back to serial.")
+                return False
+            else:
+                logger.trace("VSOCK will be used for management connections.")
+                return True
+        else:
+            return False
+
+    def __init__(self, provider) -> None:
+        self.provider = provider
+        self.provider.set_instance_manager(self)
         self.map: dict[str, InstanceState] = {}
         self.state_change_lock: Lock = Lock()
         self.file_preservation: Optional[Path] = None
@@ -310,7 +329,7 @@ class InstanceStateManager(Dismantable):
         self.external_interrupt_signal = Event()
         self.external_interrupt_signal.clear()
         self.instance_counter: int = 0
-        self.enable_vsock = enable_vsock
+        self.enable_vsock = InstanceStateManager._check_vsock_status(provider.default_configs.get_defaults("enable_vsock", True))
         self.app_dependecy_helper: Optional[AppDependencyHelper] = None
 
     def set_app_dependecy_helper(self, helper: AppDependencyHelper) -> None:
@@ -333,7 +352,8 @@ class InstanceStateManager(Dismantable):
                                  setup_env=setup_env, 
                                  manager=self, 
                                  init_preserve_files=init_preserve_files, 
-                                 numeric_id=self.instance_counter)
+                                 numeric_id=self.instance_counter,
+                                 provider=self.provider)
 
         instance.set_setup_env_entry("INSTANCE_NAME", name)
         self.instance_counter += 1
@@ -343,7 +363,7 @@ class InstanceStateManager(Dismantable):
         if not self.enable_vsock:
             return
         
-        vsock_cids = ConcurrencyReservation.get_instance().generate_new_vsock_cids(len(self.map))
+        vsock_cids = self.provider.concurrency_reservation.generate_new_vsock_cids(len(self.map))
         index = 0
         for instance in self.map.values():
             instance.set_vsock_cid(vsock_cids[index])

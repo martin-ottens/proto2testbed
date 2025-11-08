@@ -18,7 +18,6 @@
 
 import ipaddress
 import time
-import os
 
 from pathlib import Path
 from loguru import logger
@@ -28,15 +27,15 @@ from threading import Event, Thread
 from helper.network_helper import *
 from helper.instance_helper import InstanceHelper, InstanceManagementSettings
 from helper.integration_helper import IntegrationHelper
-from utils.interfaces import Dismantable
-from utils.config_tools import load_config, load_vm_initialization, check_preserve_dir
-from utils.settings import CommonSettings, TestbedSettingsWrapper
-from utils.settings import InvokeIntegrationAfter
-from utils.influxdb import InfluxDBAdapter
 from helper.app_dependency_helper import AppDependencyHelper
+from helper.state_file_helper import StateFileReader
+from utils.interfaces import Dismantable
+from utils.config_tools import load_vm_initialization, check_preserve_dir
+from utils.state_provider import TestbedStateProvider
+from utils.settings import InvokeIntegrationAfter, RunParameters
+from utils.influxdb import InfluxDBAdapter
 from utils.networking import *
 from utils.continue_mode import *
-from utils.concurrency_reservation import ConcurrencyReservation
 from management_server import ManagementServer
 from cli import CLI
 from state_manager import InstanceStateManager, AgentManagementState, WaitResult
@@ -45,24 +44,18 @@ from constants import SUPPORTED_INSTANCE_NUMBER
 
 
 class Controller(Dismantable):
-    @classmethod
-    def _check_vsock_status(cls) -> bool:
-        if CommonSettings.default_configs.get_defaults("enable_vsock", True):
-            if not os.path.exists("/dev/vsock"):
-                logger.warning("VSOCK was requested, but Testbed Host lacks support, falling back to serial.")
-                return False
-            else:
-                logger.trace("VSOCK will be used for management connections.")
-                return True
-        else:
-            return False
-
-    def __init__(self):
-        if TestbedSettingsWrapper.cli_parameters is None:
-            raise Exception("No CLIParameters class object was set before calling the controller")
-
+    def __init__(self, provider: TestbedStateProvider, cli: CLI) -> None:
         self.dismantables: List[Dismantable] = []
-        self.state_manager: InstanceStateManager = InstanceStateManager(Controller._check_vsock_status())
+        self.provider = provider
+        self.cli = cli
+
+    def init_config(self, run_parameters: RunParameters, testbed_basepath: str) -> None:
+        if self.provider.testbed_config is None:
+            raise Exception("Cannot start controller without testbed config!")
+
+        self.run_parameters = run_parameters
+        self.testbed_basepath = testbed_basepath
+        self.state_manager: InstanceStateManager = InstanceStateManager(self.provider)
         self.dismantables.insert(0, self.state_manager)
         self.mgmt_bridge: Optional[ManagementNetworkBridge] = None
         self.mgmt_bridge_mapping: Optional[BridgeMapping] = None
@@ -70,9 +63,8 @@ class Controller(Dismantable):
         self.request_restart = False
         self.influx_db = None
 
-        self.base_path = Path(TestbedSettingsWrapper.cli_parameters.config)
-        self.config_path = self.base_path / "testbed.json"
-        self.pause_after: PauseAfterSteps = TestbedSettingsWrapper.cli_parameters.interact
+        self.base_path = Path(testbed_basepath)
+        self.pause_after = PauseAfterSteps.DISABLE
         self.interact_finished_event: Optional[Event] = None
 
         self.interrupted_event = Event()
@@ -80,22 +72,46 @@ class Controller(Dismantable):
         self.interrupted_event.clear()
         self.app_dependencies: Optional[AppDependencyHelper] = None
 
+        reader = StateFileReader(self.provider)
+        all_experiments = reader.get_other_experiments(self.provider.experiment)
+
+        if len(all_experiments) != 0:
+            err = f"Other testbeds with same experiment tag are running: "
+            err += ', '.join([f"User:{user}/PID:{pid}" for user, pid in all_experiments.items()])
+            raise Exception(err)
+        
+        if self.run_parameters.preserve is not None:
+            try:
+                if not bool(self.run_parameters.preserve.anchor or self.run_parameters.preserve.name):
+                    raise Exception("Invalid preserve path")
+            except Exception as ex:
+                raise Exception("Unable to start: Preserve Path is not valid!") from ex
+
         try:
-            self.cli = CLI(CommonSettings.log_verbose, self.state_manager)
             self.cli.start()
             self.dismantables.insert(0, self.cli)
-
-            TestbedSettingsWrapper.testbed_config = load_config(self.config_path,
-                                                                TestbedSettingsWrapper.cli_parameters.skip_substitution)
-            self.app_dependencies = AppDependencyHelper(TestbedSettingsWrapper.testbed_config)
+            self.app_dependencies = AppDependencyHelper(self.provider.testbed_config)
             self.app_dependencies.compile_dependency_list()
             self.state_manager.set_app_dependecy_helper(self.app_dependencies)
-            self.integration_helper = IntegrationHelper(TestbedSettingsWrapper.cli_parameters.config,
-                                                        str(CommonSettings.app_base_path),
-                                                        CommonSettings.default_configs.get_defaults("disable_integrations", False))
+            self.integration_helper = IntegrationHelper(testbed_basepath,
+                                                        str(self.provider.app_base_path),
+                                                        self.provider.default_configs.get_defaults("disable_integrations", False))
+            self.cli.set_full_result_wrapper(self.provider.result_wrapper)
+
         except Exception as ex:
-            logger.opt(exception=ex).critical("Internal error loading config!")
-            raise Exception("Internal config loading error!")
+            raise Exception("Error during config validation error!") from ex
+        
+        self.integration_helper.apply_configured_integrations(self.provider.testbed_config.integrations)
+        self.dismantables.insert(0, self.integration_helper)
+
+        try:
+            self.influx_db = InfluxDBAdapter(self.provider, self.run_parameters.dont_use_influx,
+                                             full_result_wrapper=self.provider.result_wrapper if self.provider.cache_datapoints else None)
+            self.influx_db.start()
+            self.dismantables.insert(0, self.influx_db)
+        except Exception as ex:
+            logger.opt(exception=ex).critical("Unable to load InfluxDB data!")
+            return False
     
     def _destroy(self, spawn_threads: bool = True, force: bool = False) -> None:
         self.setup_env = None
@@ -131,8 +147,11 @@ class Controller(Dismantable):
     
     def setup_local_network(self) -> bool:
         autogenerated = False
-        if TestbedSettingsWrapper.testbed_config.settings.management_network.lower() == "auto":
-            mgmt_network = NetworkBridge.generate_auto_management_network(CommonSettings.unique_run_name)
+        if self.provider.testbed_config.settings.management_network.lower() == "auto":
+            mgmt_network = NetworkBridge.generate_auto_management_network(
+                                self.provider.unique_run_name, 
+                                self.provider.default_configs.get_defaults("management_network"))
+
             if mgmt_network is None:
                 logger.critical(f"Unable to generate a management subnet for 'auto' option.")
                 return False
@@ -140,7 +159,7 @@ class Controller(Dismantable):
                 logger.info(f"Generated Management Network subnet '{mgmt_network}' for 'auto' option.")
                 autogenerated = True
         else:
-            mgmt_network = ipaddress.IPv4Network(TestbedSettingsWrapper.testbed_config.settings.management_network)
+            mgmt_network = ipaddress.IPv4Network(self.provider.testbed_config.settings.management_network)
 
             if NetworkBridge.is_network_in_use(mgmt_network):
                 logger.critical(f"Network '{mgmt_network}' is already in use on this host.")
@@ -148,7 +167,7 @@ class Controller(Dismantable):
 
         # Setup management network bridge
         try:
-            bridge_name = ConcurrencyReservation.get_instance().generate_new_bridge_names()[0]
+            bridge_name = self.provider.concurrency_reservation.generate_new_bridge_names()[0]
             self.mgmt_bridge_mapping = self.network_mapping.add_bridge_mapping("br-mgmt", bridge_name)
             self.mgmt_bridge = ManagementNetworkBridge(self.mgmt_bridge_mapping.dev_name, 
                                                        self.mgmt_bridge_mapping.name,
@@ -168,13 +187,13 @@ class Controller(Dismantable):
             logger.critical("Infrastructure setup was called before local network setup!")
             return False
         
-        if len(TestbedSettingsWrapper.testbed_config.instances) > SUPPORTED_INSTANCE_NUMBER:
-            logger.critical(f"{len(TestbedSettingsWrapper.testbed_config.instances)} Instances configured, a maximum of {SUPPORTED_INSTANCE_NUMBER} is supported.")
+        if len(self.provider.testbed_config.instances) > SUPPORTED_INSTANCE_NUMBER:
+            logger.critical(f"{len(self.provider.testbed_config.instances)} Instances configured, a maximum of {SUPPORTED_INSTANCE_NUMBER} is supported.")
             return False
 
         # Create bridges for experiment networks
-        bridge_names = ConcurrencyReservation.get_instance().generate_new_bridge_names(len(TestbedSettingsWrapper.testbed_config.networks))
-        for index, network in enumerate(TestbedSettingsWrapper.testbed_config.networks):
+        bridge_names = self.provider.concurrency_reservation.generate_new_bridge_names(len(self.provider.testbed_config.networks))
+        for index, network in enumerate(self.provider.testbed_config.networks):
             try:
                 bridge_mapping = self.network_mapping.add_bridge_mapping(network.name, bridge_names[index])
                 bridge = NetworkBridge(bridge_mapping.dev_name,
@@ -197,11 +216,12 @@ class Controller(Dismantable):
 
         # Setup Instances
         wait_for_interfaces: List[str] = []
-        diskimage_basepath = Path(TestbedSettingsWrapper.testbed_config.settings.diskimage_basepath)
-        for instance_config in TestbedSettingsWrapper.testbed_config.instances:
+        diskimage_basepath = Path(self.provider.testbed_config.settings.diskimage_basepath)
+        for instance_config in self.provider.testbed_config.instances:
             instance = self.state_manager.get_instance(instance_config.name)
             
-            tap_names = ConcurrencyReservation.get_instance().generate_new_tap_names(len(instance_config.networks))
+            tap_names = self.provider.concurrency_reservation.generate_new_tap_names(len(instance_config.networks))
+            
             for index, attached_network in enumerate(instance_config.networks):
                 tap_name = tap_names[index]
                 bridge_mapping = self.network_mapping.get_bridge_mapping(attached_network.name)
@@ -244,7 +264,7 @@ class Controller(Dismantable):
                         instance_mgmt_ip = self.mgmt_bridge.get_next_mgmt_ip()
                         logger.trace(f"Using generated management address '{instance_mgmt_ip}' for Instance {instance_config.name}.")
 
-                    tap_name = ConcurrencyReservation.get_instance().generate_new_tap_names()[0]
+                    tap_name = self.provider.concurrency_reservation.generate_new_tap_names()[0]
                     instance.set_mgmt_ip(str(instance_mgmt_ip))
 
                     wait_for_interfaces.append(tap_name)
@@ -268,12 +288,12 @@ class Controller(Dismantable):
 
                 helper = InstanceHelper(instance=instance,
                                         management=management_settings,
-                                        testbed_package_path=str(self.base_path),
+                                        testbed_package_path=str(self.testbed_basepath),
                                         image=str(diskimage_path),
                                         cores=instance_config.cores,
                                         memory=instance_config.memory,
-                                        allow_gso_gro=TestbedSettingsWrapper.testbed_config.settings.allow_gso_gro,
-                                        disable_kvm=TestbedSettingsWrapper.cli_parameters.disable_kvm)
+                                        allow_gso_gro=self.provider.testbed_config.settings.allow_gso_gro,
+                                        disable_kvm=self.run_parameters.disable_kvm)
                 self.dismantables.insert(0, helper)
                 helper.start_instance()
             except Exception as ex:
@@ -281,13 +301,13 @@ class Controller(Dismantable):
                 return False
 
         # Wait for tap devices to become ready
-        wait_until = time.time() + TestbedSettingsWrapper.testbed_config.settings.startup_init_timeout
+        wait_until = time.time() + self.provider.testbed_config.settings.startup_init_timeout
         while True:
             if NetworkBridge.check_interfaces_available(wait_for_interfaces):
                 break
 
             if time.time() > wait_until:
-                logger.critical(f"Interfaces are not ready after {TestbedSettingsWrapper.testbed_config.settings.startup_init_timeout} seconds!")
+                logger.critical(f"Interfaces are not ready after {self.provider.testbed_config.settings.startup_init_timeout} seconds!")
                 return False
 
             time.sleep(1)
@@ -324,7 +344,7 @@ class Controller(Dismantable):
         
         try:
             management_server = ManagementServer(self, self.state_manager,
-                                                TestbedSettingsWrapper.testbed_config.settings.startup_init_timeout, 
+                                                self.provider.testbed_config.settings.startup_init_timeout, 
                                                 self.influx_db,
                                                 init_instances_instant)
             management_server.start()
@@ -342,7 +362,7 @@ class Controller(Dismantable):
                 continue
 
             message = FinishInstanceMessageUpstream(instance.preserve_files,
-                                                    TestbedSettingsWrapper.cli_parameters.preserve is not None)
+                                                    self.run_parameters.preserve is not None)
             instance.send_message(message)
 
         result: WaitResult = self.state_manager.wait_for_instances_to_become_state([AgentManagementState.STARTED,
@@ -350,7 +370,7 @@ class Controller(Dismantable):
                                                                                     AgentManagementState.FILES_PRESERVED, 
                                                                                     AgentManagementState.DISCONNECTED,
                                                                                     AgentManagementState.UNKNOWN],
-                                                                                  timeout=TestbedSettingsWrapper.testbed_config.settings.file_preservation_timeout)
+                                                                                   timeout=self.provider.testbed_config.settings.file_preservation_timeout)
         if result in [WaitResult.FAILED, WaitResult.TIMEOUT]:
             logger.critical("Instances have reported failed during file preservation or a timeout occurred!")
         elif result == WaitResult.SHUTDOWN:
@@ -366,7 +386,7 @@ class Controller(Dismantable):
         continue_mode = CLIContinue(at_step)
         self.interaction_event.clear()
 
-        if TestbedSettingsWrapper.cli_parameters.interact is not PauseAfterSteps.DISABLE:
+        if self.run_parameters.interact is not PauseAfterSteps.DISABLE:
             self.cli.start_cli(self.interaction_event, continue_mode)
             logger.success(f"Testbed paused after stage {self.pause_after.name}, Interactive mode enabled (CRTL+C to exit).")
         else:
@@ -378,7 +398,7 @@ class Controller(Dismantable):
             self.interrupted_event.set()
             status = False
 
-        if TestbedSettingsWrapper.cli_parameters.interact is not PauseAfterSteps.DISABLE:
+        if self.run_parameters.interact is not PauseAfterSteps.DISABLE:
             self.cli.stop_cli()
         
         if not status:
@@ -420,23 +440,13 @@ class Controller(Dismantable):
         else:
             return True
         
-    def main(self) -> bool:
-        self.integration_helper.apply_configured_integrations(TestbedSettingsWrapper.testbed_config.integrations)
-        self.dismantables.insert(0, self.integration_helper)
+    def main(self, pause_after_step: PauseAfterSteps = PauseAfterSteps.DISABLE) -> bool:
+        self.pause_after = pause_after_step
 
-        try:
-            self.influx_db = InfluxDBAdapter(CommonSettings.experiment,
-                                             TestbedSettingsWrapper.cli_parameters.dont_use_influx)
-            self.influx_db.start()
-            self.dismantables.insert(0, self.influx_db)
-        except Exception as ex:
-            logger.opt(exception=ex).critical("Unable to load InfluxDB data!")
-            return False
-        
-        if not check_preserve_dir(TestbedSettingsWrapper.cli_parameters.preserve):
+        if not check_preserve_dir(self.run_parameters.preserve, self.provider.executor):
             logger.critical("Unable to set up File Preservation")
             return False
-        self.state_manager.enable_file_preservation(TestbedSettingsWrapper.cli_parameters.preserve)
+        self.state_manager.enable_file_preservation(self.run_parameters.preserve)
 
         start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP)
         if start_status is None:
@@ -445,7 +455,7 @@ class Controller(Dismantable):
             logger.critical("Critical error during integration start!")
             return False
 
-        if TestbedSettingsWrapper.testbed_config.settings.management_network is not None:
+        if self.provider.testbed_config.settings.management_network is not None:
             if not self.setup_local_network():
                 logger.critical("Critical error during local network setup!")
                 return False
@@ -454,10 +464,12 @@ class Controller(Dismantable):
         
         if self.influx_db.store_disabled:
             logger.warning("InfluxDB experiment data storage is disabled!")
+        elif self.influx_db.full_result_wrapper is not None:
+            logger.info("InfluxDB is disabled, data points are stored in FullResultWrapper for API usage!")
         else:
             logger.success(f"Experiment data will be saved to InfluxDB {self.influx_db.database} with tag experiment={self.influx_db.series_name}")
 
-        if not load_vm_initialization(TestbedSettingsWrapper.testbed_config, self.base_path, self.state_manager):
+        if not load_vm_initialization(self.provider.testbed_config, self.testbed_basepath, self.state_manager):
             logger.critical("Critical error while loading Instance initialization!")
             return False
 
@@ -471,7 +483,7 @@ class Controller(Dismantable):
             logger.critical("Critical error during instance setup")
             return False
 
-        setup_timeout = TestbedSettingsWrapper.testbed_config.settings.startup_init_timeout
+        setup_timeout = self.provider.testbed_config.settings.startup_init_timeout
         if self.pause_after == PauseAfterSteps.SETUP:
             logger.info("Waiting for Instances to start ...")
 
@@ -496,7 +508,7 @@ class Controller(Dismantable):
             return False
 
         logger.info("Instances are initialized, invoking installation of apps ...")
-        for config_instance in TestbedSettingsWrapper.testbed_config.instances:
+        for config_instance in self.provider.testbed_config.instances:
             instance = self.state_manager.get_instance(config_instance.name)
             apps = config_instance.applications
             instance.add_apps(apps)
@@ -522,7 +534,7 @@ class Controller(Dismantable):
                 self.send_finish_message()
                 return True
         
-        t0 = time.time() + TestbedSettingsWrapper.testbed_config.settings.appstart_timesync_offset
+        t0 = time.time() + self.provider.testbed_config.settings.appstart_timesync_offset
 
         logger.info(f"Starting applications on Instances (t0={t0}).")
         message = RunApplicationsMessageUpstream(t0)
@@ -532,7 +544,7 @@ class Controller(Dismantable):
             
         logger.info("Waiting for Instances to finish applications ...")
 
-        experiment_timeout = TestbedSettingsWrapper.testbed_config.settings.experiment_timeout
+        experiment_timeout = self.provider.testbed_config.settings.experiment_timeout
 
         # Calculate by longest application
         if experiment_timeout == -1:
@@ -552,7 +564,7 @@ class Controller(Dismantable):
 
             if self.wait_for_to_become(experiment_timeout, 'Experiment', 
                                     AgentManagementState.FINISHED, 
-                                    self.pause_after == PauseAfterSteps.EXPERIMENT, False):
+                                    False, False):
                 succeeded = True
                 logger.success("All Instances reported finished applications!")
             

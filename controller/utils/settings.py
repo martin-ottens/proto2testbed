@@ -24,8 +24,8 @@ from typing import List, Dict, Optional, Any
 from enum import Enum
 from abc import ABC
 from dataclasses import dataclass
-from pathlib import Path
 from loguru import logger
+from pathlib import Path
 
 from common.application_configs import ApplicationConfig
 from utils.continue_mode import PauseAfterSteps
@@ -166,34 +166,8 @@ class DefaultConfigs:
 
 
 @dataclass
-class RunCLIParameters:
-    config: Optional[str] = None
-    interact: PauseAfterSteps = PauseAfterSteps.DISABLE
+class RunParameters:
     disable_kvm: bool = False
     dont_use_influx: Optional[bool] = False
     skip_integration: bool = False
-    skip_substitution: bool = False
-    preserve: Optional[str] = None
-
-
-class CommonSettings:
-    executor: Optional[int] = None
-    cmdline: Optional[str] = None
-    main_pid: Optional[int] = None
-    unique_run_name: Optional[str] = None
-    app_base_path: Optional[Path] = None
-    statefile_base: Optional[Path] = None
-
-    log_verbose: Optional[int] = None
-    sudo_mode: Optional[bool] = None
-    experiment: Optional[str] = None
-    experiment_generated: bool = False
-    influx_path: Optional[str] = None
-
-    default_configs: Optional[DefaultConfigs] = None
-
-
-class TestbedSettingsWrapper:
-    cli_parameters: Optional[RunCLIParameters] = None
-    testbed_config: Optional[TestbedConfig] = None
-    
+    preserve: Optional[Path] = None

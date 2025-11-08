@@ -24,6 +24,7 @@ from typing import Optional, Dict, Tuple
 
 from applications.base_application import BaseApplication
 from common.application_configs import ApplicationSettings
+from common.instance_manager_message import LogMessageType
 
 """
 Run a command or script on the Instance. The command or script should be
@@ -78,8 +79,8 @@ class RunProgramApplication(BaseApplication):
             self.settings = RunProgramApplicationConfig(**config)
 
             parts = self.settings.command.split(" ", maxsplit=1)
-            self.relative_command = Path(parts[0])
-            self.command = Path(parts[0])
+            self.relative_command = Path(parts[0].rstrip())
+            self.command = Path(parts[0].rstrip())
             self.args = parts[1] if len(parts) >= 2 else ""
 
             self.from_tbp = False
@@ -129,10 +130,28 @@ class RunProgramApplication(BaseApplication):
             status = process.wait(runtime)
             if status != 0:
                 if self.from_tbp:
-                    raise Exception(f"Program 'TESTBED-PACKAGE/{self.relative_command}' exited with code {status}.\nSTDOUT: {process.stdout.readline().decode('utf-8')}\nSTDERR: {process.stderr.readline().decode('utf-8')}")
+                    self.interface.push_log_message(f"Program 'TESTBED-PACKAGE/{self.relative_command}' exited with code {status}.\nSTDOUT: {process.stdout.readline().decode('utf-8')}\nSTDERR: {process.stderr.readline().decode('utf-8')}", 
+                                                    LogMessageType.MSG_ERROR, 
+                                                    True)
                 else:
-                    raise Exception(f"Program '{self.command}' exited with code {status}.\nSTDOUT: {process.stdout.readline().decode('utf-8')}\nSTDERR: {process.stderr.readline().decode('utf-8')}")
-            
+                    self.interface.push_log_message(f"Program '{self.command}' exited with code {status}.\nSTDOUT: {process.stdout.readline().decode('utf-8')}\nSTDERR: {process.stderr.readline().decode('utf-8')}", 
+                                                    LogMessageType.MSG_ERROR,
+                                                    True)
+                    
+                if process.stdout is not None:
+                    for line in process.stdout.readlines():
+                        if line == "":
+                            continue
+                        self.interface.push_log_message(line.replace('\n').decode('utf-8'), LogMessageType.STDOUT)
+
+                if process.stderr is not None:
+                    for line in process.stderr.readlines():
+                        if line == "":
+                            continue
+                    self.interface.push_log_message(line.replace('\n').decode('utf-8'), LogMessageType.STDERR)
+
+                return False
+
             return True
         except subprocess.TimeoutExpired as ex:
             process.kill()
@@ -140,7 +159,10 @@ class RunProgramApplication(BaseApplication):
             if self.settings.ignore_timeout:
                 return True
             else:
-                raise Exception(f"Timeout during program execution: {ex}")
+                self.interface.push_log_message(f"Timeout during program execution: {ex}", 
+                                                LogMessageType.MSG_ERROR, 
+                                                True)
+                return False
             
     def exports_data(self) -> bool:
         return False

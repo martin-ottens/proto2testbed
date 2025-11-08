@@ -20,8 +20,6 @@
 import argparse
 import sys
 import os
-import random
-import string
 import importlib.util
 import inspect
 
@@ -29,9 +27,7 @@ from loguru import logger
 from pathlib import Path
 from typing import Dict, Optional
 
-from utils.settings import DefaultConfigs
 from executors.base_executor import BaseExecutor
-from helper.state_file_helper import StateFileReader
 
 
 def main():
@@ -87,14 +83,8 @@ def main():
 
     # Some lazy loading from there for better CLI reactivity
     from cli import CLI
-    from utils.settings import CommonSettings
-    import psutil
 
     CLI.setup_early_logging()
-
-    original_uid = os.environ.get("SUDO_UID", None)
-    if original_uid is None:
-        original_uid = os.getuid()
 
     mode = args.mode
     if mode in aliases.keys():
@@ -106,51 +96,31 @@ def main():
         sys.exit(1)
 
     if executor.requires_priviledges():
-        if not CommonSettings.sudo_mode and os.geteuid() != 0:
+        if not args.sudo and os.geteuid() != 0:
             logger.critical("Unable to start: You need to be root!")
             sys.exit(1)
 
-    CommonSettings.experiment = args.experiment
-    CommonSettings.default_configs = DefaultConfigs("/etc/proto2testbed/proto2testbed_defaults.json")
-    CommonSettings.statefile_base = Path(CommonSettings.default_configs.get_defaults("statefile_basedir", "/tmp/p2t/"))
+    experiment = args.experiment
+    if experiment is None and "EXPERIMENT_TAG" in os.environ:
+        experiment = os.environ.get("EXPERIMENT_TAG")
 
-    def assign_random_experiment_tag() -> str:
-        CommonSettings.experiment = "".join(random.choices(string.ascii_letters + string.digits, k=8))
-        CommonSettings.experiment_generated = True
-
-    if CommonSettings.experiment is None and "EXPERIMENT_TAG" in os.environ:
-        CommonSettings.experiment = os.environ.get("EXPERIMENT_TAG")
-    elif CommonSettings.experiment is None:
-        assign_random_experiment_tag()
-
-    while executor.dumps_to_state_files():
-        if not StateFileReader.check_and_aquire_experiment(CommonSettings.experiment):
-            if CommonSettings.experiment_generated:
-                assign_random_experiment_tag()
-                continue
-            else:
-                logger.critical(f"Experiment with tag {CommonSettings.experiment} is already running!")
-                sys.exit(1)
-        else:
-            break
-
-    CommonSettings.executor = int(original_uid)
-    CommonSettings.main_pid = os.getpid()
-    CommonSettings.cmdline = " ".join(psutil.Process(CommonSettings.main_pid).cmdline())
-    CommonSettings.unique_run_name = f"{''.join(CommonSettings.experiment.split())}-{str(original_uid)}-{args.mode}"
-    CommonSettings.app_base_path = app_base_path
-    CommonSettings.log_verbose = args.verbose
-    CommonSettings.sudo_mode = args.sudo
+    from utils.state_provider import TestbedStateProvider
+    provider = TestbedStateProvider(verbose=args.verbose,
+                                    sudo=args.sudo)
+    try:
+        provider.update_experiment_tag(experiment, executor.dumps_to_state_files())
+    except Exception as ex:
+        logger.opt(exception=ex).critical("Unable to accuire experiment tag")
+        sys.exit(1)
 
     try:
-        sys.exit(executor.invoke(args))
+        sys.exit(executor.invoke(args, provider))
     except Exception as ex:
         logger.opt(exception=ex).critical(f"Error calling invoke of subcommand '{mode}'")
         sys.exit(1)
     finally:
         if executor.dumps_to_state_files():
-            StateFileReader.release_experiment(CommonSettings.experiment)
-
+            provider.release_experiment_tag()
 
 
 if __name__ == "__main__":

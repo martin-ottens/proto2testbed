@@ -23,6 +23,7 @@ from typing import Tuple, Optional, List
 from applications.base_application import *
 from applications.iperf_common import run_iperf
 from common.application_configs import ApplicationSettings
+from common.instance_manager_message import LogMessageType
 
 """
 Wraps iPerf3 in client mode ('iperf3 -c') to perform speed tests. Connects to the
@@ -123,7 +124,10 @@ class IperfClientApplication(BaseApplication):
         
         if self.settings.tcp_no_delay is True:
             if self.settings.udp is True:
-                raise Exception("TCP_NO_DELAY is used together with UDP option")
+                self.interface.push_log_message("TCP_NO_DELAY is used together with UDP option", 
+                                                LogMessageType.MSG_ERROR, 
+                                                True)
+                return False
             command.append("--no-delay")
         
         if runtime is not None:
@@ -147,7 +151,10 @@ class IperfClientApplication(BaseApplication):
            return run_iperf(command, self.interface) == 0
         except Exception as ex:
             traceback.print_exception(ex)
-            raise Exception(f"Iperf3 server error: {ex}")
+            self.interface.push_log_message(f"Iperf3 server error: {ex}", 
+                                            LogMessageType.MSG_ERROR, 
+                                            True)
+            return False
         
     def get_export_mapping(self, subtype: ExportSubtype) -> Optional[List[ExportResultMapping]]:
         match subtype.name:

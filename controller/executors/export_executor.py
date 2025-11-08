@@ -22,7 +22,7 @@ import os
 from loguru import logger
 
 from executors.base_executor import BaseExecutor
-from utils.settings import CommonSettings
+from utils.state_provider import TestbedStateProvider
 
 
 class ExportExecutor(BaseExecutor):
@@ -49,32 +49,38 @@ class ExportExecutor(BaseExecutor):
         self.subparser.add_argument("--skip_substitution", action="store_true", required=False, default=False, 
                                     help="Skip substitution of placeholders with environment variable values in config")
 
-    def invoke(self, args) -> int:
+    def invoke(self, args, provider: TestbedStateProvider) -> int:
         from cli import CLI
 
-        CLI(CommonSettings.log_verbose, None)
+        CLI(provider)
 
-        if CommonSettings.experiment_generated:
+        if provider.experiment_generated:
             logger.critical(f"No experiment tag was specified, use -e to specify an experiment tag.")
             return 1
 
         from pathlib import Path
+        from constants import TESTBED_CONFIG_JSON_FILENAME
+
         testbed_config_path = Path(args.TESTBED_CONFIG)
         if not testbed_config_path.is_absolute():
             testbed_config_path = Path(os.getcwd()) / testbed_config_path
+        testbed_config_path = testbed_config_path / Path(TESTBED_CONFIG_JSON_FILENAME)
 
         from helper.export_helper import ResultExportHelper
         from utils.config_tools import load_config
 
         try:
-            config_path = testbed_config_path / "testbed.json"
-            testbed_config = load_config(config_path, args.skip_substitution)
+            testbed_config = load_config(testbed_config_path, args.skip_substitution)
         except Exception as ex:
             logger.opt(exception=ex).critical("Error loading testbed config")
             return 1
 
         try:
-            exporter = ResultExportHelper(args.output, testbed_config, testbed_config_path, args.exclude_instance, args.exclude_application)
+            exporter = ResultExportHelper(testbed_config, 
+                                          testbed_config_path, 
+                                          provider, 
+                                          args.exclude_instance, 
+                                          args.exclude_application)
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to start data exporter")
             return 1

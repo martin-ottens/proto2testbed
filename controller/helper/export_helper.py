@@ -26,7 +26,8 @@ from dataclasses import dataclass
 import dateutil.parser as dateparser
 
 from utils.influxdb import InfluxDBAdapter
-from utils.settings import CommonSettings, TestbedConfig, ApplicationConfig
+from utils.settings import TestbedConfig, ApplicationConfig
+from utils.state_provider import TestbedStateProvider
 from applications.base_application import *
 from common.application_loader import ApplicationLoader
 
@@ -41,21 +42,33 @@ class SeriesContainer:
     y: List[Any]
 
 
+@dataclass
+class APISeriesContainer:
+    name: str
+    instance: str
+    application_name: str
+    application_type: str
+    type_name: str
+    y_unit: str
+    x: List[int]
+    y: List[Any]
+
+
 class ResultExportHelper:
-    def __init__(self, output_path: str, config: TestbedConfig,
-                 testbed_package_path: str,
+    def __init__(self, config: TestbedConfig,
+                 testbed_package_path: Optional[str], provider: TestbedStateProvider,
                  exclude_instances: Optional[List[str]] = None,
                  exclude_applications: Optional[List[str]] = None) -> None:
-        self.output_path = output_path
         self.config = config
+        self.provider = provider
         self.exclude_instances = exclude_instances
         self.exclude_applications = exclude_applications
-        self.adapter = InfluxDBAdapter(warn_on_no_database=True)
+        self.adapter = InfluxDBAdapter(provider, warn_on_no_database=True)
         self.reader = self.adapter.get_access_client()
         if self.reader is None:
             raise Exception("Unable to create InfluxDB data reader")
 
-        self.loader = ApplicationLoader(CommonSettings.app_base_path, Path(testbed_package_path),
+        self.loader = ApplicationLoader(provider.app_base_path, testbed_package_path,
                                         ["exports_data", "get_export_mapping"])
         self.loader.read_packaged_apps()
 
@@ -78,7 +91,7 @@ class ResultExportHelper:
         result = []
 
         database_entries = self.reader.get_list_series(tags={
-            "experiment": CommonSettings.experiment,
+            "experiment": self.provider.experiment,
             "application": app_config.name,
             "instance": instance_name
         })
@@ -115,7 +128,7 @@ class ResultExportHelper:
             
             for series in data_mappings:
                 bind_params = {
-                    "experiment": CommonSettings.experiment,
+                    "experiment": self.provider.experiment,
                     "instance": instance_name,
                     "application": application.name
                 }
@@ -255,7 +268,7 @@ class ResultExportHelper:
 
             ax.yaxis.set_major_formatter(ticker.FuncFormatter(container.export_mapping.type.value[2]))
 
-            title = f"Experiment: {CommonSettings.experiment}, Series: {container.app_config.name}@{container.instance}, "
+            title = f"Experiment: {self.provider.experiment}, Series: {container.app_config.name}@{container.instance}, "
             title += f"Application: {container.export_mapping.name}@{container.app_config.application}"
             if container.export_mapping.title_suffix is not None:
                 title += f" ({container.export_mapping.title_suffix})"
@@ -282,7 +295,7 @@ class ResultExportHelper:
     def output_to_flatfile(self, output_path: str) -> bool:
         path = Path(output_path)
 
-        def flatfile_export_callback(container: SeriesContainer):
+        def flatfile_export_callback(container: SeriesContainer) -> bool:
             basepath = path / container.instance / container.app_config.name
 
             if len(container.x) != len(container.y):
@@ -306,3 +319,29 @@ class ResultExportHelper:
             return True
 
         return self._process_series(flatfile_export_callback)
+    
+    def output_to_list(self) -> List[APISeriesContainer]:
+        result: List[APISeriesContainer] = []
+
+        def list_output_callback(container: SeriesContainer) -> bool:
+            nonlocal result
+
+            if len(container.x) != len(container.y):
+                raise ValueError(f"Exporting of {container.type_name} from series {container.export_mapping.name} failed: len(x) != len(y)")
+
+            result_container = APISeriesContainer(
+                name=container.export_mapping.name,
+                instance=container.instance,
+                application_name=container.app_config.name,
+                application_type=container.app_config.application,
+                type_name=container.type_name,
+                y_unit=container.export_mapping.type.value[1],
+                x=container.x,
+                y=container.y
+            )
+
+            result.append(result_container)
+
+        self._process_series(list_output_callback)
+        return result
+
