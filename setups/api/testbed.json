@@ -1,0 +1,59 @@
+{
+    "settings": {
+        "management_network": "auto",
+        "diskimage_basepath": "/images"
+    },
+    "networks": [
+        {
+            "name": "link_a",
+            "host_ports": []
+        }
+    ],
+    "integrations": [],
+    "instances": [
+        {
+            "name": "vma",
+            "diskimage": "debian-iperf.qcow2",
+            "setup_script": "setup.sh",
+            "environment": {
+                "IP_ADDRESS": "10.0.0.1/24"
+            },
+            "cores": 2,
+            "memory": 1024,
+            "networks": ["link_a"],
+            "applications": [
+                {
+                    "application": "ping",
+                    "name": "a-ping",
+                    "delay": 1,
+                    "runtime": 10,
+                    "settings": {
+                        "target": "10.0.0.2"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "vmb",
+            "diskimage": "debian-iperf.qcow2",
+            "setup_script": "setup.sh",
+            "environment": {
+                "IP_ADDRESS": "10.0.0.2/24"
+            },
+            "cores": 2,
+            "memory": 1024,
+            "networks": ["link_a"],
+            "applications": [
+                {
+                    "application": "ping",
+                    "name": "b-ping",
+                    "delay": 1,
+                    "runtime": 10,
+                    "settings": {
+                        "target": "10.0.0.1"
+                    }
+                }
+            ]
+        }
+    ]
+}

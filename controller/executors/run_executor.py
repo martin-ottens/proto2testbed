@@ -21,6 +21,7 @@ import os
 import sys
 
 from loguru import logger
+from pathlib import Path
 
 from executors.base_executor import BaseExecutor
 from utils.continue_mode import PauseAfterSteps
@@ -60,31 +61,34 @@ class RunExecutor(BaseExecutor):
         else:
             testbed_path = f"{os.getcwd()}/{args.TESTBED_CONFIG}"
 
-        parameters.interact = PauseAfterSteps[args.interact]
+        from constants import TESTBED_CONFIG_JSON_FILENAME
+        testbed_config_path = Path(testbed_path) / Path(TESTBED_CONFIG_JSON_FILENAME)
+
+        interact = PauseAfterSteps[args.interact]
         parameters.disable_kvm = args.no_kvm
         parameters.dont_use_influx = args.dont_store
         parameters.skip_integration = args.skip_integrations
-        parameters.skip_substitution = args.skip_substitution
         
         if provider.experiment_generated:
             logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {provider.experiment}")
         
-        if parameters.interact != PauseAfterSteps.DISABLE and not os.isatty(sys.stdout.fileno()):
+        if interact != PauseAfterSteps.DISABLE and not os.isatty(sys.stdout.fileno()):
             logger.error("TTY does not allow user interaction, disabling 'interact' parameter")
-            parameters.interact = PauseAfterSteps.DISABLE
-        
-        from pathlib import Path
+            interact = PauseAfterSteps.DISABLE
+
         parameters.preserve = None
         if args.preserve is not None:
             parameters.preserve = Path(args.preserve)
 
         from controller import Controller
-        controller = Controller(provider)
+        from cli import CLI
+        cli = CLI(provider)
+        controller = Controller(provider, cli)
         
         from utils.settings import TestbedConfig
         from utils.config_tools import load_config
         try:
-            config: TestbedConfig = load_config(testbed_path, parameters.skip_substitution)
+            config: TestbedConfig = load_config(testbed_config_path, args.skip_substitution)
             provider.set_testbed_config(config)
         except Exception as ex:
             logger.opt(exception=ex).critical("Error during loading of testbed config.")
@@ -101,7 +105,7 @@ class RunExecutor(BaseExecutor):
 
         import signal
         try:
-            status = controller.main()
+            status = controller.main(interact)
         except Exception as ex:
             logger.opt(exception=ex).critical("Uncaught Controller Exception")
             status = False

@@ -27,11 +27,12 @@ from applications.generic_application_interface import LogMessageLevel, GenericA
 from common.instance_manager_message import LogMessageType
 
 class ApplicationInterface(GenericApplicationInterface):
-    def __init__(self, app_name: str, socket_path: str, started_event):
+    def __init__(self, app_name: str, socket_path: str, started_event, dont_store: bool):
         super().__init__(app_name, socket_path)
         self.socket = None
         self.is_connected = False
         self.started_event = started_event
+        self.dont_store = dont_store
 
     def connect(self):
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -96,7 +97,12 @@ class ApplicationInterface(GenericApplicationInterface):
     def report_startup(self) -> None:
         self.started_event.set()
 
-    def data_point(self, series_name: str, points: Dict[str, int | float], additional_tags: Optional[Dict[str, str]] = None) -> bool:
+    def data_point(self, series_name: str, points: Dict[str, int | float], 
+                   additional_tags: Optional[Dict[str, str]] = None) -> bool:
+
+        if self.dont_store:
+            return True
+        
         payload = {
             "type": "data",
             "measurement": series_name,

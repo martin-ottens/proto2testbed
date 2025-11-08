@@ -148,27 +148,33 @@ class FullResultWrapper:
         return True
     
     def dump_state(self, file=sys.stdout) -> None:
+        print(f"### BEGIN DUMP Experiment: {self.experiment_tag}, success={self.controller_failed}", file=file)
+
         print("APPLICATIONS \n", file=file)
         for tup, application in self.application_status_map.items():
             instance, name = tup
             print(f"----- {name}@{instance}: {application.status}", file=file)
+            print("Logs:", file=file)
             for log in application.logs:
                 print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)
 
-            print("Datapoints:")
+            print("Datapoints:", file=file)
             for entry in application.data_series:
-                print(f"{entry}")
+                print(f"{entry}", file=file)
 
         print("\nINSTANCES\n", file=file)
         for name, instance in self.instance_status_map.items():
             print(f"----- {name}: {instance.status}", file=file)
 
             if instance.preserve is not None:
-                print(f"----- Preserved {instance.preserve[1]} files to {instance.preserve[0]}")
+                print(f"Preserved {instance.preserve[1]} files to {instance.preserve[0]}", file=file)
 
+            print("Logs:", file=file)
             for log in instance.logs:
                 print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)
 
-        print("\nCONTROLLER\n", file=file)
+        print("\nCONTROLLER LOG\n", file=file)
         for log in self.controller_log:
             print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)
+
+        print(f"### END DUMP Experiment: {self.experiment_tag}, success={self.controller_failed}", file=file)

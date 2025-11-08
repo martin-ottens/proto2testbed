@@ -59,9 +59,12 @@ class ExportExecutor(BaseExecutor):
             return 1
 
         from pathlib import Path
+        from constants import TESTBED_CONFIG_JSON_FILENAME
+
         testbed_config_path = Path(args.TESTBED_CONFIG)
         if not testbed_config_path.is_absolute():
             testbed_config_path = Path(os.getcwd()) / testbed_config_path
+        testbed_config_path = testbed_config_path / Path(TESTBED_CONFIG_JSON_FILENAME)
 
         from helper.export_helper import ResultExportHelper
         from utils.config_tools import load_config
@@ -73,7 +76,11 @@ class ExportExecutor(BaseExecutor):
             return 1
 
         try:
-            exporter = ResultExportHelper(testbed_config, testbed_config_path, args.exclude_instance, args.exclude_application)
+            exporter = ResultExportHelper(testbed_config, 
+                                          testbed_config_path, 
+                                          provider, 
+                                          args.exclude_instance, 
+                                          args.exclude_application)
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to start data exporter")
             return 1

@@ -33,8 +33,6 @@ from constants import TESTBED_CONFIG_JSON_FILENAME
 
 
 def load_config(config_path: Path, skip_substitution: bool = False) -> TestbedConfig:
-    config_path = config_path / Path(TESTBED_CONFIG_JSON_FILENAME)
-
     if not config_path.exists():
         raise Exception("Unable to find 'testbed.json' in given setup.")
 

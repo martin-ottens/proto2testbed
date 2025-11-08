@@ -73,7 +73,8 @@ class ApplicationController(Thread):
             try:
                 interface = ApplicationInterface(self.config.name, 
                                                  GlobalState.im_daemon_socket_path,
-                                                 self.started_event)
+                                                 self.started_event,
+                                                 self.config.dont_store)
                 interface.connect()
                 self.app.attach_interface(cast(GenericApplicationInterface, interface))
             except Exception as ex:

@@ -167,9 +167,7 @@ class DefaultConfigs:
 
 @dataclass
 class RunParameters:
-    interact: PauseAfterSteps = PauseAfterSteps.DISABLE
     disable_kvm: bool = False
     dont_use_influx: Optional[bool] = False
     skip_integration: bool = False
-    skip_substitution: bool = False
     preserve: Optional[Path] = None

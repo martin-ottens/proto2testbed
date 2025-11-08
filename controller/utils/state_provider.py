@@ -77,6 +77,7 @@ class TestbedStateProvider:
             self.concurrency_reservation = ConcurrencyReservation(self)
             return self.experiment
         else:
+            self.experiment = experiment
             while self.experiment is None:
                 self.experiment = "".join(random.choices(string.ascii_letters + string.digits, k=8))
                 self.experiment_generated = True

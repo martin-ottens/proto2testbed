@@ -68,7 +68,7 @@ class ResultExportHelper:
         if self.reader is None:
             raise Exception("Unable to create InfluxDB data reader")
 
-        self.loader = ApplicationLoader(provider.app_base_path, Path(testbed_package_path),
+        self.loader = ApplicationLoader(provider.app_base_path, testbed_package_path,
                                         ["exports_data", "get_export_mapping"])
         self.loader.read_packaged_apps()
 

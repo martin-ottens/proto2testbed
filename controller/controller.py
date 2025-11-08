@@ -40,14 +40,14 @@ from management_server import ManagementServer
 from cli import CLI
 from state_manager import InstanceStateManager, AgentManagementState, WaitResult
 from common.instance_manager_message import *
-from full_result_wrapper import FullResultWrapper
 from constants import SUPPORTED_INSTANCE_NUMBER
 
 
 class Controller(Dismantable):
-    def __init__(self, provider: TestbedStateProvider) -> None:
+    def __init__(self, provider: TestbedStateProvider, cli: CLI) -> None:
+        self.dismantables: List[Dismantable] = []
         self.provider = provider
-        self.cli = CLI(self.provider)
+        self.cli = cli
 
     def init_config(self, run_parameters: RunParameters, testbed_basepath: str) -> None:
         if self.provider.testbed_config is None:
@@ -55,7 +55,6 @@ class Controller(Dismantable):
 
         self.run_parameters = run_parameters
         self.testbed_basepath = testbed_basepath
-        self.dismantables: List[Dismantable] = []
         self.state_manager: InstanceStateManager = InstanceStateManager(self.provider)
         self.dismantables.insert(0, self.state_manager)
         self.mgmt_bridge: Optional[ManagementNetworkBridge] = None
@@ -65,7 +64,7 @@ class Controller(Dismantable):
         self.influx_db = None
 
         self.base_path = Path(testbed_basepath)
-        self.pause_after: PauseAfterSteps = self.run_parameters.interact
+        self.pause_after = PauseAfterSteps.DISABLE
         self.interact_finished_event: Optional[Event] = None
 
         self.interrupted_event = Event()
@@ -289,7 +288,7 @@ class Controller(Dismantable):
 
                 helper = InstanceHelper(instance=instance,
                                         management=management_settings,
-                                        testbed_package_path=str(self.base_path),
+                                        testbed_package_path=str(self.testbed_basepath),
                                         image=str(diskimage_path),
                                         cores=instance_config.cores,
                                         memory=instance_config.memory,
@@ -441,7 +440,9 @@ class Controller(Dismantable):
         else:
             return True
         
-    def main(self) -> bool:
+    def main(self, pause_after_step: PauseAfterSteps = PauseAfterSteps.DISABLE) -> bool:
+        self.pause_after = pause_after_step
+
         if not check_preserve_dir(self.run_parameters.preserve, self.provider.executor):
             logger.critical("Unable to set up File Preservation")
             return False
@@ -468,7 +469,7 @@ class Controller(Dismantable):
         else:
             logger.success(f"Experiment data will be saved to InfluxDB {self.influx_db.database} with tag experiment={self.influx_db.series_name}")
 
-        if not load_vm_initialization(self.provider.testbed_config, self.base_path, self.state_manager):
+        if not load_vm_initialization(self.provider.testbed_config, self.testbed_basepath, self.state_manager):
             logger.critical("Critical error while loading Instance initialization!")
             return False
 

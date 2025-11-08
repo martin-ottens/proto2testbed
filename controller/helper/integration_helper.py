@@ -48,8 +48,12 @@ class IntegrationLoader:
     __COMPATIBLE_API_VERSION = "1.0"
     __PACKAGED_INTEGRATIONS = "integrations/"
 
-    def __init__(self, testbed_package_base: str, app_base: str) -> None:
-        self.testbed_package_base = Path(testbed_package_base)
+    def __init__(self, testbed_package_base: Optional[str], app_base: str) -> None:
+        if testbed_package_base is not None:
+            self.testbed_package_base = Path(testbed_package_base)
+        else:
+            self.testbed_package_base = None
+
         self.app_base = Path(app_base)
         self.integration_map: Dict[str, BaseIntegration] = {}
 
@@ -120,6 +124,9 @@ class IntegrationLoader:
         integration = self.integration_map.get(name, None)
         if integration is not None:
             return integration
+        
+        if self.testbed_package_base is None:
+            return None
 
         file_name = name
         if not name.endswith(".py"):
@@ -134,7 +141,7 @@ class IntegrationLoader:
 
 
 class IntegrationHelper(Dismantable):
-    def __init__(self, testbed_package_base: str, app_base: str, provider: TestbedStateProvider, 
+    def __init__(self, testbed_package_base: Optional[str], app_base: str, provider: TestbedStateProvider, 
                  skip_integrations: bool = False, disabled: bool = False) -> None:
         self.provider = provider
         self.loader = IntegrationLoader(testbed_package_base, app_base)
