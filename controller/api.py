@@ -147,7 +147,7 @@ class Proto2TestbedAPI:
 
         try:
             status = controller.main()
-            full_result_wrapper.controller_failed = status
+            full_result_wrapper.controller_succeeded = status
             full_result_wrapper.experiment_tag = self._provider.experiment
         except Exception as ex:
             raise ex

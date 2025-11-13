@@ -56,7 +56,7 @@ class FullResultWrapper:
         self.application_status_map: Dict[Tuple[str, str], ApplicationStatusReport] = {}
         self.instance_status_map: Dict[str, InstanceStatusReport] = {}
         self.controller_log: List[LogEntry] = []
-        self.controller_failed: bool = False
+        self.controller_succeeded: bool = False
         self.experiment_tag: Optional[str] = None
 
         for instance in testbed_config.instances:
@@ -148,7 +148,7 @@ class FullResultWrapper:
         return True
     
     def dump_state(self, file=sys.stdout) -> None:
-        print(f"### BEGIN DUMP Experiment: {self.experiment_tag}, success={self.controller_failed}", file=file)
+        print(f"### BEGIN DUMP Experiment: {self.experiment_tag}, success={self.controller_succeeded}", file=file)
 
         print("APPLICATIONS \n", file=file)
         for tup, application in self.application_status_map.items():
@@ -177,4 +177,4 @@ class FullResultWrapper:
         for log in self.controller_log:
             print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)
 
-        print(f"### END DUMP Experiment: {self.experiment_tag}, success={self.controller_failed}", file=file)
+        print(f"### END DUMP Experiment: {self.experiment_tag}, success={self.controller_succeeded}", file=file)
