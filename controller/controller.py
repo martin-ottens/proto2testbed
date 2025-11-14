@@ -386,7 +386,7 @@ class Controller(Dismantable):
         continue_mode = CLIContinue(at_step)
         self.interaction_event.clear()
 
-        if self.run_parameters.interact is not PauseAfterSteps.DISABLE:
+        if self.pause_after is not PauseAfterSteps.DISABLE:
             self.cli.start_cli(self.interaction_event, continue_mode)
             logger.success(f"Testbed paused after stage {self.pause_after.name}, Interactive mode enabled (CRTL+C to exit).")
         else:
@@ -398,7 +398,7 @@ class Controller(Dismantable):
             self.interrupted_event.set()
             status = False
 
-        if self.run_parameters.interact is not PauseAfterSteps.DISABLE:
+        if self.pause_after is not PauseAfterSteps.DISABLE:
             self.cli.stop_cli()
         
         if not status:
