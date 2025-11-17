@@ -42,18 +42,19 @@ class ApplicationStatus(Enum):
             return ApplicationStatus.UNCHANGED
 
 class LogMessageType(Enum):
-    NONE = "none", None
-    MSG_SUCCESS = "msg_success", "[SUCCESS] "
-    MSG_INFO = "msg_info", "[INFO] "
-    MSG_DEBUG = "msg_debug", "[DEBUG] "
-    MSG_WARNING = "msg_warning", "[WARNING] "
-    MSG_ERROR = "msg_error", "[ERROR] "
-    STDOUT = "stdout", "[STDOUT] "
-    STDERR = "stderr", "[STDERR] "
+    NONE = "none", None, 0
+    MSG_DEBUG = "msg_debug", "[DEBUG] ", 1
+    MSG_INFO = "msg_info", "[INFO] ", 2
+    MSG_SUCCESS = "msg_success", "[SUCCESS] ", 10
+    MSG_WARNING = "msg_warning", "[WARNING] ", 11
+    MSG_ERROR = "msg_error", "[ERROR] ", 12
+    STDOUT = "stdout", "[STDOUT] ", 20
+    STDERR = "stderr", "[STDERR] ", 21
 
-    def __init__(self, key: str, prefix: str):
+    def __init__(self, key: str, prefix: str, priority: int):
         self._key = key
         self._prefix = prefix
+        self._priority = priority
 
     def __str__(self):
         return self._key
@@ -61,6 +62,10 @@ class LogMessageType(Enum):
     @property
     def prefix(self):
         return self._prefix
+    
+    @property
+    def priority(self):
+        return self._priority
     
     @staticmethod
     def from_str(key: str):

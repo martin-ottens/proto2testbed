@@ -147,6 +147,58 @@ class FullResultWrapper:
         self.application_status_map.get((instance, application)).data_series.append(point)
         return True
     
+    def _sort_log_entries(self, entries: List[LogEntry]) -> None:
+        entries.sort(key=lambda e: e.time)
+    
+    def get_instance_logs(self, instance: str, 
+                          filter: LogMessageType = LogMessageType.NONE) -> List[LogEntry]:
+        result_list: List[LogEntry] = []
+
+        if instance not in self.instance_status_map.keys():
+            raise ValueError(f"Unknown instance '{instance}'")
+        
+        for entry in self.instance_status_map[instance].logs:
+            if entry.type.priority >= filter.priority:
+                result_list.append(entry)
+
+        self._sort_log_entries(result_list)
+        return result_list
+
+
+    def get_application_logs(self, instance: str, application: str, 
+                             filter: LogMessageType = LogMessageType.NONE) -> List[LogEntry]:
+        result_list: List[LogEntry] = []
+
+        if (instance, application) not in self.application_status_map.keys():
+            raise ValueError(f"Unknown application '{application}' of instance '{instance}'")
+        
+        app_entry = self.application_status_map.get((instance, application))
+        for entry in  app_entry.logs:
+            if entry.type.priority >= filter.priority:
+                result_list.append(entry)
+
+        self._sort_log_entries(result_list)
+        return result_list
+    
+    def get_controller_logs(self, filter: LogMessageType = LogMessageType.NONE) -> List[LogEntry]:
+        result_list = List[LogEntry] = []
+
+        for entry in self.controller_log:
+            if entry.type.priority >= filter.priority:
+                result_list.append(entry)
+
+        self._sort_log_entries(result_list)
+        return result_list
+    
+    def get_combined_logs(self, instance: str, application: str, 
+                          filter: LogMessageType = LogMessageType.NONE) -> List[LogEntry]:
+
+        instance_logs = self.get_instance_logs(instance, filter)
+        application_logs = self.get_application_logs(instance, application, filter)
+        instance_logs.extend(application_logs)
+        self._sort_log_entries(instance_logs)
+        return instance_logs
+    
     def dump_state(self, file=sys.stdout) -> None:
         print(f"### BEGIN DUMP Experiment: {self.experiment_tag}, success={self.controller_succeeded}", file=file)
 
