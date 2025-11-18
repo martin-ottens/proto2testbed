@@ -57,7 +57,11 @@ class CLI(Dismantable):
 
             return self.enable_output.is_set()
 
-        logger.level(name="CLI", no=45, color="<magenta>")
+        try:
+            logger.level(name="CLI", no=45, color="<magenta>")
+        except Exception:
+            pass
+
         logger.remove()
         if self.provider.log_verbose == 0:
             logger.add(sys.stdout, level="INFO", 
