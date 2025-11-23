@@ -25,10 +25,8 @@ from enum import Enum
 from abc import ABC
 from dataclasses import dataclass
 from loguru import logger
-from pathlib import Path
 
 from common.application_configs import ApplicationConfig
-from utils.continue_mode import PauseAfterSteps
 
 
 @dataclass
@@ -38,6 +36,7 @@ class TestbedSettings:
     startup_init_timeout: int = 30 # seconds
     experiment_timeout: int = -1 # seconds
     file_preservation_timeout: int = 30 # seconds
+    checkpoint_timeout: int = 30 # seconds
     appstart_timesync_offset: int = 1 # seconds
     allow_gso_gro: bool = False
 
@@ -170,4 +169,4 @@ class RunParameters:
     disable_kvm: bool = False
     dont_use_influx: Optional[bool] = False
     skip_integration: bool = False
-    preserve: Optional[Path] = None
+    create_checkpoint: bool = False

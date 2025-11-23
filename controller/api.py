@@ -17,6 +17,7 @@
 #
 
 from typing import Optional, List
+from pathlib import Path
 
 from utils.settings import TestbedConfig, RunParameters
 from full_result_wrapper import FullResultWrapper
@@ -109,7 +110,8 @@ class Proto2TestbedAPI:
         return load_config(Path(testbed_package_path), skip_substitution)
 
     def run_testbed(self, testbed_package_path: str, 
-                    parameters: Optional[RunParameters] = None) -> FullResultWrapper:
+                    parameters: Optional[RunParameters] = None,
+                    preseve_path: Optional[Path] = None) -> FullResultWrapper:
         """
         Executes a testbed, blocks until the testbed execution is finsished.
         A testbed config object needs to be provided before calling this method.
@@ -122,7 +124,9 @@ class Proto2TestbedAPI:
             parameters (RunParameters | None): Additional testbed execution settings,
                                                defaults to None, in this case the testbed will 
                                                use default settings
-        
+            preserve_path (Path | None): Base path for file preservation, None to fully disable
+                                         file preservation
+
         Returns:
             FullResultWrapper: Wrapper object with logs, application status reports,
                                instance status reports and data points (when 
@@ -136,6 +140,7 @@ class Proto2TestbedAPI:
             parameters = RunParameters()
         
         self._provider.set_testbed_config(self._testbed_config)
+        self._provider.update_preserve_path(preseve_path)
         full_result_wrapper = FullResultWrapper(self._testbed_config)
         self._provider.set_full_result_wrapper(full_result_wrapper)
         

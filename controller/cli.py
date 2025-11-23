@@ -75,6 +75,21 @@ class CLI(Dismantable):
             logger.add(sys.stdout, level="TRACE", 
                        filter=filter_logging_scoped)
 
+    def __init__(self, provider) -> None:
+        self.provider = provider
+        self.provider.set_cli(self)
+        self.enable_interaction = Event()
+        self.enable_output = Event()
+        self.continue_event = None
+        self.signal_lock = Lock()
+        self.kill_input = Event()
+        self.kill_input.clear()
+        self.log_to_storage = self.provider.from_api_call
+        self.full_result_wrapper = None
+
+        self.enable_interaction.clear()
+        self.enable_output.set()
+        self._enable_logging()
 
     def attach_to_tty(self, socket_path: str):
         process = pexpect.spawn("/usr/bin/socat", [f"UNIX-CONNECT:{socket_path}", "STDIO,raw,echo=0"], 
@@ -97,6 +112,30 @@ class CLI(Dismantable):
 
     def handle_command(self, base_command: str, args: Optional[List[str]]) -> bool:
         match base_command:
+            case "restore" | "r":
+                if not self.provider.snapshots_enabled:
+                    logger.log("CLI", "Checkpoints are not enabled or available.")
+                    return True
+                
+                failed = False
+                for instance in self.provider.instance_manager.get_all_instances():
+                    if instance.instance_helper is None:
+                        logger.critical("Unable to restore checkpoints: No instance manager available?")
+                        return True
+
+                    if not instance.instance_helper.restore_snapshot():
+                        failed = True
+                    
+                if failed:
+                    logger.log("CLI", "Unable to restore all checkpoints.")
+                else:
+                    logger.log("CLI", "Checkpoints from INIT stage restored for all Instances.")
+                return True
+
+            case "set" | "s":
+                # TODO: Set testbed settings
+                return True
+
             case "continue" | "c":
                 continue_to = PauseAfterSteps.DISABLE
                 if args is not None and len(args) >= 1:
@@ -117,6 +156,7 @@ class CLI(Dismantable):
                     logger.log("CLI", f"Continue with testbed execution. Interaction will be disabled.")
                     self.continue_event.set()
                     return True
+
             case "attach" | "a":
                 if args is None or len(args) < 1:
                     logger.log("CLI", f"No Instance name provided. Usage: {base_command} <Instance Name>")
@@ -141,6 +181,7 @@ class CLI(Dismantable):
                 self.toggle_output(True)
                 logger.log("CLI", f"Connection to serial TTY of Instance '{target}' closed.")
                 return True
+
             case "copy" | "cp":
                 if args is None or len(args) < 2:
                     logger.log("CLI", f"No source and/or destination provided. Usage {base_command} (<From Instance>:)<From Path> (<To Instance>:)<To Path>")
@@ -195,6 +236,7 @@ class CLI(Dismantable):
                     logger.log("CLI", message)
 
                 return True
+
             case "preserve" | "p":
                 if args is None or len(args) < 2:
                     logger.log("CLI", f"No Instance name or path provided. Usage: {base_command} <Instance Name> <Path>")
@@ -217,6 +259,7 @@ class CLI(Dismantable):
                 instance.add_preserve_file(args[1])
                 logger.log("CLI", f"File '{args[1]}' was as added to preserve list of Instance '{target}'")
                 return True
+
             case "list" | "ls":
                 if self.provider.instance_manager is None:
                     logger.log("CLI", f"No Instances available to list.")
@@ -230,6 +273,7 @@ class CLI(Dismantable):
                         line += f" | MGMT IP: {instance.mgmt_ip_addr}"
                     logger.log("CLI", line)
                 return True
+
             case "exit" | "e":
                 self.continue_mode.update(ContinueMode.EXIT)
                 if self.continue_event is None:
@@ -239,6 +283,7 @@ class CLI(Dismantable):
                     logger.log("CLI", f"Shutting down testbed. Interaction will be disabled.")
                     self.continue_event.set()
                     return True
+
             case "restart" | "r":
                 self.continue_mode.update(ContinueMode.RESTART)
                 if self.continue_event is None:
@@ -248,6 +293,7 @@ class CLI(Dismantable):
                     logger.log("CLI", f"Restarting testbed. Interaction will be disabled.")
                     self.continue_event.set()
                     return True
+
             case "help" | "h":
                 logger.opt(ansi=True).log("CLI", "--------- Proto²Testbed Interactive Mode Help ---------")
                 logger.opt(ansi=True).log("CLI", "  <u>c</u>ontinue (INIT|EXPERIMENT) -> Continue testbed (to next pause step)", color=True)
@@ -256,10 +302,13 @@ class CLI(Dismantable):
                 logger.opt(ansi=True).log("CLI", "  <u>l</u>i<u>s</u>t                       -> List all Instances in testbed", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>p</u>reserve \<Instance>:\<Path> -> Mark file or directory for preservation", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>e</u>xit                       -> Terminate testbed", color=True)
-                logger.opt(ansi=True).log("CLI", "  <u>r</u>estart                    -> Request a full testbed restart")
+                logger.opt(ansi=True).log("CLI", "  <u>r</u>estart                    -> Request a full testbed restart", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>h</u>elp                       -> Show this help", color=True)
+                logger.opt(ansi=True).log("CLI", "  <u>r</u>estore                    -> Restore setup checkpoint", color=True)
+                logger.opt(ansi=True).log("CLI", "  <u>s</u>set \<Parameter> \<Value>   -> Change testbed parameters", color=True)
                 logger.opt(ansi=True).log("CLI", "------------------------------------------------------")
                 return True
+
             case _:
                 return False
 
@@ -306,23 +355,6 @@ class CLI(Dismantable):
             
             if not status:
                 logger.log("CLI", f"Unknown command '{command}' or error running it, use 'help' to show available commands.")
-
-
-    def __init__(self, provider) -> None:
-        self.provider = provider
-        self.provider.set_cli(self)
-        self.enable_interaction = Event()
-        self.enable_output = Event()
-        self.continue_event = None
-        self.signal_lock = Lock()
-        self.kill_input = Event()
-        self.kill_input.clear()
-        self.log_to_storage = self.provider.from_api_call
-        self.full_result_wrapper = None
-
-        self.enable_interaction.clear()
-        self.enable_output.set()
-        self._enable_logging()
 
     def set_full_result_wrapper(self, full_result_wrapper):
         self.full_result_wrapper = full_result_wrapper

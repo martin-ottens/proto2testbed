@@ -52,6 +52,8 @@ class RunExecutor(BaseExecutor):
                                     help="Skip substitution of placeholders with environment variable values in config")
         self.subparser.add_argument("-p", "--preserve", type=str, help="Path for instance data preservation, disabled with omitted",
                                     required=False, default=None)
+        self.subparser.add_argument("-c", "--checkpoint", action="store_true", required=False, default=False,
+                                    help="Create checkpoints of instances after sucessful setup")
 
     def invoke(self, args, provider: TestbedStateProvider) -> int:
         parameters = RunParameters()
@@ -68,6 +70,7 @@ class RunExecutor(BaseExecutor):
         parameters.disable_kvm = args.no_kvm
         parameters.dont_use_influx = args.dont_store
         parameters.skip_integration = args.skip_integrations
+        parameters.create_checkpoint = args.checkpoint
         
         if provider.experiment_generated:
             logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {provider.experiment}")
@@ -76,9 +79,11 @@ class RunExecutor(BaseExecutor):
             logger.error("TTY does not allow user interaction, disabling 'interact' parameter")
             interact = PauseAfterSteps.DISABLE
 
-        parameters.preserve = None
+        preserve_path = None
         if args.preserve is not None:
-            parameters.preserve = Path(args.preserve)
+            preserve_path = Path(args.preserve)
+
+        provider.update_preserve_path(preserve_path)
 
         from controller import Controller
         from cli import CLI
@@ -124,8 +129,8 @@ class RunExecutor(BaseExecutor):
 
             restart_requested = controller.request_restart
 
-        if parameters.preserve is not None:
-            logger.success(f"Files preserved to '{parameters.preserve}' (if any)")
+        if provider.preserve is not None:
+            logger.success(f"Files preserved to '{provider.preserve}' (if any)")
         
         if not parameters.dont_use_influx:
             logger.success(f"Data series stored with experiment tag '{provider.experiment}' (if any)")

@@ -35,8 +35,9 @@ from constants import DEFAULT_CONFIG_PATH, DEFAULT_STATE_DIR
 
 
 class TestbedStateProvider:
-    def __init__(self, verbose: int, sudo: bool, from_api_call: bool = False, 
-                 cache_datapoints: bool = False) -> None:
+    def __init__(self, verbose: int, sudo: bool, 
+                 from_api_call: bool = False, cache_datapoints: bool = False, 
+                 preserve: Optional[Path] = None) -> None:
 
         self.default_configs = DefaultConfigs(DEFAULT_CONFIG_PATH)
         self.statefile_base = Path(self.default_configs.get_defaults("statefile_basedir", DEFAULT_STATE_DIR))
@@ -53,6 +54,7 @@ class TestbedStateProvider:
         self.sudo_mode = sudo
         self.experiment: Optional[str] = None
         self.experiment_generated = False
+        self.preserve: Optional[Path] = preserve
         self.unique_run_name = f"{self.main_pid}-{self.executor}"
         self.testbed_config: Optional[TestbedConfig] = None
         self.concurrency_reservation: Optional[ConcurrencyReservation] = None
@@ -62,6 +64,7 @@ class TestbedStateProvider:
         self.cli: Optional[CLI] = None
         self.instance_manager: Optional[InstanceStateManager] = None
         self.result_wrapper: Optional[FullResultWrapper] = None
+        self.snapshots_enabled: bool = False
     
     def update_experiment_tag(self, experiment: Optional[str], accuire: bool) -> str:
         if self.experiment is not None and accuire:
@@ -89,6 +92,12 @@ class TestbedStateProvider:
             
             self.concurrency_reservation = ConcurrencyReservation(self)
             return self.experiment
+        
+    def update_preserve_path(self, preserve_path: Optional[Path]) -> None:
+        self.preserve = preserve_path
+
+    def set_snapshots_enabled(self, enabled: bool) -> None:
+        self.snapshots_enabled = enabled
 
     def release_experiment_tag(self) -> None:
         StateFileReader.release_experiment(self.state_lock, 

@@ -105,6 +105,7 @@ class InstanceState:
         self.apps = Optional[List[ApplicationConfig]]
         self.mgmt_ip_addr: Optional[str] = None
         self.file_copy_helper = FileCopyHelper(self, provider.executor)
+        self.instance_helper = None
 
     def __str__(self) -> str:
         return f"{self.name} ({self.uuid})"
@@ -123,6 +124,9 @@ class InstanceState:
                 break
         
         return found_interface
+    
+    def set_instance_helper(self, instance_helper) -> None:
+        self.instance_helper = instance_helper
     
     def get_interface_by_bridge_dev(self, bridge_dev: str) -> Optional[InstanceInterface]:
         found_interface = None

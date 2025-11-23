@@ -80,9 +80,9 @@ class Controller(Dismantable):
             err += ', '.join([f"User:{user}/PID:{pid}" for user, pid in all_experiments.items()])
             raise Exception(err)
         
-        if self.run_parameters.preserve is not None:
+        if self.provider.preserve is not None:
             try:
-                if not bool(self.run_parameters.preserve.anchor or self.run_parameters.preserve.name):
+                if not bool(self.provider.preserve.anchor or self.provider.preserve.name):
                     raise Exception("Invalid preserve path")
             except Exception as ex:
                 raise Exception("Unable to start: Preserve Path is not valid!") from ex
@@ -295,6 +295,7 @@ class Controller(Dismantable):
                                         allow_gso_gro=self.provider.testbed_config.settings.allow_gso_gro,
                                         disable_kvm=self.run_parameters.disable_kvm)
                 self.dismantables.insert(0, helper)
+                instance.set_instance_helper(helper)
                 helper.start_instance()
             except Exception as ex:
                 logger.opt(exception=ex).critical(f"Unable to setup and start instance {instance_config.name}")
@@ -362,7 +363,7 @@ class Controller(Dismantable):
                 continue
 
             message = FinishInstanceMessageUpstream(instance.preserve_files,
-                                                    self.run_parameters.preserve is not None)
+                                                    self.provider.preserve is not None)
             instance.send_message(message)
 
         result: WaitResult = self.state_manager.wait_for_instances_to_become_state([AgentManagementState.STARTED,
@@ -442,11 +443,12 @@ class Controller(Dismantable):
         
     def main(self, pause_after_step: PauseAfterSteps = PauseAfterSteps.DISABLE) -> bool:
         self.pause_after = pause_after_step
+        self.provider.set_snapshots_enabled(False)
 
-        if not check_preserve_dir(self.run_parameters.preserve, self.provider.executor):
+        if not check_preserve_dir(self.provider.preserve, self.provider.executor):
             logger.critical("Unable to set up File Preservation")
             return False
-        self.state_manager.enable_file_preservation(self.run_parameters.preserve)
+        self.state_manager.enable_file_preservation(self.provider.preserve)
 
         start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP)
         if start_status is None:
@@ -521,6 +523,13 @@ class Controller(Dismantable):
             return False
         
         logger.success("All Instances reported up & ready!")
+        if self.run_parameters.create_checkpoint:
+            logger.info("Creating checkpoints with INIT stage for all Instances ...")
+            for instance in self.state_manager.get_all_instances():
+                if not instance.instance_helper.create_snapshot():
+                    logger.critical("Unable to create checkpoints, but it was requested.")
+                    return False
+            self.provider.set_snapshots_enabled(True)
 
         start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.INIT)
         if start_status is None:

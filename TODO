@@ -1,0 +1,7 @@
+- Implement set command, check side effects
+- Implement looped CLI operation
+- Adopt API for looped operation with additional functions in between repetitions
+- Reconnect behavior of Instance Manager in VSOCK mode
+- Reconnect behavior of Instance Manager in Serial mode
+- Documentation
+- Examples
