@@ -123,16 +123,16 @@ def check_preserve_dir(preserve_dir: Optional[str], executor: Optional[str]) -> 
     
     if os.path.exists(preserve_dir):
         if not os.path.isdir(preserve_dir):
-            logger.critical(f"File Preservation: {preserve_dir} is not a directory!")
+            logger.critical(f"File Preservation: '{preserve_dir}' is not a directory!")
             return False
         
         if len(os.listdir(preserve_dir)) != 0:
-            logger.warning(f"File Preservation directory {preserve_dir} is not empty, possible overwrite")
+            logger.warning(f"File Preservation directory '{preserve_dir}' is not empty, possible overwrite")
     else:
-        logger.debug(f"File Preservation directory {preserve_dir} does not exist, creating it.")
+        logger.debug(f"File Preservation directory '{preserve_dir}' does not exist, creating it.")
         os.mkdir(preserve_dir)
         if executor is not None:
             set_owner(preserve_dir, executor)
 
-    logger.info(f"File Preservation: Saving instance files to {preserve_dir}")
+    logger.info(f"File Preservation: Saving Instance files to '{preserve_dir}'")
     return True

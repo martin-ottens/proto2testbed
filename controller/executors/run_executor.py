@@ -83,7 +83,9 @@ class RunExecutor(BaseExecutor):
         if args.preserve is not None:
             preserve_path = Path(args.preserve)
 
-        provider.update_preserve_path(preserve_path)
+        if not provider.update_preserve_path(preserve_path):
+            logger.critical("Unable to set up File Preservation")
+            return 1
 
         from controller import Controller
         from cli import CLI

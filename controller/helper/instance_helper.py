@@ -52,10 +52,10 @@ class InstanceHelper(Dismantable):
                                 -smp {cores} \
                                 -machine q35 \
                                 -hda {image} \
-                                -serial unix:{tty},server,nowait \
+                                -serial unix:{tty},server=on,wait=off \
                                 {im_comm_setting} \
-                                -virtfs local,path={mount},mount_tag=exchange,security_model=passthrough,id=exchange \
                                 -virtfs local,path={testbed_package},mount_tag=tbp,security_model=passthrough,id=tbp,readonly=on \
+                                -virtfs local,path={mount},mount_tag=exchange,security_model=passthrough,id=exchange \
                                 {nics} \
                                 -snapshot \
                                 -cdrom {cloud_init_iso} \
@@ -64,7 +64,7 @@ class InstanceHelper(Dismantable):
     __QEMU_KVM_OPTIONS = """-enable-kvm \
                             -cpu host"""
 
-    __QEMU_IM_COMM_SERIAL = """-chardev socket,id=mgmtchardev,path={serial},server,nowait \
+    __QEMU_IM_COMM_SERIAL = """-chardev socket,id=mgmtchardev,path={serial},server=on,wait=off \
                                -device pci-serial,chardev=mgmtchardev"""
     __QEMU_IM_COMM_VSOCK = "-device vhost-vsock-pci,guest-cid={cid} "
 
@@ -92,7 +92,7 @@ class InstanceHelper(Dismantable):
             raise Exception(f"Error during creation, {SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE} interfaces are allowed, but {len(instance.interfaces)} were added!")
         
         if not instance.interchange_ready:
-            raise Exception("Unable to set up interchange directory for p9 an mgmt socket!")
+            raise Exception("Unable to set up interchange directory for p9 and mgmt socket!")
 
         self.tempdir = tempfile.TemporaryDirectory()
  
@@ -298,7 +298,6 @@ class InstanceHelper(Dismantable):
             logger.trace(f"Instance '{self.instance.name}': Starting snapshot creation ...")
             self.qemu_handle.sendline(f"savevm {self.__QEMU_SNAPSHOT_NAME}")
             self.qemu_handle.readline()
-            self.qemu_handle.readline()
             self.qemu_handle.expect_exact("(qemu)", timeout=self.snapshot_timeout)
             self.has_snapshot = True
             logger.trace(f"Instance '{self.instance.name}': Snapshot creation finished.")
@@ -319,7 +318,6 @@ class InstanceHelper(Dismantable):
         try:
             logger.trace(f"Instance '{self.instance.name}': Starting snapshot restore ...")
             self.qemu_handle.sendline(f"loadvm {self.__QEMU_SNAPSHOT_NAME}")
-            self.qemu_handle.readline()
             self.qemu_handle.readline()
             self.qemu_handle.expect_exact("(qemu)", timeout=self.snapshot_timeout)
             logger.trace(f"Instance '{self.instance.name}': Snapshot restore finished.")

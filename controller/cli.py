@@ -133,7 +133,30 @@ class CLI(Dismantable):
                 return True
 
             case "set" | "s":
-                # TODO: Set testbed settings
+                def set_usage():
+                    logger.opt(ansi=True).log("CLI", "Usage: <u>s</u>set \<Parameter> \<Value>, with Parameters:", color=True)
+                    logger.opt(ansi=True).log("CLI", " - preserve:   Update preserve path, skip value to disable", color=True)
+                    logger.opt(ansi=True).log("CLI", " - experiment: Update experiment tag (for InfluxDB storage)", color=True)
+
+                if args is None or len(args) != 1:
+                    set_usage()
+                    return True
+                
+                match args[0].lower():
+                    case "preserve":
+                        preserve_file = None
+                        if len(args) >= 2:
+                            preserve_file = Path(args[1])
+                        
+                        if not self.provider.update_preserve_path(preserve_file):
+                            logger.log("CLI", "Unable to update file preservation path")
+                        else:
+                            logger.log("CLI", "File preservation path successfully updated")
+                    case "experiment":
+                        experiment = args[1]
+                    case _:
+                        set_usage()
+                    
                 return True
 
             case "continue" | "c":
@@ -305,7 +328,7 @@ class CLI(Dismantable):
                 logger.opt(ansi=True).log("CLI", "  <u>r</u>estart                    -> Request a full testbed restart", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>h</u>elp                       -> Show this help", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>r</u>estore                    -> Restore setup checkpoint", color=True)
-                logger.opt(ansi=True).log("CLI", "  <u>s</u>set \<Parameter> \<Value>   -> Change testbed parameters", color=True)
+                logger.opt(ansi=True).log("CLI", "  <u>s</u>et \<Parameter> \<Value>    -> Change testbed parameters", color=True)
                 logger.opt(ansi=True).log("CLI", "------------------------------------------------------")
                 return True
 

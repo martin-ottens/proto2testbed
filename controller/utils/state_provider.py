@@ -32,6 +32,7 @@ from state_manager import InstanceStateManager
 from cli import CLI
 from full_result_wrapper import FullResultWrapper
 from constants import DEFAULT_CONFIG_PATH, DEFAULT_STATE_DIR
+from utils.config_tools import check_preserve_dir
 
 
 class TestbedStateProvider:
@@ -93,8 +94,12 @@ class TestbedStateProvider:
             self.concurrency_reservation = ConcurrencyReservation(self)
             return self.experiment
         
-    def update_preserve_path(self, preserve_path: Optional[Path]) -> None:
+    def update_preserve_path(self, preserve_path: Optional[Path]) -> bool:
+        if not check_preserve_dir(preserve_path, self.executor):
+            return False
+        
         self.preserve = preserve_path
+        return True
 
     def set_snapshots_enabled(self, enabled: bool) -> None:
         self.snapshots_enabled = enabled

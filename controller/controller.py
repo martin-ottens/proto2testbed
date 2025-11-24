@@ -420,6 +420,15 @@ class Controller(Dismantable):
                            request_file_preservation: bool = True) -> bool:
         logger.debug(f"Waiting a maximum of {timeout} seconds for action '{stage}' to finish.")
         result: WaitResult = self.state_manager.wait_for_instances_to_become_state([waitstate], timeout)
+        
+        if self.run_parameters.create_checkpoint:
+            logger.info("Creating checkpoints with INIT stage for all Instances ...")
+            for instance in self.state_manager.get_all_instances():
+                if not instance.instance_helper.create_snapshot():
+                    logger.critical("Unable to create checkpoints, but it was requested.")
+                    return False
+            self.provider.set_snapshots_enabled(True)
+
         if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
             logger.critical(f"Instances have reported failure during action '{stage}' or a timeout occurred!")
             if interact_on_failure:
@@ -444,10 +453,6 @@ class Controller(Dismantable):
     def main(self, pause_after_step: PauseAfterSteps = PauseAfterSteps.DISABLE) -> bool:
         self.pause_after = pause_after_step
         self.provider.set_snapshots_enabled(False)
-
-        if not check_preserve_dir(self.provider.preserve, self.provider.executor):
-            logger.critical("Unable to set up File Preservation")
-            return False
         self.state_manager.enable_file_preservation(self.provider.preserve)
 
         start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP)

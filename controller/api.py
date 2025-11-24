@@ -140,7 +140,10 @@ class Proto2TestbedAPI:
             parameters = RunParameters()
         
         self._provider.set_testbed_config(self._testbed_config)
-        self._provider.update_preserve_path(preseve_path)
+
+        if not self._provider.update_preserve_path(preseve_path):
+            raise Exception("Invalid preserve Path")
+        
         full_result_wrapper = FullResultWrapper(self._testbed_config)
         self._provider.set_full_result_wrapper(full_result_wrapper)
         
