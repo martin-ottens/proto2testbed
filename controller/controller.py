@@ -420,14 +420,6 @@ class Controller(Dismantable):
                            request_file_preservation: bool = True) -> bool:
         logger.debug(f"Waiting a maximum of {timeout} seconds for action '{stage}' to finish.")
         result: WaitResult = self.state_manager.wait_for_instances_to_become_state([waitstate], timeout)
-        
-        if self.run_parameters.create_checkpoint:
-            logger.info("Creating checkpoints with INIT stage for all Instances ...")
-            for instance in self.state_manager.get_all_instances():
-                if not instance.instance_helper.create_snapshot():
-                    logger.critical("Unable to create checkpoints, but it was requested.")
-                    return False
-            self.provider.set_snapshots_enabled(True)
 
         if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
             logger.critical(f"Instances have reported failure during action '{stage}' or a timeout occurred!")
@@ -505,7 +497,8 @@ class Controller(Dismantable):
             for instance in self.state_manager.get_all_instances():
                 instance.send_message(InitializeMessageUpstream(
                             instance.get_setup_env()[0], 
-                            instance.get_setup_env()[1]))
+                            instance.get_setup_env()[1],
+                            snapshot_requested=self.run_parameters.create_checkpoint))
         else:
             logger.info("Waiting for Instances to start and initialize ...")
 
@@ -513,6 +506,14 @@ class Controller(Dismantable):
                                        AgentManagementState.INITIALIZED, 
                                        self.pause_after == PauseAfterSteps.INIT, True):
             return False
+        
+        if self.run_parameters.create_checkpoint:
+            logger.info("Creating checkpoints with INIT stage for all Instances ...")
+            for instance in self.state_manager.get_all_instances():
+                if not instance.instance_helper.create_snapshot():
+                    logger.critical("Unable to create checkpoints, but it was requested.")
+                    return False
+            self.provider.set_snapshots_enabled(True)
 
         logger.info("Instances are initialized, invoking installation of apps ...")
         for config_instance in self.provider.testbed_config.instances:
@@ -528,13 +529,6 @@ class Controller(Dismantable):
             return False
         
         logger.success("All Instances reported up & ready!")
-        if self.run_parameters.create_checkpoint:
-            logger.info("Creating checkpoints with INIT stage for all Instances ...")
-            for instance in self.state_manager.get_all_instances():
-                if not instance.instance_helper.create_snapshot():
-                    logger.critical("Unable to create checkpoints, but it was requested.")
-                    return False
-            self.provider.set_snapshots_enabled(True)
 
         start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.INIT)
         if start_status is None:

@@ -66,6 +66,58 @@ class InstanceManager:
         self.state = IMState.STARTED
         self.application_manager: Optional[ApplicationManager] = None
         self.delayed_application_messages: List[DownstreamMessage] = []
+        self.initial_cwd = os.getcwd()
+
+    def _check_and_mount_testbed_package(self) -> None:
+        if os.path.ismount(GlobalState.testbed_package_path):
+            return
+
+        os.makedirs(GlobalState.testbed_package_path, mode=0o777, exist_ok=True)
+        proc = None
+        try:
+            proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", TESTBED_PACKAGE_P9_DEV, GlobalState.testbed_package_path])
+        except Exception as ex:
+            message = DownstreamMessage(InstanceMessageType.FAILED, f"Unable to mount testbed package directory!")
+            self.manager.send_to_server(message)
+            raise Exception("Unable to mount testbed package directory!") from ex
+
+        if proc.stdout is not None:
+            self.manager.send_extended_system_log(type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
+        if proc.stderr is not None:
+            self.manager.send_extended_system_log(type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
+        
+        if proc is not None and proc.returncode != 0:
+            message = DownstreamMessage(InstanceMessageType.FAILED, 
+                                        f"Mounting of testbed package directory failed with code ({proc.returncode})")
+            self.manager.send_to_server(message)
+            raise Exception(f"Unable to mount testbed package directory: {proc.stderr.decode('utf-8')}")
+
+        print(f"Testbed Package mounted to {GlobalState.testbed_package_path}", file=sys.stderr, flush=True)
+
+    def _check_and_unmount_testbed_package(self) -> None:
+        if not os.path.ismount(GlobalState.testbed_package_path):
+            return
+
+        proc = None
+        try:
+            proc = subprocess.run(["umount", GlobalState.testbed_package_path])
+        except Exception as ex:
+            message = DownstreamMessage(InstanceMessageType.FAILED, f"Unable to unmount testbed package directory!")
+            self.manager.send_to_server(message)
+            raise Exception("Unable to unmount testbed package directory!") from ex
+
+        if proc.stdout is not None:
+            self.manager.send_extended_system_log(type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
+        if proc.stderr is not None:
+            self.manager.send_extended_system_log(type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
+        
+        if proc is not None and proc.returncode != 0:
+            message = DownstreamMessage(InstanceMessageType.FAILED, 
+                                        f"Unmounting of testbed package directory failed with code ({proc.returncode})")
+            self.manager.send_to_server(message)
+            raise Exception(f"Unable to unmount testbed package directory: {proc.stderr.decode('utf-8')}")
+
+        print(f"Testbed Package unmounted.", file=sys.stderr, flush=True)
 
     def message_to_controller(self, message_type: InstanceMessageType, payload = None):
         self.manager.send_to_server(DownstreamMessage(message_type, payload))
@@ -97,26 +149,7 @@ class InstanceManager:
         init_message.environment["TESTBED_PACKAGE"] = GlobalState.testbed_package_path
 
         # 1. Mount the testbed package from host via virtio p9 (if not already done)
-        if not os.path.ismount(GlobalState.testbed_package_path):
-            os.mkdir(GlobalState.testbed_package_path, mode=0o777)
-            proc = None
-            try:
-                proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", TESTBED_PACKAGE_P9_DEV, GlobalState.testbed_package_path])
-            except Exception as ex:
-                self.message_to_controller(InstanceMessageType.FAILED, f"Unable to mount testbed package: {ex}")
-                return False
-
-            if proc.stdout is not None:
-                self.extended_log_message(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
-            if proc.stderr is not None:
-                self.extended_log_message(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
-
-            if proc is not None and proc.returncode != 0:
-                self.message_to_controller(InstanceMessageType.FAILED, 
-                                                        f"Mounting of testbed package failed with code ({proc.returncode})")
-                return False
-            
-            print(f"Testbed Package mounted to {TESTBED_PACKAGE_P9_DEV}", file=sys.stderr, flush=True)
+        self._check_and_mount_testbed_package()
 
         # 2. Execute the setup script from mounted testbed package
         if init_message.script is not None:
@@ -159,11 +192,19 @@ class InstanceManager:
 
         # 3. Report status to management server
         Path(STATE_FILE).touch()
+
+        if init_message.snapshot_requested:
+            os.chdir(self.initial_cwd)
+            self._check_and_unmount_testbed_package()
+
         self.message_to_controller(InstanceMessageType.INITIALIZED)
         return True
 
     def install_apps(self, applications: InstallApplicationsMessageUpstream) -> bool:
         print(f"Starting installation of Applications", file=sys.stderr, flush=True)
+
+        self._check_and_mount_testbed_package()
+        os.chdir(GlobalState.testbed_package_path)
 
         if self.application_manager is not None:
             print(f"Purging previous installed application_manager")

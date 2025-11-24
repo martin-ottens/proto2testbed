@@ -5,3 +5,4 @@
 - Reconnect behavior of Instance Manager in Serial mode
 - Documentation
 - Examples
+- Checkpoint creation/restore in parallel

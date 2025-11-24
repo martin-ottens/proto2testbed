@@ -133,9 +133,11 @@ class UpstreamMessage(JSONMessage):
 
 class InitializeMessageUpstream(UpstreamMessage):
     def __init__(self, script: Optional[str], 
-                 environment: Optional[Dict[str, str]]) -> None:
+                 environment: Optional[Dict[str, str]],
+                 snapshot_requested: bool) -> None:
         self.script = script
         self.environment = environment
+        self.snapshot_requested = snapshot_requested
 
 
 class InstallApplicationsMessageUpstream(UpstreamMessage):
