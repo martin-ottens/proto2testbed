@@ -117,19 +117,17 @@ class CLI(Dismantable):
                     logger.log("CLI", "Checkpoints are not enabled or available.")
                     return True
                 
-                failed = False
-                for instance in self.provider.instance_manager.get_all_instances():
+                def restore_snapsnot_callback(instance) -> bool:
                     if instance.instance_helper is None:
-                        logger.critical("Unable to restore checkpoints: No instance manager available?")
-                        return True
-
-                    if not instance.instance_helper.restore_snapshot():
-                        failed = True
+                        logger.critical("Unable to restore checkpoints: No instance helper available.")
+                        return False
                     
-                if failed:
-                    logger.log("CLI", "Unable to restore all checkpoints.")
-                else:
+                    return instance.instance_helper.restore_snapshot()
+                
+                if self.provider.instance_manager.do_for_all_instances_parallel(restore_snapsnot_callback):
                     logger.log("CLI", "Checkpoints from INIT stage restored for all Instances.")
+                else:
+                    logger.log("CLI", "Unable to restore all checkpoints.")
                 return True
 
             case "set" | "s":
@@ -287,14 +285,16 @@ class CLI(Dismantable):
                 if self.provider.instance_manager is None:
                     logger.log("CLI", f"No Instances available to list.")
                     return True
-
-                for instance in self.provider.instance_manager.get_all_instances():
+                
+                def info_instance_callback(instance):
                     line = f"- Instance '{instance.name}' ({instance.uuid}) | {instance.get_state().name}"
                     if len(instance.interfaces) != 0:
                         line += f" | Interfaces: {', '.join(list(map(lambda x: f'{x.bridge.name} -> {x.interface_on_instance}', instance.interfaces)))}"
                     if instance.mgmt_ip_addr is not None:
                         line += f" | MGMT IP: {instance.mgmt_ip_addr}"
                     logger.log("CLI", line)
+
+                self.provider.instance_manager.do_for_all_instances_sequential(info_instance_callback)
                 return True
 
             case "exit" | "e":

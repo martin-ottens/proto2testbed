@@ -38,7 +38,7 @@ from utils.networking import *
 from utils.continue_mode import *
 from management_server import ManagementServer
 from cli import CLI
-from state_manager import InstanceStateManager, AgentManagementState, WaitResult
+from state_manager import InstanceStateManager, AgentManagementState, WaitResult, InstanceState
 from common.instance_manager_message import *
 from constants import SUPPORTED_INSTANCE_NUMBER
 
@@ -315,7 +315,7 @@ class Controller(Dismantable):
 
         # Attach tap devices to bridges
         try:
-            for instance_config in self.state_manager.get_all_instances():
+            def attach_tap_brigdes(instance_config: InstanceState) -> bool:
                 interface: InstanceInterface
                 bridge_list: List[str] = []
                 for interface in instance_config.interfaces:
@@ -327,21 +327,28 @@ class Controller(Dismantable):
                     logger.info(f"{instance_config.name} ({instance_config.mgmt_ip_addr}, {instance_config.uuid}) attached to bridges: {', '.join(bridge_list)}")
                 else:
                     logger.info(f"{instance_config.name} ({instance_config.uuid}) attached to bridges: {', '.join(bridge_list)}")
+
+            self.state_manager.do_for_all_instances_sequential(attach_tap_brigdes)
+                
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to attach Instance interfaces to bridges.")
             return False
 
-        for instance_config in self.state_manager.get_all_instances():
+        def mgmt_socket_permission_callback(instance_config: InstanceState) -> bool:
             if not instance_config.update_mgmt_socket_permission():
                 logger.warning(f"Unable to set socket permissions for {instance_config.name}")
+                return False
+            else:
+                return True
+            
+        self.state_manager.do_for_all_instances_parallel(mgmt_socket_permission_callback)
 
         self.state_manager.dump_states()
 
         return True
     
     def start_management_infrastructure(self, init_instances_instant: bool) -> bool:
-        for instance in self.state_manager.get_all_instances():
-            instance.prepare_interchange_dir()
+        self.state_manager.do_for_all_instances_parallel(lambda instance: instance.prepare_interchange_dir())
         
         try:
             management_server = ManagementServer(self, self.state_manager,
@@ -358,14 +365,17 @@ class Controller(Dismantable):
     
     def send_finish_message(self):
         logger.info("Sending finish instructions to Instances")
-        for instance in self.state_manager.get_all_instances():
+
+        def send_finish_instruction_callback(instance: InstanceState) -> bool:
             if not instance.is_connected():
-                continue
+                return True
 
             message = FinishInstanceMessageUpstream(instance.preserve_files,
                                                     self.provider.preserve is not None)
             instance.send_message(message)
-
+            return True
+        
+        self.state_manager.do_for_all_instances_sequential(send_finish_instruction_callback)
         result: WaitResult = self.state_manager.wait_for_instances_to_become_state([AgentManagementState.STARTED,
                                                                                     AgentManagementState.APPS_SENDED,
                                                                                     AgentManagementState.FILES_PRESERVED, 
@@ -472,7 +482,8 @@ class Controller(Dismantable):
             logger.critical("Critical error while loading Instance initialization!")
             return False
 
-        self.state_manager.assign_all_vsock_cids()
+        if not self.run_parameters.create_checkpoint:
+            self.state_manager.assign_all_vsock_cids()
 
         if not self.start_management_infrastructure(self.pause_after != PauseAfterSteps.SETUP):
             logger.critical("Critical error during start of management infrastructure!")
@@ -494,11 +505,11 @@ class Controller(Dismantable):
                 self.send_finish_message()
                 return True
             
-            for instance in self.state_manager.get_all_instances():
+            self.state_manager.do_for_all_instances_sequential(lambda instance: 
                 instance.send_message(InitializeMessageUpstream(
                             instance.get_setup_env()[0], 
                             instance.get_setup_env()[1],
-                            snapshot_requested=self.run_parameters.create_checkpoint))
+                            snapshot_requested=self.run_parameters.create_checkpoint)))
         else:
             logger.info("Waiting for Instances to start and initialize ...")
 
@@ -509,10 +520,11 @@ class Controller(Dismantable):
         
         if self.run_parameters.create_checkpoint:
             logger.info("Creating checkpoints with INIT stage for all Instances ...")
-            for instance in self.state_manager.get_all_instances():
-                if not instance.instance_helper.create_snapshot():
-                    logger.critical("Unable to create checkpoints, but it was requested.")
-                    return False
+
+            if not self.state_manager.do_for_all_instances_parallel(lambda instance: instance.instance_helper.create_snapshot()):
+                logger.critical("Unable to create checkpoints, but it was requested.")
+                return False
+
             self.provider.set_snapshots_enabled(True)
 
         logger.info("Instances are initialized, invoking installation of apps ...")
@@ -546,10 +558,13 @@ class Controller(Dismantable):
 
         logger.info(f"Starting applications on Instances (t0={t0}).")
         message = RunApplicationsMessageUpstream(t0)
-        for instance in self.state_manager.get_all_instances():
+        
+        def run_application_callback(instance: InstanceState) -> bool:
             instance.send_message(message)
             instance.set_state(AgentManagementState.IN_EXPERIMENT)
-            
+            return True
+        
+        self.state_manager.do_for_all_instances_parallel(run_application_callback)
         logger.info("Waiting for Instances to finish applications ...")
 
         experiment_timeout = self.provider.testbed_config.settings.experiment_timeout

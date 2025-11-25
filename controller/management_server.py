@@ -394,7 +394,7 @@ class ManagementServer(Dismantable):
     def start(self):
         self.keep_running.clear()
 
-        for instance in self.manager.get_all_instances():
+        def connect_client_callback(instance: state_manager.InstanceState) -> bool:
             if not instance.interchange_ready:
                 raise Exception(f"Interchange files of instance {instance.name} not ready!")
 
@@ -411,10 +411,12 @@ class ManagementServer(Dismantable):
                 self.client_threads.append(client_connection)
             except Exception as ex:
                 logger.opt(exception=ex).error(f"Management: Unable to start client socket connection for {instance.name}")
+            finally:
+                return True
 
+        self.manager.do_for_all_instances_sequential(connect_client_callback)
         logger.info(f"Management: Client connection threads started.")
         self.is_started = True
-        
 
     def stop(self):
         self.keep_running.set()

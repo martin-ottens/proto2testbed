@@ -28,6 +28,7 @@ from pathlib import Path
 from loguru import logger
 from typing import Tuple, Optional, List, Dict
 from threading import Lock, Semaphore, Event
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.system_commands import invoke_subprocess, set_owner
 from helper.file_copy_helper import FileCopyHelper
@@ -342,8 +343,24 @@ class InstanceStateManager(Dismantable):
     def enable_file_preservation(self, preservation_path: Optional[Path]):
         self.file_preservation = preservation_path
 
-    def get_all_instances(self) -> List[InstanceState]:
-        return list(self.map.values())
+    def do_for_all_instances_parallel(self, callback, *args, max_workers=None) -> bool:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures= [executor.submit(callback, instance, *args) for instance in self.map.values()]
+
+            overall = True
+            for future in as_completed(futures):
+                if not future.result():
+                    overall = False
+        
+        return overall
+    
+    def do_for_all_instances_sequential(self, callback, *args) -> bool:
+        overall = True
+        for instance in self.map.values():
+            if not callback(instance, *args):
+                overall = False
+
+        return overall
     
     def add_instance(self, name: str, script_file: str, 
                     setup_env: Dict[str, str], 
