@@ -122,6 +122,8 @@ def main():
         if executor.dumps_to_state_files():
             provider.release_experiment_tag()
 
+        provider.clear()
+
 
 if __name__ == "__main__":
     main()

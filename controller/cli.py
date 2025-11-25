@@ -132,11 +132,11 @@ class CLI(Dismantable):
 
             case "set" | "s":
                 def set_usage():
-                    logger.opt(ansi=True).log("CLI", "Usage: <u>s</u>set \<Parameter> \<Value>, with Parameters:", color=True)
+                    logger.opt(ansi=True).log("CLI", "Usage: <u>s</u>et \<Parameter> \<Value>, with Parameters:", color=True)
                     logger.opt(ansi=True).log("CLI", " - preserve:   Update preserve path, skip value to disable", color=True)
                     logger.opt(ansi=True).log("CLI", " - experiment: Update experiment tag (for InfluxDB storage)", color=True)
 
-                if args is None or len(args) != 1:
+                if args is None or len(args) < 1:
                     set_usage()
                     return True
                 
@@ -151,7 +151,17 @@ class CLI(Dismantable):
                         else:
                             logger.log("CLI", "File preservation path successfully updated")
                     case "experiment":
+                        if len(args) < 2:
+                            set_usage()
+                            return True
+
                         experiment = args[1]
+
+                        try:
+                            self.provider.update_experiment_tag(experiment, True)
+                            logger.log("CLI", f"Experiment tag sucessfully changed to '{experiment}'")
+                        except Exception as ex:
+                            logger.opt(exception=ex).log("CLI", "Unable to update experiment tag.")
                     case _:
                         set_usage()
                     

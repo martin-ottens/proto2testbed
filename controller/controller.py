@@ -30,7 +30,7 @@ from helper.integration_helper import IntegrationHelper
 from helper.app_dependency_helper import AppDependencyHelper
 from helper.state_file_helper import StateFileReader
 from utils.interfaces import Dismantable
-from utils.config_tools import load_vm_initialization, check_preserve_dir
+from utils.config_tools import load_vm_initialization
 from utils.state_provider import TestbedStateProvider
 from utils.settings import InvokeIntegrationAfter, RunParameters
 from utils.influxdb import InfluxDBAdapter

@@ -58,7 +58,6 @@ class TestbedStateProvider:
         self.preserve: Optional[Path] = preserve
         self.unique_run_name = f"{self.main_pid}-{self.executor}"
         self.testbed_config: Optional[TestbedConfig] = None
-        self.concurrency_reservation: Optional[ConcurrencyReservation] = None
         self.state_lock = StateLock(self.statefile_base)
         self.from_api_call = from_api_call
         self.cache_datapoints = cache_datapoints
@@ -66,6 +65,10 @@ class TestbedStateProvider:
         self.instance_manager: Optional[InstanceStateManager] = None
         self.result_wrapper: Optional[FullResultWrapper] = None
         self.snapshots_enabled: bool = False
+        self.concurrency_reservation: ConcurrencyReservation = ConcurrencyReservation(self)
+
+    def clear(self) -> None:
+        self.concurrency_reservation.clear_reservations()
     
     def update_experiment_tag(self, experiment: Optional[str], accuire: bool) -> str:
         if self.experiment is not None and accuire:
@@ -74,11 +77,11 @@ class TestbedStateProvider:
         if experiment is not None and accuire:
             if not StateFileReader.check_and_aquire_experiment(self.state_lock, 
                                                                experiment, 
-                                                               self.statefile_base):
+                                                               self.statefile_base,
+                                                               self.unique_run_name):
                 raise Exception(f"Experiment tag must be unique, but {experiment} is already in use!")
             
             self.experiment = experiment
-            self.concurrency_reservation = ConcurrencyReservation(self)
             return self.experiment
         else:
             self.experiment = experiment
@@ -88,10 +91,10 @@ class TestbedStateProvider:
 
                 if accuire and not StateFileReader.check_and_aquire_experiment(self.state_lock, 
                                                                                self.experiment, 
-                                                                               self.statefile_base):
+                                                                               self.statefile_base,
+                                                                               self.unique_run_name):
                     self.experiment = None
             
-            self.concurrency_reservation = ConcurrencyReservation(self)
             return self.experiment
         
     def update_preserve_path(self, preserve_path: Optional[Path]) -> bool:
@@ -110,7 +113,6 @@ class TestbedStateProvider:
                                            self.statefile_base)
         self.experiment = None
         self.experiment_generated = False
-        self.concurrency_reservation = None
 
     def set_testbed_config(self, config: TestbedConfig) -> None:
         self.testbed_config = config

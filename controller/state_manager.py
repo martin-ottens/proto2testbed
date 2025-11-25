@@ -188,7 +188,7 @@ class InstanceState:
         self.manager.notify_state_change(new_state)
 
     def prepare_interchange_dir(self) -> None:
-        self.interchange_dir = self.provider.statefile_base / Path(self.provider.experiment) / Path(INTERCHANGE_DIR_PREFIX + self.uuid)
+        self.interchange_dir = self.provider.statefile_base / Path(self.provider.unique_run_name) / Path(INTERCHANGE_DIR_PREFIX + self.uuid)
 
         if self.interchange_dir.exists():
             raise Exception(f"Error during setup of interchange directory: {self.interchange_dir} already exists!")
@@ -223,8 +223,7 @@ class InstanceState:
                     self.provider.result_wrapper.add_instance_preserved_files(self.name, target, len(flist))
 
                 logger.info(f"File Preservation: Preserved {len(flist)} files for Instance {self.name} to '{target}'")
-            
-        
+
         shutil.rmtree(self.interchange_dir)
         self.interchange_ready = False
 
@@ -294,7 +293,6 @@ class InstanceState:
             uuid=self.uuid,
             executor=int(self.provider.executor),
             cmdline=self.provider.cmdline,
-            experiment=self.provider.experiment,
             main_pid=self.provider.main_pid,
             mgmt_ip=str(self.mgmt_ip_addr),
             interfaces=self.interfaces
@@ -426,6 +424,11 @@ class InstanceStateManager(Dismantable):
             instance.remove_interchange_dir(self.file_preservation)
             instance.disconnect()
         
+        try:
+            os.rmdir(self.provider.statefile_base / Path(self.provider.unique_run_name))
+        except Exception:
+            pass
+
         self.map.clear()
 
     def get_instance(self, name: str) -> Optional[InstanceState]:

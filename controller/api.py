@@ -162,6 +162,7 @@ class Proto2TestbedAPI:
         finally:
             controller.dismantle()
             self._provider.release_experiment_tag()
+            self._provider.clear()
 
         return full_result_wrapper
 
