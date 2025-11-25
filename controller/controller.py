@@ -455,7 +455,6 @@ class Controller(Dismantable):
     def main(self, pause_after_step: PauseAfterSteps = PauseAfterSteps.DISABLE) -> bool:
         self.pause_after = pause_after_step
         self.provider.set_snapshots_enabled(False)
-        self.state_manager.enable_file_preservation(self.provider.preserve)
 
         start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP)
         if start_status is None:

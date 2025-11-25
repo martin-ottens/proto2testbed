@@ -323,7 +323,6 @@ class InstanceStateManager(Dismantable):
         self.provider.set_instance_manager(self)
         self.map: dict[str, InstanceState] = {}
         self.state_change_lock: Lock = Lock()
-        self.file_preservation: Optional[Path] = None
 
         self.waiting_for_states: Optional[List[InstanceState]] = None
         self.state_change_semaphore: Optional[Semaphore] = None
@@ -337,9 +336,6 @@ class InstanceStateManager(Dismantable):
 
     def set_app_dependecy_helper(self, helper: AppDependencyHelper) -> None:
         self.app_dependecy_helper = helper
-
-    def enable_file_preservation(self, preservation_path: Optional[Path]):
-        self.file_preservation = preservation_path
 
     def do_for_all_instances_parallel(self, callback, *args, max_workers=None) -> bool:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -421,7 +417,7 @@ class InstanceStateManager(Dismantable):
             self.state_change_semaphore.release(n=len(self.map))
 
         for instance in self.map.values():
-            instance.remove_interchange_dir(self.file_preservation)
+            instance.remove_interchange_dir(self.provider.preserve)
             instance.disconnect()
         
         try:

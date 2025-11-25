@@ -2,5 +2,4 @@
 - Instance Manager VSOCK/Serial reconnect on snapshot recall
 - Adopt API for looped operation with additional functions in between repetitions
 - Documentation
-- Track file preservation dir changes
 - Examples
