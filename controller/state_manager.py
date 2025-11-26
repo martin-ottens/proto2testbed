@@ -97,6 +97,7 @@ class InstanceState:
 
         self._state: AgentManagementState = AgentManagementState.UNKNOWN
         self.connection = None
+        self.reconnect_requested = False
         self.interchange_ready = False
         self.interfaces: List[InstanceInterface] = []
         if init_preserve_files is not None:
@@ -293,6 +294,16 @@ class InstanceState:
     def disconnect(self) -> None:
         self.connection = None
         self.set_state(AgentManagementState.DISCONNECTED)
+
+    def prepare_reconnect(self) -> None:
+        self.reconnect_requested = True
+
+    def is_reconnect(self) -> bool:
+        if self.reconnect_requested:
+            self.reconnect_requested = False
+            return True
+        else:
+            return False
 
     def dump_state(self) -> None:
         state = InstanceStateFile(

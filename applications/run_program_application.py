@@ -148,7 +148,7 @@ class RunProgramApplication(BaseApplication):
                     for line in process.stderr.readlines():
                         if line is None or line == "":
                             continue
-                    self.interface.push_log_message(line.replace('\n').decode('utf-8'), LogMessageType.STDERR)
+                        self.interface.push_log_message(line.replace('\n').decode('utf-8'), LogMessageType.STDERR)
 
                 return False
 

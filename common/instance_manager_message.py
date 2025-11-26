@@ -131,6 +131,11 @@ class UpstreamMessage(JSONMessage):
     pass
 
 
+class NullMessageUpstream(UpstreamMessage):
+    def __init__(self, reconnect: bool) -> None:
+        self.reconnect = reconnect
+
+
 class InitializeMessageUpstream(UpstreamMessage):
     def __init__(self, script: Optional[str], 
                  environment: Optional[Dict[str, str]],

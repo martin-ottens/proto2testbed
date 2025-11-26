@@ -493,6 +493,8 @@ class Controller(Dismantable):
             if self.provider.snapshots_enabled and run_state.can_continue:
                 self.state_manager.reset_all_after_snapshot_restore()
 
+                self.state_manager.do_for_all_instances_parallel(lambda instance: instance.prepare_reconnect())
+
                 def restore_snapsnot_callback(instance) -> bool:
                     if instance.instance_helper is None:
                         logger.critical("Unable to restore checkpoints: No instance helper available.")
@@ -503,6 +505,10 @@ class Controller(Dismantable):
                 if not self.provider.instance_manager.do_for_all_instances_parallel(restore_snapsnot_callback):
                     logger.error("Unable to restore all checkpoints.")
                     return False
+
+                self.state_manager.do_for_all_instances_parallel(lambda instance: 
+                                                                 instance.send_message(NullMessageUpstream(False)))
+                # TODO: Wait for reconnects?
                 
                 logger.success("Testbed snapshot restored the INIT state without app installation.")
                 self.pause_after = PauseAfterSteps.FINISH
@@ -542,8 +548,8 @@ class Controller(Dismantable):
             logger.critical("Critical error while loading Instance initialization!")
             return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
-        if not self.run_parameters.create_checkpoint:
-            self.state_manager.assign_all_vsock_cids()
+        #if not self.run_parameters.create_checkpoint:
+        self.state_manager.assign_all_vsock_cids()
 
         if not self.start_management_infrastructure(self.pause_after != PauseAfterSteps.SETUP):
             logger.critical("Critical error during start of management infrastructure!")

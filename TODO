@@ -1,5 +1,5 @@
-- Instance Manager VSOCK reconnect on snapshot recall
 - Adopt API for looped operation with additional functions in between repetitions
 - Documentation
 - Examples
 - Full fail of all apps still waits for timeout, should make an instant state transition
+- Fix timesync: linuxptp?

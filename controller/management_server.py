@@ -106,19 +106,14 @@ class ManagementClientConnection(threading.Thread):
                 if previous == AgentManagementState.DISCONNECTED:
                     logger.error(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Instance Manager failed?")
                     self.client.set_state(AgentManagementState.FAILED)
-                    self.send_message(InitializeMessageUpstream(None, None))
-
-                elif previous == AgentManagementState.INITIALIZED:
-                    logger.warning(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Skipping Instance setup!")
-                    self.client.set_state(AgentManagementState.INITIALIZED)
-                    self.send_message(InitializeMessageUpstream(None, None))
+                    self.send_message(InitializeMessageUpstream(None, None, False))
 
                 elif previous == AgentManagementState.APPS_READY or previous == AgentManagementState.APPS_SENDED:
                     logger.warning(f"Management: Client '{self.expected_instance.name}': Restarted after it was in state {previous}. Re-Installing apps!")
                     self.client.set_state(AgentManagementState.INITIALIZED)
                     self.send_message(InstallApplicationsMessageUpstream(self.expected_instance.apps))
                 
-                else:
+                elif previous != AgentManagementState.INITIALIZED:
                     self.client.set_state(AgentManagementState.STARTED)
                     if self.init_instant:
                         logger.info(f"Management: Client '{self.expected_instance.name}': Started. Sending setup instructions for instant setup.")
@@ -256,115 +251,121 @@ class ManagementClientConnection(threading.Thread):
             return False
 
     def run(self):
-        if self.vsock_cid is None and self.socket_path is None:
-            logger.critical("Management: Unable to connect: No VSOCK CID or Management Socket Path defined.")
-            return
-
-        if self.socket_path:
-            started_waiting = time.time()
-            while True:
-                if os.path.exists(self.socket_path):
-                    logger.debug(f"Management: Socket '{self.socket_path}' for Instance {self.expected_instance.name} ready")
-                    break
-
-                if ((started_waiting + self.timeout) < time.time()) or self.stop_event.is_set():
-                    logger.error(f"Management: Client connection error: Socket '{self.socket_path}' does not exist after timeout or waiting was interrupted!")
-                    return
-
-            try:
-                self.client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                self.client_socket.settimeout(0.5)
-                self.client_socket.connect(str(self.socket_path))
-                logger.debug(f"Management: Client '{self.expected_instance.name}': Socket connection created.")
-            except Exception as ex:
-                logger.opt(exception=ex).error(f"Management: Unable to bind socket for '{self.expected_instance.name}'")
+        while True:
+            if self.vsock_cid is None and self.socket_path is None:
+                logger.critical("Management: Unable to connect: No VSOCK CID or Management Socket Path defined.")
                 return
-        else:
-            started_waiting = time.time()
-            while True:
-                if ((started_waiting + self.timeout) < time.time()) or self.stop_event.is_set():
-                    logger.error(f"Management: Client connection error: VSOCK with CID '{self.vsock_cid}' does not exist after timeout or waiting was interrupted!")
-                    return
+
+            if self.socket_path:
+                started_waiting = time.time()
+                while True:
+                    if os.path.exists(self.socket_path):
+                        logger.debug(f"Management: Socket '{self.socket_path}' for Instance {self.expected_instance.name} ready")
+                        break
+
+                    if ((started_waiting + self.timeout) < time.time()) or self.stop_event.is_set():
+                        logger.error(f"Management: Client connection error: Socket '{self.socket_path}' does not exist after timeout or waiting was interrupted!")
+                        return
 
                 try:
-                    self.client_socket = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
-                    self.client_socket.settimeout(0.1)
-                    self.client_socket.connect((self.vsock_cid, 424242))
-                    logger.debug(f"Management: Client '{self.expected_instance.name}': VSOCK connection established.")
-                    break
-                except socket.timeout:
-                    logger.trace(f"Management: VSOCK for Instance '{self.expected_instance.name}' is not ready yet (timeout)")
-                    sleep = 2
-                except OSError as ex:
-                    if ex.errno == errno.ENODEV:
-                        logger.trace(f"Management: VSOCK for Instance '{self.expected_instance.name}' is not ready yet (ENODEV)")
-                        sleep = 2
-                    else:
-                        sleep = 0.1
+                    self.client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                    self.client_socket.settimeout(0.5)
+                    self.client_socket.connect(str(self.socket_path))
+                    logger.debug(f"Management: Client '{self.expected_instance.name}': Socket connection created.")
                 except Exception as ex:
-                    logger.opt(exception=ex).trace(f"Management: VSOCK exists for '{self.expected_instance.name}', but client not yet available.")
-                    sleep = 0.1
-                
-                time.sleep(sleep)
+                    logger.opt(exception=ex).error(f"Management: Unable to bind socket for '{self.expected_instance.name}'")
+                    return
+            else:
+                started_waiting = time.time()
+                while True:
+                    if ((started_waiting + self.timeout) < time.time()) or self.stop_event.is_set():
+                        logger.error(f"Management: Client connection error: VSOCK with CID '{self.vsock_cid}' does not exist after timeout or waiting was interrupted!")
+                        return
 
-        self.connected = True
-        partial_data = ""
-
-        while not self.stop_event.is_set():
-            try:
-                data = self.client_socket.recv(ManagementClientConnection.__MAX_FRAME_LEN)
-                if len(data) == 0:
-                    logger.debug(f"Management: Client '{self.expected_instance.name}': Disconnected (0 bytes read)")
-                    break
-
-                partial_data = partial_data + data.decode("utf-8")
-
-                if "}\n{" in partial_data:
-                    # Multipart message
-                    parts = partial_data.split("}\n{")
-                    partial_data = ""
-                    parts[0] = parts[0] + "}"
-
-                    if len(parts) >= 3:
-                        for i in range(1, len(parts) - 1):
-                            parts[i] = "{" + parts[i] + "}"
-                    
-                    if len(parts) >= 2:
-                        parts[len(parts) - 1] = "{" + parts[len(parts) - 1]
-                    else:
-                        partial_data = "{"
-                    
-                    while len(parts) > 0:
-                        part = parts.pop(0)
-                        if self._check_if_valid_json(part):
-                            if not self._process_one_message(part):
-                                break
+                    try:
+                        self.client_socket = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+                        self.client_socket.settimeout(0.1)
+                        self.client_socket.connect((self.vsock_cid, 424242))
+                        logger.debug(f"Management: Client '{self.expected_instance.name}': VSOCK connection established.")
+                        break
+                    except socket.timeout:
+                        logger.trace(f"Management: VSOCK for Instance '{self.expected_instance.name}' is not ready yet (timeout)")
+                        sleep = 2
+                    except OSError as ex:
+                        if ex.errno == errno.ENODEV:
+                            logger.trace(f"Management: VSOCK for Instance '{self.expected_instance.name}' is not ready yet (ENODEV)")
+                            sleep = 2
                         else:
-                            while len(parts) > 0:
-                                partial_data = parts.pop() + partial_data
-                            partial_data = part + partial_data
-                            break
+                            sleep = 0.1
+                    except Exception as ex:
+                        logger.opt(exception=ex).trace(f"Management: VSOCK exists for '{self.expected_instance.name}', but client not yet available.")
+                        sleep = 0.1
+                    
+                    time.sleep(sleep)
 
-                else:
-                    # Singlepart message
-                    if self._check_if_valid_json(partial_data):
-                        if not self._process_one_message(partial_data):
-                            break
+            self.connected = True
+            partial_data = ""
+
+            while not self.stop_event.is_set():
+                try:
+                    data = self.client_socket.recv(ManagementClientConnection.__MAX_FRAME_LEN)
+                    if len(data) == 0:
+                        logger.debug(f"Management: Client '{self.expected_instance.name}': Disconnected (0 bytes read)")
+                        break
+
+                    partial_data = partial_data + data.decode("utf-8")
+
+                    if "}\n{" in partial_data:
+                        # Multipart message
+                        parts = partial_data.split("}\n{")
                         partial_data = ""
+                        parts[0] = parts[0] + "}"
 
-            except socket.timeout:
-                continue
-            except Exception as ex:
-                logger.opt(exception=ex).error(f"Management: Client error: '{self.expected_instance.name}'")
-                break
-        
-        if self.client is not None:
-            logger.info(f"Management: Client '{self.client.name}': Connection closed.")
-            self.client.disconnect()
-        else:
-            logger.info(f"Management: Client '{self.expected_instance.name}': Connection closed.")
+                        if len(parts) >= 3:
+                            for i in range(1, len(parts) - 1):
+                                parts[i] = "{" + parts[i] + "}"
+                        
+                        if len(parts) >= 2:
+                            parts[len(parts) - 1] = "{" + parts[len(parts) - 1]
+                        else:
+                            partial_data = "{"
+                        
+                        while len(parts) > 0:
+                            part = parts.pop(0)
+                            if self._check_if_valid_json(part):
+                                if not self._process_one_message(part):
+                                    break
+                            else:
+                                while len(parts) > 0:
+                                    partial_data = parts.pop() + partial_data
+                                partial_data = part + partial_data
+                                break
 
-        self.client_socket.close()
+                    else:
+                        # Singlepart message
+                        if self._check_if_valid_json(partial_data):
+                            if not self._process_one_message(partial_data):
+                                break
+                            partial_data = ""
+
+                except socket.timeout:
+                    continue
+                except Exception as ex:
+                    logger.opt(exception=ex).error(f"Management: Client error: '{self.expected_instance.name}'")
+                    break
+            
+            if self.client is not None:
+                if self.client.is_reconnect():
+                    logger.info(f"Management: Attemping reconnection of client '{self.client.name}'.")
+                    continue
+
+                logger.info(f"Management: Client '{self.client.name}': Connection closed.")
+                self.client.disconnect()
+            else:
+                logger.info(f"Management: Client '{self.expected_instance.name}': Connection closed.")
+
+            self.client_socket.close()
+            return
 
     def stop(self):
         self.stop_event.set()

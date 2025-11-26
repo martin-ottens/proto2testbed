@@ -207,7 +207,7 @@ class InstanceManager:
         os.chdir(GlobalState.testbed_package_path)
 
         if self.application_manager is not None:
-            print(f"Purging previous installed application_manager")
+            print(f"Purging previous installed application_manager", file=sys.stderr, flush=True)
             del self.application_manager
         
         self.application_manager = ApplicationManager(self, self.manager, self.instance_name)
@@ -237,14 +237,14 @@ class InstanceManager:
 
     def run_apps(self, config: RunApplicationsMessageUpstream) -> bool:
         if self.application_manager is None:
-            print("Unable to run experiment: No application manager is installed")
+            print("Unable to run experiment: No application manager is installed", file=sys.stderr, flush=True)
             self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
                                       message=f"Can't run Applications: No applications manager is configured.",
                                       print_to_user=True)
             return False
         
         if config.t0 < time.time():
-            print("Clock of this instance is running behind!")
+            print("Clock of this instance is running behind!", file=sys.stderr, flush=True)
             self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
                                       message=f"Unable to start Applications at t0: Clock is running behind.",
                                       print_to_user=True)
@@ -254,7 +254,7 @@ class InstanceManager:
     
     def run_deferred_app(self, message: ApplicationStatusMessageUpstream) -> None:
         if self.application_manager is None:
-            print("Unable to start Application: No application manager is installed")
+            print("Unable to start Application: No application manager is installed", file=sys.stderr, flush=True)
             self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
                                       message=f"Can't start Application: No applications manager is configured.",
                                       print_to_user=True)
@@ -283,7 +283,7 @@ class InstanceManager:
         
     def handle_file_copy(self, copy_instructions: CopyFileMessageUpstream) -> bool:
         if copy_instructions.proc_id is None:
-            print(f"Invalid copy instruction packet: proc_id missing!")
+            print(f"Invalid copy instruction packet: proc_id missing!", file=sys.stderr, flush=True)
             self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
                                       message=f"Copy failed, no proc_id was provided to Instance.",
                                       print_to_user=True)
@@ -395,15 +395,29 @@ class InstanceManager:
         if Path(STATE_FILE).is_file():
             self.state = IMState.INITIALIZED
             self.message_to_controller(InstanceMessageType.INITIALIZED)
-        
+
+        reads_failed = 0
         while True:
-            data_str = self.manager.wait_for_command()
+            try:
+                data_str = self.manager.wait_for_command()
+            except Exception as ex:
+                reads_failed += 1
+
+                self.manager.stop()
+
+                if reads_failed == 100:
+                    raise Exception("Giving up after 100 retries") from ex
+                
+                print(f"Read from server failed, trying to reconnect (maybe snapshot loaded?)", file=sys.stderr, flush=True)
+                self.manager.start()
+                
+
             data = jsonpickle.decode(data_str)
 
             match data:
                 case InitializeMessageUpstream():
                     if self.state != IMState.STARTED:
-                        print(f"Got 'initialize' message from controller, but im in state {self.state.value}, skipping init.")
+                        print(f"Got 'initialize' message from controller, but im in state {self.state.value}, skipping init.", file=sys.stderr, flush=True)
                         self.message_to_controller(InstanceMessageType.INITIALIZED)
                     else:
                         if self.handle_initialize(data):
@@ -412,7 +426,7 @@ class InstanceManager:
                             self.state = IMState.FAILED
                 case InstallApplicationsMessageUpstream():
                     if self.state != IMState.INITIALIZED and self.state != IMState.APPS_READY:
-                        print(f"Got 'install_apps' message from controller, but im in state {self.state.value}, skipping.")
+                        print(f"Got 'install_apps' message from controller, but im in state {self.state.value}, skipping.", file=sys.stderr, flush=True)
                         self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
                                                   message= "Instance is not ready for app installation.",
                                                   print_to_user=True)
@@ -421,7 +435,7 @@ class InstanceManager:
                         self.state = IMState.APPS_READY
                 case RunApplicationsMessageUpstream():
                     if self.state != IMState.APPS_READY:
-                        print(f"Got 'run_apps' message from controller, but im in state {self.state.value}, skipping.")
+                        print(f"Got 'run_apps' message from controller, but im in state {self.state.value}, skipping.", file=sys.stderr, flush=True)
                         self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
                                                   message="Instance has not yet installed apps.",
                                                   print_to_user=True)
@@ -438,7 +452,7 @@ class InstanceManager:
                                 self.state = IMState.FAILED
                 case ApplicationStatusMessageUpstream():
                     if self.state != IMState.EXPERIMENT_RUNNING:
-                        print(f"Got message from controller to start deferred, but im in state {self.state.value}")
+                        print(f"Got message from controller to start deferred, but im in state {self.state.value}", file=sys.stderr, flush=True)
                         self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
                                                   message="Starting deferred Applications in invalid state!",
                                                   print_to_user=True)
@@ -452,11 +466,13 @@ class InstanceManager:
                         self.state = IMState.READY_FOR_SHUTDOWN
                     else:
                         self.state = IMState.FAILED
+                case NullMessageUpstream():
+                    pass
                 case _:
                     raise Exception(f"Invalid 'status' in message: {type(data)}")
             
             if self.state == IMState.FAILED:
-                print("Instance Manager has entered FAILED state.")
+                print("Instance Manager has entered FAILED state.", file=sys.stderr, flush=True)
 
     def run(self):
         try:
