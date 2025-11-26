@@ -52,6 +52,7 @@ class InstanceHelper(Dismantable):
                                 -smp {cores} \
                                 -machine q35 \
                                 -hda {image} \
+                                -rtc base=utc,clock=host \
                                 -serial unix:{tty},server=on,wait=off \
                                 {im_comm_setting} \
                                 -virtfs local,path={testbed_package},mount_tag=tbp,security_model=passthrough,id=tbp,readonly=on \

@@ -39,7 +39,7 @@ class RunExecutor(BaseExecutor):
         super().__init__(subparser)
 
         self.subparser.add_argument("TESTBED_CONFIG", type=str, help="Path to testbed package")
-        self.subparser.add_argument("--interact", "-i", choices=[p.name for p in PauseAfterSteps], 
+        self.subparser.add_argument("--interact", "-i", choices=[p.name for p in PauseAfterSteps.get_selectable()], 
                                     required=False, default=PauseAfterSteps.DISABLE.name, type=str.upper,
                                     help="Interact with Controller after step is completed")
         self.subparser.add_argument("--no_kvm", action="store_true", required=False, default=False,
@@ -112,7 +112,7 @@ class RunExecutor(BaseExecutor):
 
         import signal
         try:
-            status = controller.main(interact)
+            status = controller.testbed_main_interactive(interact)
         except Exception as ex:
             logger.opt(exception=ex).critical("Uncaught Controller Exception")
             status = False

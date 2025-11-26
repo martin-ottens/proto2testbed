@@ -23,6 +23,7 @@ from pathlib import Path
 from loguru import logger
 from typing import List
 from threading import Event, Thread
+from enum import Enum
 
 from helper.network_helper import *
 from helper.instance_helper import InstanceHelper, InstanceManagementSettings
@@ -43,6 +44,25 @@ from common.instance_manager_message import *
 from constants import SUPPORTED_INSTANCE_NUMBER
 
 
+class TestbedFunctionStatus(Enum):
+    OK_CONTINUE = True, False
+    OK_DONT_CONTINUE = False, False
+    FAILED_DONT_CONTINUE = False, True
+    FAILED_CONTINUE = True, True
+
+    def __init__(self, cont: bool, failed: bool):
+        self.cont = cont
+        self.failed = failed
+    
+    @property
+    def has_failed(self) -> bool:
+        return self.failed
+    
+    @property
+    def can_continue(self) -> bool:
+        return self.cont
+
+
 class Controller(Dismantable):
     def __init__(self, provider: TestbedStateProvider, cli: CLI) -> None:
         self.dismantables: List[Dismantable] = []
@@ -60,7 +80,9 @@ class Controller(Dismantable):
         self.mgmt_bridge: Optional[ManagementNetworkBridge] = None
         self.mgmt_bridge_mapping: Optional[BridgeMapping] = None
         self.network_mapping = NetworkMappingHelper()
+        self.management_server: Optional[ManagementServer] = None
         self.request_restart = False
+        self.request_exit = False
         self.influx_db = None
 
         self.base_path = Path(testbed_basepath)
@@ -351,12 +373,12 @@ class Controller(Dismantable):
         self.state_manager.do_for_all_instances_parallel(lambda instance: instance.prepare_interchange_dir())
         
         try:
-            management_server = ManagementServer(self, self.state_manager,
+            self.management_server = ManagementServer(self, self.state_manager,
                                                 self.provider.testbed_config.settings.startup_init_timeout, 
                                                 self.influx_db,
                                                 init_instances_instant)
-            management_server.start()
-            self.dismantables.insert(0, management_server)
+            self.management_server.start()
+            self.dismantables.insert(0, self.management_server)
         except Exception as ex:
             logger.opt(exception=ex).critical("Unable to start management server")
             return False
@@ -416,8 +438,10 @@ class Controller(Dismantable):
             return False
         else:
             if continue_mode.mode == ContinueMode.EXIT:
+                self.request_exit = True
                 return False
             if continue_mode.mode == ContinueMode.RESTART:
+                self.request_exit = True
                 self.request_restart = True
                 return False
             else: # ContinueMode.CONTINUE_TO
@@ -452,8 +476,45 @@ class Controller(Dismantable):
         else:
             return True
         
-    def main(self, pause_after_step: PauseAfterSteps = PauseAfterSteps.DISABLE) -> bool:
+    def testbed_main_interactive(self, pause_after_step: PauseAfterSteps = PauseAfterSteps.DISABLE) -> bool:
         self.pause_after = pause_after_step
+
+        init_state = self.initialize_testbed()
+
+        if not init_state.can_continue or self.request_exit:
+            return init_state.has_failed
+
+        while True:
+            run_state = self.execute_testbed()
+
+            if self.request_exit:
+                return run_state.has_failed
+
+            if self.provider.snapshots_enabled and run_state.can_continue:
+                self.state_manager.reset_all_after_snapshot_restore()
+
+                def restore_snapsnot_callback(instance) -> bool:
+                    if instance.instance_helper is None:
+                        logger.critical("Unable to restore checkpoints: No instance helper available.")
+                        return False
+                    
+                    return instance.instance_helper.restore_snapshot()
+                
+                if not self.provider.instance_manager.do_for_all_instances_parallel(restore_snapsnot_callback):
+                    logger.error("Unable to restore all checkpoints.")
+                    return False
+                
+                logger.success("Testbed snapshot restored the INIT state without app installation.")
+                self.pause_after = PauseAfterSteps.FINISH
+
+                if not self.start_interaction(PauseAfterSteps.FINISH):
+                    return True
+
+                self.pause_after = pause_after_step
+            else:
+                return run_state.has_failed
+
+    def initialize_testbed(self) -> TestbedFunctionStatus:
         self.provider.set_snapshots_enabled(False)
 
         start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP)
@@ -461,12 +522,12 @@ class Controller(Dismantable):
             logger.debug(f"No integration scheduled for start at stage {InvokeIntegrationAfter.STARTUP}")
         elif start_status is False:
             logger.critical("Critical error during integration start!")
-            return False
+            return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
         if self.provider.testbed_config.settings.management_network is not None:
             if not self.setup_local_network():
                 logger.critical("Critical error during local network setup!")
-                return False
+                return TestbedFunctionStatus.FAILED_DONT_CONTINUE
         else:
             logger.warning("Management Network is disabled, skipping setup.")
         
@@ -475,22 +536,22 @@ class Controller(Dismantable):
         elif self.influx_db.full_result_wrapper is not None:
             logger.info("InfluxDB is disabled, data points are stored in FullResultWrapper for API usage!")
         else:
-            logger.success(f"Experiment data will be saved to InfluxDB {self.influx_db.database} with tag experiment={self.influx_db.series_name}")
+            logger.success(f"Experiment data will be saved to InfluxDB {self.influx_db.database} with tag experiment={self.provider.experiment}")
 
         if not load_vm_initialization(self.provider.testbed_config, self.testbed_basepath, self.state_manager):
             logger.critical("Critical error while loading Instance initialization!")
-            return False
+            return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
         if not self.run_parameters.create_checkpoint:
             self.state_manager.assign_all_vsock_cids()
 
         if not self.start_management_infrastructure(self.pause_after != PauseAfterSteps.SETUP):
             logger.critical("Critical error during start of management infrastructure!")
-            return False
+            return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
         if not self.setup_infrastructure():
             logger.critical("Critical error during instance setup")
-            return False
+            return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
         setup_timeout = self.provider.testbed_config.settings.startup_init_timeout
         if self.pause_after == PauseAfterSteps.SETUP:
@@ -498,11 +559,11 @@ class Controller(Dismantable):
 
             if not self.wait_for_to_become(setup_timeout, "Infrastructure Setup", 
                                            AgentManagementState.STARTED, False, False):
-                return False
+                return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
             if not self.start_interaction(PauseAfterSteps.SETUP):
                 self.send_finish_message()
-                return True
+                return TestbedFunctionStatus.OK_DONT_CONTINUE
             
             self.state_manager.do_for_all_instances_sequential(lambda instance: 
                 instance.send_message(InitializeMessageUpstream(
@@ -515,16 +576,22 @@ class Controller(Dismantable):
         if not self.wait_for_to_become(setup_timeout, "Instance Initialization", 
                                        AgentManagementState.INITIALIZED, 
                                        self.pause_after == PauseAfterSteps.INIT, True):
-            return False
+            return TestbedFunctionStatus.FAILED_DONT_CONTINUE
         
         if self.run_parameters.create_checkpoint:
             logger.info("Creating checkpoints with INIT stage for all Instances ...")
 
-            if not self.state_manager.do_for_all_instances_parallel(lambda instance: instance.instance_helper.create_snapshot()):
+            if not self.state_manager.do_for_all_instances_parallel(lambda instance: 
+                                                                    instance.instance_helper.create_snapshot()):
                 logger.critical("Unable to create checkpoints, but it was requested.")
-                return False
+                return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
             self.provider.set_snapshots_enabled(True)
+        
+        return TestbedFunctionStatus.OK_CONTINUE
+
+    def execute_testbed(self) -> TestbedFunctionStatus:
+        setup_timeout = self.provider.testbed_config.settings.startup_init_timeout
 
         logger.info("Instances are initialized, invoking installation of apps ...")
         for config_instance in self.provider.testbed_config.instances:
@@ -537,7 +604,7 @@ class Controller(Dismantable):
         if not self.wait_for_to_become(setup_timeout, 'App Installation', 
                                 AgentManagementState.APPS_READY, 
                                 self.pause_after == PauseAfterSteps.INIT, True):
-            return False
+            return TestbedFunctionStatus.FAILED_CONTINUE
         
         logger.success("All Instances reported up & ready!")
 
@@ -546,12 +613,12 @@ class Controller(Dismantable):
             logger.debug(f"No integration scheduled for start at stage {InvokeIntegrationAfter.INIT}")
         elif start_status is False:
             logger.critical("Critical error during integration start!")
-            return False
+            return TestbedFunctionStatus.FAILED_CONTINUE
 
         if self.pause_after == PauseAfterSteps.INIT:
             if not self.start_interaction(PauseAfterSteps.INIT):
                 self.send_finish_message()
-                return True
+                return TestbedFunctionStatus.OK_CONTINUE
         
         t0 = time.time() + self.provider.testbed_config.settings.appstart_timesync_offset
 
@@ -580,14 +647,14 @@ class Controller(Dismantable):
                 self.start_interaction(PauseAfterSteps.EXPERIMENT)
             
             self.send_finish_message()
-            return False
+            return TestbedFunctionStatus.FAILED_CONTINUE
         else:
-            succeeded = False
+            succeeded = TestbedFunctionStatus.FAILED_CONTINUE
 
             if self.wait_for_to_become(experiment_timeout, 'Experiment', 
                                     AgentManagementState.FINISHED, 
                                     False, False):
-                succeeded = True
+                succeeded = TestbedFunctionStatus.OK_CONTINUE
                 logger.success("All Instances reported finished applications!")
             
             if self.pause_after == PauseAfterSteps.EXPERIMENT:

@@ -187,18 +187,18 @@ class InstanceState:
 
         self.manager.notify_state_change(new_state)
 
-    def prepare_interchange_dir(self) -> None:
+    def prepare_interchange_dir(self, strict: bool = True) -> None:
         self.interchange_dir = self.provider.statefile_base / Path(self.provider.unique_run_name) / Path(INTERCHANGE_DIR_PREFIX + self.uuid)
 
-        if self.interchange_dir.exists():
+        if strict and self.interchange_dir.exists():
             raise Exception(f"Error during setup of interchange directory: {self.interchange_dir} already exists!")
         
         # Set 777 permission to allow socket access with --sudo option
         os.makedirs(self.interchange_dir, mode=0o777, exist_ok=True)
-        os.mkdir(self.interchange_dir / INSTANCE_INTERCHANGE_DIR_MOUNT)
+        os.makedirs(self.interchange_dir / INSTANCE_INTERCHANGE_DIR_MOUNT, exist_ok=True)
         self.interchange_ready = True
 
-    def remove_interchange_dir(self, file_preservation: Optional[Path]) -> None:
+    def remove_interchange_dir(self, file_preservation: Optional[Path], fully_delete: bool = True) -> None:
         if not self.interchange_ready:
             return
         
@@ -224,8 +224,11 @@ class InstanceState:
 
                 logger.info(f"File Preservation: Preserved {len(flist)} files for Instance {self.name} to '{target}'")
 
-        shutil.rmtree(self.interchange_dir)
-        self.interchange_ready = False
+        if fully_delete:
+            shutil.rmtree(self.interchange_dir)
+            self.interchange_ready = False
+        else:
+            shutil.rmtree(self.interchange_dir / INSTANCE_INTERCHANGE_DIR_MOUNT)
 
     def get_mgmt_socket_path(self) -> None | Path:
         if not self.interchange_ready or self.vsock_cid is not None:
@@ -273,6 +276,10 @@ class InstanceState:
             raise Exception(f"Instance {self.name} is not connected")
 
         self.connection.send_message(message)
+
+    def reset_after_snapshot_restore(self) -> None:
+        self._state = AgentManagementState.INITIALIZED
+        self.prepare_interchange_dir(strict=False)
 
     def is_connected(self) -> bool:
         return self.connection is not None
@@ -426,6 +433,11 @@ class InstanceStateManager(Dismantable):
             pass
 
         self.map.clear()
+
+    def reset_all_after_snapshot_restore(self):
+        for instance in self.map.values():
+            instance.remove_interchange_dir(self.provider.preserve, False)
+            instance.reset_after_snapshot_restore()
 
     def get_instance(self, name: str) -> Optional[InstanceState]:
         if name not in self.map.keys():
