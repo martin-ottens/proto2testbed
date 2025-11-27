@@ -30,6 +30,7 @@ from datetime import datetime
 
 from utils.interfaces import Dismantable
 from utils.continue_mode import *
+from common.instance_manager_message import NullMessageUpstream
 
 
 @dataclass
@@ -117,6 +118,9 @@ class CLI(Dismantable):
                     logger.log("CLI", "Checkpoints are not enabled or available.")
                     return True
                 
+                self.provider.instance_manager.reset_all_after_snapshot_restore()
+                self.provider.instance_manager.do_for_all_instances_parallel(lambda instance: instance.prepare_reconnect())
+                
                 def restore_snapsnot_callback(instance) -> bool:
                     if instance.instance_helper is None:
                         logger.critical("Unable to restore checkpoints: No instance helper available.")
@@ -125,6 +129,9 @@ class CLI(Dismantable):
                     return instance.instance_helper.restore_snapshot()
                 
                 if self.provider.instance_manager.do_for_all_instances_parallel(restore_snapsnot_callback):
+                    self.provider.instance_manager.do_for_all_instances_parallel(lambda instance: 
+                                                                 instance.send_message(NullMessageUpstream(False)))
+
                     logger.log("CLI", "Checkpoints from INIT stage restored for all Instances.")
                 else:
                     logger.log("CLI", "Unable to restore all checkpoints.")

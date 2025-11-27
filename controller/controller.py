@@ -492,7 +492,6 @@ class Controller(Dismantable):
 
             if self.provider.snapshots_enabled and run_state.can_continue:
                 self.state_manager.reset_all_after_snapshot_restore()
-
                 self.state_manager.do_for_all_instances_parallel(lambda instance: instance.prepare_reconnect())
 
                 def restore_snapsnot_callback(instance) -> bool:
@@ -508,7 +507,10 @@ class Controller(Dismantable):
 
                 self.state_manager.do_for_all_instances_parallel(lambda instance: 
                                                                  instance.send_message(NullMessageUpstream(False)))
-                # TODO: Wait for reconnects?
+                setup_timeout = self.provider.testbed_config.settings.startup_init_timeout
+                if not self.wait_for_to_become(setup_timeout, "Instance Reconnect", 
+                                        AgentManagementState.INITIALIZED, False, False):
+                    return False
                 
                 logger.success("Testbed snapshot restored the INIT state without app installation.")
                 self.pause_after = PauseAfterSteps.FINISH
@@ -548,7 +550,6 @@ class Controller(Dismantable):
             logger.critical("Critical error while loading Instance initialization!")
             return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
-        #if not self.run_parameters.create_checkpoint:
         self.state_manager.assign_all_vsock_cids()
 
         if not self.start_management_infrastructure(self.pause_after != PauseAfterSteps.SETUP):

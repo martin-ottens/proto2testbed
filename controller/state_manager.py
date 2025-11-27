@@ -51,6 +51,7 @@ class AgentManagementState(Enum):
     FINISHED = 6
     FILES_PRESERVED = 7
     DISCONNECTED = 8
+    AWAITING_RECONNECT = 98
     FAILED = 99
 
 
@@ -229,7 +230,13 @@ class InstanceState:
             shutil.rmtree(self.interchange_dir)
             self.interchange_ready = False
         else:
-            shutil.rmtree(self.interchange_dir / INSTANCE_INTERCHANGE_DIR_MOUNT)
+            mount_target = self.interchange_dir / INSTANCE_INTERCHANGE_DIR_MOUNT
+            if mount_target.exists():
+                for content in mount_target.iterdir():
+                    if content.is_dir():
+                        shutil.rmtree(content)
+                    else:
+                        content.unlink()
 
     def get_mgmt_socket_path(self) -> None | Path:
         if not self.interchange_ready or self.vsock_cid is not None:
@@ -296,6 +303,7 @@ class InstanceState:
         self.set_state(AgentManagementState.DISCONNECTED)
 
     def prepare_reconnect(self) -> None:
+        self.set_state(AgentManagementState.AWAITING_RECONNECT)
         self.reconnect_requested = True
 
     def is_reconnect(self) -> bool:

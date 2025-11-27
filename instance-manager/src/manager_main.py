@@ -217,7 +217,7 @@ class InstanceManager:
     def sync_ptp_clock(self) -> bool:
         proc = None
         try:
-            proc = subprocess.run(["chronyc", "makestep"])
+            proc = subprocess.run("hwclock --hctosys && chronyc makestep", shell=True)
         except Exception as ex:
             self.message_to_controller(InstanceMessageType.FAILED, f"Unable to sync ptp clock: {ex}")
             return False
@@ -467,7 +467,7 @@ class InstanceManager:
                     else:
                         self.state = IMState.FAILED
                 case NullMessageUpstream():
-                    pass
+                    self.message_to_controller(InstanceMessageType.INITIALIZED)
                 case _:
                     raise Exception(f"Invalid 'status' in message: {type(data)}")
             
