@@ -18,7 +18,6 @@
 
 import os
 import jsonpickle
-import shutil
 
 from loguru import logger
 from dataclasses import dataclass

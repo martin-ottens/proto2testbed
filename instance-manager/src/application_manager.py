@@ -80,7 +80,7 @@ class ApplicationManager:
 
             self.main.single_app_status_changed(event.app.config.name, event.status)
 
-            if event.status == AppStartStatus.FINISH:
+            if event.status in [AppStartStatus.FINISH, AppStartStatus.FAILED]:
                 self.app_collect_list.remove(event.app)
                 event.app.join()
                 collected += 1

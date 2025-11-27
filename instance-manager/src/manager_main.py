@@ -359,8 +359,21 @@ class InstanceManager:
         if status not in [AppStartStatus.FINISH, AppStartStatus.START]:
             return
         
-        new_status = ApplicationStatus.EXECUTION_FINISHED if status == AppStartStatus.FINISH else ApplicationStatus.EXECUTION_STARTED
-        log_string = f"Application '{app}' finished" if status == AppStartStatus.FINISH else f"Application '{app}' started"
+        new_status: ApplicationStatus
+        log_string: str
+        match status:
+            case AppStartStatus.FINISH:
+                new_status = ApplicationStatus.EXECUTION_FINISHED
+                log_string = f"Application '{app}' finished"
+                pass
+            case AppStartStatus.START | AppStartStatus.DAEMON:
+                new_status = ApplicationStatus.EXECUTION_STARTED
+                log_string = f"Application '{app}' started"
+                pass
+            case AppStartStatus.FAILED:
+                new_status = ApplicationStatus.EXECUTION_FAILED
+                log_string = f"Application '{app}' failed"
+        
         payload = ExtendedApplicationMessage(application=app, 
                                              status=new_status, 
                                              log_message_type=LogMessageType.MSG_INFO, 
