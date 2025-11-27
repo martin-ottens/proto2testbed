@@ -45,6 +45,7 @@ TESTBED_PACKAGE_P9_DEV = "tbp"
 EXCHANGE_MOUNT = "/mnt"
 EXCHANGE_P9_DEV = "exchange"
 IM_SOCKET_PATH = "/tmp/im.sock"
+CLOCKDRIFT_TEST_SECONDS = 2
 
 
 class IMState(Enum):
@@ -243,11 +244,18 @@ class InstanceManager:
                                       print_to_user=True)
             return False
         
-        if config.t0 < time.time():
+        if not self.sync_ptp_clock():
+            return False
+        
+        current_time = time.time()
+        if (current_time + CLOCKDRIFT_TEST_SECONDS) < config.tcurrent or (current_time - CLOCKDRIFT_TEST_SECONDS) > config.tcurrent:
+            print("Clock of this instance is not synced!", file=sys.stderr, flush=True)
+            self.message_to_controller(InstanceMessageType.FAILED, "HWClock of Instance is not in sync!")
+            return False
+        
+        if config.t0 < current_time:
             print("Clock of this instance is running behind!", file=sys.stderr, flush=True)
-            self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
-                                      message=f"Unable to start Applications at t0: Clock is running behind.",
-                                      print_to_user=True)
+            self.message_to_controller(InstanceMessageType.FAILED, "Unable to start Applications at t0: Clock is running behind.")
             return False
         
         return self.application_manager.run_initial_apps(config.t0)
@@ -437,6 +445,7 @@ class InstanceManager:
                             self.state = IMState.INITIALIZED
                         else:
                             self.state = IMState.FAILED
+
                 case InstallApplicationsMessageUpstream():
                     if self.state != IMState.INITIALIZED and self.state != IMState.APPS_READY:
                         print(f"Got 'install_apps' message from controller, but im in state {self.state.value}, skipping.", file=sys.stderr, flush=True)
@@ -446,6 +455,7 @@ class InstanceManager:
                     else:
                         self.install_apps(data)
                         self.state = IMState.APPS_READY
+
                 case RunApplicationsMessageUpstream():
                     if self.state != IMState.APPS_READY:
                         print(f"Got 'run_apps' message from controller, but im in state {self.state.value}, skipping.", file=sys.stderr, flush=True)
@@ -458,11 +468,9 @@ class InstanceManager:
                         for message in self.delayed_application_messages:
                             self.manager.send_to_server(message)
 
-                        if not self.sync_ptp_clock():
+                        if not self.run_apps(data):
                             self.state = IMState.FAILED
-                        else:
-                            if not self.run_apps(data):
-                                self.state = IMState.FAILED
+
                 case ApplicationStatusMessageUpstream():
                     if self.state != IMState.EXPERIMENT_RUNNING:
                         print(f"Got message from controller to start deferred, but im in state {self.state.value}", file=sys.stderr, flush=True)
@@ -471,16 +479,20 @@ class InstanceManager:
                                                   print_to_user=True)
 
                     self.run_deferred_app(data)
+
                 case CopyFileMessageUpstream():
                     if not self.handle_file_copy(data):
                         self.state = IMState.FAILED
+
                 case FinishInstanceMessageUpstream():
                     if self.handle_finish(data):
                         self.state = IMState.READY_FOR_SHUTDOWN
                     else:
                         self.state = IMState.FAILED
+
                 case NullMessageUpstream():
                     self.message_to_controller(InstanceMessageType.INITIALIZED)
+
                 case _:
                     raise Exception(f"Invalid 'status' in message: {type(data)}")
             

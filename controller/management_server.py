@@ -130,27 +130,48 @@ class ManagementClientConnection(threading.Thread):
             case InstanceMessageType.FAILED | InstanceMessageType.APPS_FAILED:
                 self.client.set_state(AgentManagementState.FAILED)
                 if message_obj.payload is not None:
-                    logger.error(f"Management: Client {self.client.name} reported failure with message: {message_obj.payload}")
+                    log_message = f"Management: Client {self.client.name} reported failure with message: {message_obj.payload}"
+                    if self.controller.prevent_logging:
+                        logger.debug(log_message)
+                    else:
+                        logger.error(log_message)
+                    
                     self.manager.provider.result_wrapper.append_instance_log(instance=self.client.name,
                                                                              message=f"Instance failed: {message_obj.payload}",
                                                                              type=LogMessageType.MSG_ERROR)
                 else:
-                    logger.error(f"Management: Client {self.client.name} reported failure without message.")
+                    log_message = f"Management: Client {self.client.name} reported failure without message."
+                    if self.controller.prevent_logging:
+                        logger.debug(log_message)
+                    else:
+                        logger.error(log_message)
                 return True
                 
             case InstanceMessageType.APPS_INSTALLED:
                 self.client.set_state(AgentManagementState.APPS_READY)
-                logger.info(f"Management: Client {self.client.name} installed apps, ready for experiment.")
+                log_message = f"Management: Client {self.client.name} installed apps, ready for experiment."
+                if self.controller.prevent_logging:
+                    logger.debug(log_message)
+                else:
+                    logger.info(log_message)
                 return True
 
             case InstanceMessageType.APPS_DONE:
                 self.client.set_state(AgentManagementState.FINISHED)
-                logger.info(f"Management: Client {self.client.name} completed its applications.")
+                log_message = f"Management: Client {self.client.name} completed its applications."
+                if self.controller.prevent_logging:
+                    logger.debug(log_message)
+                else:
+                    logger.info(log_message)
                 return True
 
             case InstanceMessageType.FINISHED:
                 self.client.set_state(AgentManagementState.FILES_PRESERVED)
-                logger.info(f"Management: Client {self.client.name} is ready for shut down.")
+                log_message = f"Management: Client {self.client.name} is ready for shut down."
+                if self.controller.prevent_logging:
+                    logger.debug(log_message)
+                else:
+                    logger.info(log_message)
                 return True
             
             case InstanceMessageType.COPIED_FILE:
@@ -202,7 +223,7 @@ class ManagementClientConnection(threading.Thread):
                 
                 application_log: ExtendedApplicationMessage = message_obj.payload
 
-                if application_log.print_to_user:
+                if application_log.print_to_user and not self.controller.prevent_logging:
                     ManagementClientConnection._message_type_to_logger(application_log.log_message_type,
                                                                        f"<y>[Application {application_log.application} from {self.client.name}]</y> {application_log.log_message}")
 
@@ -219,9 +240,9 @@ class ManagementClientConnection(threading.Thread):
                                                                                        application=application_log.application,
                                                                                        new_status=application_log.status)
 
-                    if application_log.status == ApplicationStatus.EXECUTION_STARTED:
+                    if application_log.status == ApplicationStatus.EXECUTION_STARTED and not self.controller.prevent_logging:
                         self.manager.report_app_state_change(self.client.name, application_log.application, AppStartStatus.START)
-                    elif application_log.status == ApplicationStatus.EXECUTION_FINISHED:
+                    elif application_log.status == ApplicationStatus.EXECUTION_FINISHED and not self.controller.prevent_logging:
                         self.manager.report_app_state_change(self.client.name, application_log.application, AppStartStatus.FINISH)
                         
                 

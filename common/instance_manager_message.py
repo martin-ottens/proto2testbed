@@ -151,8 +151,9 @@ class InstallApplicationsMessageUpstream(UpstreamMessage):
 
 
 class RunApplicationsMessageUpstream(UpstreamMessage):
-    def __init__(self, t0: float) -> None:
+    def __init__(self, t0: float, tcurrent: float) -> None:
         self.t0 = t0
+        self.tcurrent = tcurrent
 
 
 class ApplicationStatusMessageUpstream(UpstreamMessage):

@@ -1,6 +1,4 @@
 - Adopt API for looped operation with additional functions in between repetitions
 - Documentation
 - Examples
-- Ignore state transitions after instance FAILED
 - Handle integration correctly after restore loop
-- RunApplicationMessageUpstream: Add timecheck

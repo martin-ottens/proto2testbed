@@ -84,6 +84,7 @@ class Controller(Dismantable):
         self.request_restart = False
         self.request_exit = False
         self.influx_db = None
+        self.prevent_logging = False
 
         self.base_path = Path(testbed_basepath)
         self.pause_after = PauseAfterSteps.DISABLE
@@ -457,6 +458,7 @@ class Controller(Dismantable):
 
         if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
             logger.critical(f"Instances have reported failure during action '{stage}' or a timeout occurred!")
+            self.prevent_logging = True
             if interact_on_failure:
                 self.start_interaction(PauseAfterSteps.DISABLE)
             if request_file_preservation:
@@ -598,6 +600,7 @@ class Controller(Dismantable):
         return TestbedFunctionStatus.OK_CONTINUE
 
     def execute_testbed(self) -> TestbedFunctionStatus:
+        self.prevent_logging = False
         setup_timeout = self.provider.testbed_config.settings.startup_init_timeout
 
         logger.info("Instances are initialized, invoking installation of apps ...")
@@ -625,12 +628,14 @@ class Controller(Dismantable):
         if self.pause_after == PauseAfterSteps.INIT:
             if not self.start_interaction(PauseAfterSteps.INIT):
                 self.send_finish_message()
+                self.prevent_logging = True
                 return TestbedFunctionStatus.OK_CONTINUE
         
-        t0 = time.time() + self.provider.testbed_config.settings.appstart_timesync_offset
+        tcurrent = time.time()
+        t0 = tcurrent + self.provider.testbed_config.settings.appstart_timesync_offset
 
         logger.info(f"Starting applications on Instances (t0={t0}).")
-        message = RunApplicationsMessageUpstream(t0)
+        message = RunApplicationsMessageUpstream(t0, tcurrent)
         
         def run_application_callback(instance: InstanceState) -> bool:
             instance.send_message(message)
@@ -649,6 +654,7 @@ class Controller(Dismantable):
                 experiment_timeout *= 2
     
         if experiment_timeout == 0:
+            self.prevent_logging = True
             logger.error("Maximum experiment duration could not be calculated -> No Applications or just daemons installed!")
             if self.pause_after == PauseAfterSteps.EXPERIMENT:
                 self.start_interaction(PauseAfterSteps.EXPERIMENT)
