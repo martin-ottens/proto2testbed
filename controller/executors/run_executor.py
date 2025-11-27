@@ -59,9 +59,9 @@ class RunExecutor(BaseExecutor):
         parameters = RunParameters()
         testbed_path = ""
         if os.path.isabs(args.TESTBED_CONFIG):
-            testbed_path = args.TESTBED_CONFIG
+            testbed_path = Path(args.TESTBED_CONFIG)
         else:
-            testbed_path = f"{os.getcwd()}/{args.TESTBED_CONFIG}"
+            testbed_path = Path(f"{os.getcwd()}/{args.TESTBED_CONFIG}")
 
         from constants import TESTBED_CONFIG_JSON_FILENAME
         testbed_config_path = Path(testbed_path) / Path(TESTBED_CONFIG_JSON_FILENAME)
@@ -96,7 +96,7 @@ class RunExecutor(BaseExecutor):
         from utils.config_tools import load_config
         try:
             config: TestbedConfig = load_config(testbed_config_path, args.skip_substitution)
-            provider.set_testbed_config(config)
+            provider.set_testbed_config(config, testbed_path)
         except Exception as ex:
             logger.opt(exception=ex).critical("Error during loading of testbed config.")
             return 1
@@ -105,7 +105,7 @@ class RunExecutor(BaseExecutor):
         provider.set_full_result_wrapper(full_result_wrapper)
 
         try:
-            controller.init_config(parameters, testbed_path)
+            controller.init_config(parameters)
         except Exception as ex:
             logger.opt(exception=ex).critical("Error during config initialization")
             return 1

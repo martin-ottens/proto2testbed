@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from utils.settings import IntegrationSettings
 from utils.system_commands import invoke_subprocess
 from base_integration import BaseIntegration, IntegrationStatusContainer
-
+from utils.state_provider import TestbedStateProvider
 
 @dataclass
 class NS3IntegrationSettings(IntegrationSettings):
@@ -42,8 +42,8 @@ class NS3Integration(BaseIntegration):
     NAME = "ns3-emulation"
 
     def __init__(self, name: str, status_container: IntegrationStatusContainer, 
-                 environment: Optional[Dict[str, str]] = None) -> None:
-        super().__init__(name, status_container, environment)
+                 provider: TestbedStateProvider, environment: Optional[Dict[str, str]] = None) -> None:
+        super().__init__(name, status_container, provider, environment)
         self.process = None
         self.settings = None
 

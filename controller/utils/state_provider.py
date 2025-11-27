@@ -58,6 +58,7 @@ class TestbedStateProvider:
         self.preserve: Optional[Path] = preserve
         self.unique_run_name = f"{self.main_pid}-{self.executor}"
         self.testbed_config: Optional[TestbedConfig] = None
+        self.testbed_path: Optional[Path] = None
         self.state_lock = StateLock(self.statefile_base)
         self.from_api_call = from_api_call
         self.cache_datapoints = cache_datapoints
@@ -114,8 +115,9 @@ class TestbedStateProvider:
         self.experiment = None
         self.experiment_generated = False
 
-    def set_testbed_config(self, config: TestbedConfig) -> None:
+    def set_testbed_config(self, config: TestbedConfig, testbed_path: Path) -> None:
         self.testbed_config = config
+        self.testbed_path = testbed_path
 
     def set_cli(self, cli: CLI) -> None:
         self.cli = cli

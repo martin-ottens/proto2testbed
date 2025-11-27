@@ -1,4 +1,3 @@
 - Adopt API for looped operation with additional functions in between repetitions
 - Documentation
 - Examples
-- Handle integration correctly after restore loop

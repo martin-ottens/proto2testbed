@@ -141,7 +141,7 @@ class Proto2TestbedAPI:
         
         self._provider.set_testbed_config(self._testbed_config)
 
-        if not self._provider.update_preserve_path(preseve_path):
+        if not self._provider.update_preserve_path(preseve_path, Path(testbed_package_path)):
             raise Exception("Invalid preserve Path")
         
         full_result_wrapper = FullResultWrapper(self._testbed_config)
@@ -151,7 +151,7 @@ class Proto2TestbedAPI:
 
         from controller import Controller
         controller = Controller(self._provider, self._cli)
-        controller.init_config(parameters, testbed_package_path)
+        controller.init_config(parameters)
 
         try:
             status = controller.main()

@@ -69,12 +69,12 @@ class Controller(Dismantable):
         self.provider = provider
         self.cli = cli
 
-    def init_config(self, run_parameters: RunParameters, testbed_basepath: str) -> None:
+    def init_config(self, run_parameters: RunParameters) -> None:
         if self.provider.testbed_config is None:
             raise Exception("Cannot start controller without testbed config!")
 
         self.run_parameters = run_parameters
-        self.testbed_basepath = testbed_basepath
+        self.base_path = self.provider.testbed_path
         self.state_manager: InstanceStateManager = InstanceStateManager(self.provider)
         self.dismantables.insert(0, self.state_manager)
         self.mgmt_bridge: Optional[ManagementNetworkBridge] = None
@@ -86,7 +86,6 @@ class Controller(Dismantable):
         self.influx_db = None
         self.prevent_logging = False
 
-        self.base_path = Path(testbed_basepath)
         self.pause_after = PauseAfterSteps.DISABLE
         self.interact_finished_event: Optional[Event] = None
 
@@ -116,8 +115,10 @@ class Controller(Dismantable):
             self.app_dependencies = AppDependencyHelper(self.provider.testbed_config)
             self.app_dependencies.compile_dependency_list()
             self.state_manager.set_app_dependecy_helper(self.app_dependencies)
-            self.integration_helper = IntegrationHelper(testbed_basepath,
+            self.integration_helper = IntegrationHelper(self.provider.testbed_path,
                                                         str(self.provider.app_base_path),
+                                                        self.provider,
+                                                        self.run_parameters.skip_integration,
                                                         self.provider.default_configs.get_defaults("disable_integrations", False))
             self.cli.set_full_result_wrapper(self.provider.result_wrapper)
 
@@ -311,7 +312,7 @@ class Controller(Dismantable):
 
                 helper = InstanceHelper(instance=instance,
                                         management=management_settings,
-                                        testbed_package_path=str(self.testbed_basepath),
+                                        testbed_package_path=str(self.provider.testbed_path),
                                         image=str(diskimage_path),
                                         cores=instance_config.cores,
                                         memory=instance_config.memory,
@@ -493,6 +494,7 @@ class Controller(Dismantable):
                 return run_state.has_failed
 
             if self.provider.snapshots_enabled and run_state.can_continue:
+                self.integration_helper.graceful_shutdown(InvokeIntegrationAfter.INIT)
                 self.state_manager.reset_all_after_snapshot_restore()
                 self.state_manager.do_for_all_instances_parallel(lambda instance: instance.prepare_reconnect())
 
@@ -529,7 +531,7 @@ class Controller(Dismantable):
 
         start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP)
         if start_status is None:
-            logger.debug(f"No integration scheduled for start at stage {InvokeIntegrationAfter.STARTUP}")
+            logger.debug(f"No Integration scheduled for start at stage {InvokeIntegrationAfter.STARTUP}")
         elif start_status is False:
             logger.critical("Critical error during integration start!")
             return TestbedFunctionStatus.FAILED_DONT_CONTINUE
@@ -548,7 +550,7 @@ class Controller(Dismantable):
         else:
             logger.success(f"Experiment data will be saved to InfluxDB {self.influx_db.database} with tag experiment={self.provider.experiment}")
 
-        if not load_vm_initialization(self.provider.testbed_config, self.testbed_basepath, self.state_manager):
+        if not load_vm_initialization(self.provider.testbed_config, self.provider.testbed_path, self.state_manager):
             logger.critical("Critical error while loading Instance initialization!")
             return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
@@ -620,9 +622,9 @@ class Controller(Dismantable):
 
         start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.INIT)
         if start_status is None:
-            logger.debug(f"No integration scheduled for start at stage {InvokeIntegrationAfter.INIT}")
+            logger.debug(f"No Integration scheduled for start at stage {InvokeIntegrationAfter.INIT}")
         elif start_status is False:
-            logger.critical("Critical error during integration start!")
+            logger.critical("Critical error during Integration start!")
             return TestbedFunctionStatus.FAILED_CONTINUE
 
         if self.pause_after == PauseAfterSteps.INIT:
