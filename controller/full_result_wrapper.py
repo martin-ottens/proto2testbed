@@ -33,6 +33,7 @@ class LogEntry:
     time: datetime
     type: LogMessageType
     message: str
+    after_snapshot: bool = False
 
 
 @dataclass
@@ -58,13 +59,33 @@ class FullResultWrapper:
         self.controller_log: List[LogEntry] = []
         self.controller_succeeded: bool = False
         self.experiment_tag: Optional[str] = None
+        self._is_after_snapshot: bool = False
 
         for instance in testbed_config.instances:
             self.instance_status_map[instance.name] = InstanceStatusReport(config=instance)
+            #for application in instance.applications:
+            #    key = (instance.name, application.name)
+            #    val = ApplicationStatusReport(config=application)
+            #    self.application_status_map[key] = val
+
+    def unwrap_after_init(self, testbed_config: TestbedConfig, experiment_tag: str) -> None:
+        self._is_after_snapshot = True
+        self.experiment_tag = experiment_tag
+        self.controller_succeeded = False
+
+        self.application_status_map.clear()
+        for instance in testbed_config.instances:
             for application in instance.applications:
                 key = (instance.name, application.name)
                 val = ApplicationStatusReport(config=application)
                 self.application_status_map[key] = val
+
+        for instance_report in self.instance_status_map.values():
+            instance_report.logs = list(filter(lambda x: not x.after_snapshot, instance_report.logs))
+            instance_report.preserve = None
+            instance_report.status = AgentManagementState.UNKNOWN
+
+        self.controller_log = list(filter(lambda x: not x.after_snapshot, self.controller_log))
 
     def append_application_log(self, instance: str, application: str, 
                                message: str, type: LogMessageType) -> bool:
@@ -76,7 +97,10 @@ class FullResultWrapper:
             return True
         
         entry: ApplicationStatusReport = self.application_status_map.get((instance, application))
-        entry.logs.append(LogEntry(time=datetime.now(), type=type, message=message))
+        entry.logs.append(LogEntry(time=datetime.now(), 
+                                   type=type, 
+                                   message=message, 
+                                   after_snapshot=self._is_after_snapshot))
 
         return True
     
@@ -97,7 +121,10 @@ class FullResultWrapper:
         if matched_level == LogMessageType.NONE:
             return
         
-        self.controller_log.append(LogEntry(message=message, type=matched_level, time=time))
+        self.controller_log.append(LogEntry(message=message, 
+                                            type=matched_level, 
+                                            time=time,
+                                            after_snapshot=self._is_after_snapshot))
     
     def change_application_status(self, instance: str, application: str, 
                       new_status: ApplicationStatus) -> bool:
@@ -122,7 +149,10 @@ class FullResultWrapper:
         if type == LogMessageType.NONE:
             return True
 
-        entry = LogEntry(time=datetime.now(), type=type, message=message)
+        entry = LogEntry(time=datetime.now(), 
+                         type=type, 
+                         message=message,
+                         after_snapshot=self._is_after_snapshot)
         self.instance_status_map[instance].logs.append(entry)
         return True
     
@@ -208,7 +238,7 @@ class FullResultWrapper:
             print(f"----- {name}@{instance}: {application.status}", file=file)
             print("Logs:", file=file)
             for log in application.logs:
-                print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)
+                print(f"{log.time.isoformat()} - {log.type.prefix} {log.message} {'(X)' if log.after_snapshot else ''}", file=file)
 
             print("Datapoints:", file=file)
             for entry in application.data_series:
@@ -223,10 +253,10 @@ class FullResultWrapper:
 
             print("Logs:", file=file)
             for log in instance.logs:
-                print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)
+                print(f"{log.time.isoformat()} - {log.type.prefix} {log.message} {'(X)' if log.after_snapshot else ''}", file=file)
 
         print("\nCONTROLLER LOG\n", file=file)
         for log in self.controller_log:
-            print(f"{log.time.isoformat()} - {log.type.prefix} {log.message}", file=file)
+            print(f"{log.time.isoformat()} - {log.type.prefix} {log.message} {'(X)' if log.after_snapshot else ''}", file=file)
 
         print(f"### END DUMP Experiment: {self.experiment_tag}, success={self.controller_succeeded}", file=file)

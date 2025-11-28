@@ -25,7 +25,6 @@ from pathlib import Path
 
 from executors.base_executor import BaseExecutor
 from utils.continue_mode import PauseAfterSteps
-from utils.settings import RunParameters
 from utils.state_provider import TestbedStateProvider
 from full_result_wrapper import FullResultWrapper
 
@@ -56,7 +55,6 @@ class RunExecutor(BaseExecutor):
                                     help="Create checkpoints of instances after sucessful setup")
 
     def invoke(self, args, provider: TestbedStateProvider) -> int:
-        parameters = RunParameters()
         testbed_path = ""
         if os.path.isabs(args.TESTBED_CONFIG):
             testbed_path = Path(args.TESTBED_CONFIG)
@@ -67,10 +65,6 @@ class RunExecutor(BaseExecutor):
         testbed_config_path = Path(testbed_path) / Path(TESTBED_CONFIG_JSON_FILENAME)
 
         interact = PauseAfterSteps[args.interact]
-        parameters.disable_kvm = args.no_kvm
-        parameters.dont_use_influx = args.dont_store
-        parameters.skip_integration = args.skip_integrations
-        parameters.create_checkpoint = args.checkpoint
         
         if provider.experiment_generated:
             logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {provider.experiment}")
@@ -87,7 +81,7 @@ class RunExecutor(BaseExecutor):
             logger.critical("Unable to set up File Preservation")
             return 1
 
-        from controller import Controller
+        from ..controller import Controller
         from cli import CLI
         cli = CLI(provider)
         controller = Controller(provider, cli)
@@ -105,7 +99,10 @@ class RunExecutor(BaseExecutor):
         provider.set_full_result_wrapper(full_result_wrapper)
 
         try:
-            controller.init_config(parameters)
+            controller.init_config(skip_integration=args.skip_integrations,
+                                   disable_kvm=args.no_kvm,
+                                   dont_use_influx=args.dont_store,
+                                   create_checkpoint=args.checkpoint)
         except Exception as ex:
             logger.opt(exception=ex).critical("Error during config initialization")
             return 1

@@ -127,6 +127,18 @@ class TestbedInstance:
     
     def __str__(self) -> str:
         return self.name
+    
+    def compare_without_applications(self, other) -> bool:
+        if not isinstance(other, TestbedInstance):
+            raise ValueError("Can only compare TestbedInstance objects")
+        
+        if (self.name != other.name or self.diskimage != other.diskimage or
+            self.setup_script != other.setup_script or self.environment != other.environment or
+            self.cores != other.cores or self.memory != other.cores or
+            self.management_address != other.management_address or self.networks != other.networks):
+                return False
+        else:
+            return True
 
 
 class TestbedConfig:
@@ -145,6 +157,38 @@ class TestbedConfig:
         for instance in json_dict["instances"]:
             self.instances.append(TestbedInstance(**instance))
 
+    def is_identical_besides_experiments(self, other) -> bool:
+        if not isinstance(other, TestbedConfig):
+            raise ValueError("Can only compare TestbedConfig objects")
+        
+        if self.settings != other.settings:
+            raise Exception("'settings' sections of TestbedConfigs are different")
+        
+        def normalize(obj):
+            return json.dumps(obj, sort_keys=True)
+
+        if sorted(self.networks, key=normalize) == sorted(other.networks, key=normalize):
+            raise Exception("'networks' sections of TestbedConfigs are different")
+        
+        if sorted(self.integrations, key=normalize) == sorted(other.integrations, key=normalize):
+            raise Exception("'integrations' sections of TestbedConfigs are different")
+        
+        self_instances = list(map(lambda x: x.name, self.instances))
+        other_instances = list(map(lambda x: x.name, other.instances))
+
+        if self_instances != other_instances:
+            raise Exception("'instances' in TestbedConfigs have different Instance names")
+        
+        for instance in self.instances:
+            for other_instance in other.instances:
+                if instance.name != other_instance.name:
+                    continue
+
+                if not instance.compare_without_applications(other):
+                    raise Exception(f"Instance '{instance.name}' differs in config")
+        
+        return True
+
 
 class DefaultConfigs:
     def __init__(self, path: str) -> None:
@@ -162,11 +206,3 @@ class DefaultConfigs:
             return fallback
         else:
             return self.defaults.get(key)
-
-
-@dataclass
-class RunParameters:
-    disable_kvm: bool = False
-    dont_use_influx: Optional[bool] = False
-    skip_integration: bool = False
-    create_checkpoint: bool = False

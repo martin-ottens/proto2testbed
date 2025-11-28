@@ -33,7 +33,7 @@ from helper.state_file_helper import StateFileReader
 from utils.interfaces import Dismantable
 from utils.config_tools import load_vm_initialization
 from utils.state_provider import TestbedStateProvider
-from utils.settings import InvokeIntegrationAfter, RunParameters
+from utils.settings import InvokeIntegrationAfter
 from utils.influxdb import InfluxDBAdapter
 from utils.networking import *
 from utils.continue_mode import *
@@ -69,11 +69,13 @@ class Controller(Dismantable):
         self.provider = provider
         self.cli = cli
 
-    def init_config(self, run_parameters: RunParameters) -> None:
+    def init_config(self, skip_integration: bool = False, disable_kvm: bool = False,
+                    create_checkpoint: bool = False, dont_use_influx: bool = False) -> None:
         if self.provider.testbed_config is None:
             raise Exception("Cannot start controller without testbed config!")
 
-        self.run_parameters = run_parameters
+        self.disable_kvm = disable_kvm
+        self.create_checkpoint = create_checkpoint
         self.base_path = self.provider.testbed_path
         self.state_manager: InstanceStateManager = InstanceStateManager(self.provider)
         self.dismantables.insert(0, self.state_manager)
@@ -118,7 +120,7 @@ class Controller(Dismantable):
             self.integration_helper = IntegrationHelper(self.provider.testbed_path,
                                                         str(self.provider.app_base_path),
                                                         self.provider,
-                                                        self.run_parameters.skip_integration,
+                                                        skip_integration,
                                                         self.provider.default_configs.get_defaults("disable_integrations", False))
             self.cli.set_full_result_wrapper(self.provider.result_wrapper)
 
@@ -129,7 +131,7 @@ class Controller(Dismantable):
         self.dismantables.insert(0, self.integration_helper)
 
         try:
-            self.influx_db = InfluxDBAdapter(self.provider, self.run_parameters.dont_use_influx,
+            self.influx_db = InfluxDBAdapter(self.provider, dont_use_influx,
                                              full_result_wrapper=self.provider.result_wrapper if self.provider.cache_datapoints else None)
             self.influx_db.start()
             self.dismantables.insert(0, self.influx_db)
@@ -317,7 +319,7 @@ class Controller(Dismantable):
                                         cores=instance_config.cores,
                                         memory=instance_config.memory,
                                         allow_gso_gro=self.provider.testbed_config.settings.allow_gso_gro,
-                                        disable_kvm=self.run_parameters.disable_kvm)
+                                        disable_kvm=self.disable_kvm)
                 self.dismantables.insert(0, helper)
                 instance.set_instance_helper(helper)
                 helper.start_instance()
@@ -479,6 +481,40 @@ class Controller(Dismantable):
         else:
             return True
         
+    def reset_testbed_to_snapshot(self, interact: bool = False) -> bool:
+        if not self.provider.snapshots_enabled and interact:
+            return False
+        elif not self.provider.snapshots_enabled:
+            raise Exception("Cannot reset to snapshot: Snapshots not available")
+        
+        self.integration_helper.graceful_shutdown(InvokeIntegrationAfter.INIT)
+        self.state_manager.reset_all_after_snapshot_restore()
+        self.state_manager.do_for_all_instances_parallel(lambda instance: instance.prepare_reconnect())
+
+        def restore_snapsnot_callback(instance) -> bool:
+            if instance.instance_helper is None:
+                logger.critical("Unable to restore checkpoints: No instance helper available.")
+                return False
+                    
+            return instance.instance_helper.restore_snapshot()
+                
+        restore_status = self.provider.instance_manager.do_for_all_instances_parallel(restore_snapsnot_callback)
+        if not restore_status and interact:
+            logger.error("Unable to restore all checkpoints.")
+            return False
+        elif not restore_status:
+            raise Exception("Unable to restore all checkpoints.")
+
+        self.state_manager.do_for_all_instances_parallel(lambda instance: 
+                                                        instance.send_message(NullMessageUpstream(False)))
+        setup_timeout = self.provider.testbed_config.settings.startup_init_timeout
+        reconnect_status = self.wait_for_to_become(setup_timeout, "Instance Reconnect", 
+                                                   AgentManagementState.INITIALIZED, False, False)
+        if not reconnect_status and interact:
+            return False
+        elif not reconnect_status:
+            raise Exception("Instances have not reconnected after checkpoint restore.")
+        
     def testbed_main_interactive(self, pause_after_step: PauseAfterSteps = PauseAfterSteps.DISABLE) -> bool:
         self.pause_after = pause_after_step
 
@@ -492,28 +528,9 @@ class Controller(Dismantable):
 
             if self.request_exit:
                 return run_state.has_failed
-
-            if self.provider.snapshots_enabled and run_state.can_continue:
-                self.integration_helper.graceful_shutdown(InvokeIntegrationAfter.INIT)
-                self.state_manager.reset_all_after_snapshot_restore()
-                self.state_manager.do_for_all_instances_parallel(lambda instance: instance.prepare_reconnect())
-
-                def restore_snapsnot_callback(instance) -> bool:
-                    if instance.instance_helper is None:
-                        logger.critical("Unable to restore checkpoints: No instance helper available.")
-                        return False
-                    
-                    return instance.instance_helper.restore_snapshot()
-                
-                if not self.provider.instance_manager.do_for_all_instances_parallel(restore_snapsnot_callback):
-                    logger.error("Unable to restore all checkpoints.")
-                    return False
-
-                self.state_manager.do_for_all_instances_parallel(lambda instance: 
-                                                                 instance.send_message(NullMessageUpstream(False)))
-                setup_timeout = self.provider.testbed_config.settings.startup_init_timeout
-                if not self.wait_for_to_become(setup_timeout, "Instance Reconnect", 
-                                        AgentManagementState.INITIALIZED, False, False):
+            
+            if run_state.can_continue:
+                if not self.reset_testbed_to_snapshot(interact=True):
                     return False
                 
                 logger.success("Testbed snapshot restored the INIT state without app installation.")
@@ -580,7 +597,7 @@ class Controller(Dismantable):
                 instance.send_message(InitializeMessageUpstream(
                             instance.get_setup_env()[0], 
                             instance.get_setup_env()[1],
-                            snapshot_requested=self.run_parameters.create_checkpoint)))
+                            snapshot_requested=self.create_checkpoint)))
         else:
             logger.info("Waiting for Instances to start and initialize ...")
 
@@ -589,7 +606,7 @@ class Controller(Dismantable):
                                        self.pause_after == PauseAfterSteps.INIT, True):
             return TestbedFunctionStatus.FAILED_DONT_CONTINUE
         
-        if self.run_parameters.create_checkpoint:
+        if self.create_checkpoint:
             logger.info("Creating checkpoints with INIT stage for all Instances ...")
 
             if not self.state_manager.do_for_all_instances_parallel(lambda instance: 
@@ -602,6 +619,10 @@ class Controller(Dismantable):
         return TestbedFunctionStatus.OK_CONTINUE
 
     def execute_testbed(self) -> TestbedFunctionStatus:
+        if self.provider.result_wrapper is not None:
+            self.provider.result_wrapper.unwrap_after_init(self.provider.testbed_config, 
+                                                           self.provider.experiment)
+
         self.prevent_logging = False
         setup_timeout = self.provider.testbed_config.settings.startup_init_timeout
 

@@ -72,6 +72,9 @@ class TestbedStateProvider:
         self.concurrency_reservation.clear_reservations()
     
     def update_experiment_tag(self, experiment: Optional[str], accuire: bool) -> str:
+        if experiment == "":
+            raise ValueError("Empty string is invalid for an experiment tag.")
+
         if self.experiment is not None and accuire:
             self.release_experiment_tag()
 
@@ -80,7 +83,7 @@ class TestbedStateProvider:
                                                                experiment, 
                                                                self.statefile_base,
                                                                self.unique_run_name):
-                raise Exception(f"Experiment tag must be unique, but {experiment} is already in use!")
+                raise Exception(f"Experiment tag must be unique, but {experiment} is already in use by another running testbed!")
             
             self.experiment = experiment
             return self.experiment
