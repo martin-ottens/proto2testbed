@@ -76,7 +76,7 @@ class Controller(Dismantable):
 
         self.disable_kvm = disable_kvm
         self.create_checkpoint = create_checkpoint
-        self.base_path = self.provider.testbed_path
+        self.base_path = self.provider.testbed_package_path
         self.state_manager: InstanceStateManager = InstanceStateManager(self.provider)
         self.dismantables.insert(0, self.state_manager)
         self.mgmt_bridge: Optional[ManagementNetworkBridge] = None
@@ -117,7 +117,7 @@ class Controller(Dismantable):
             self.app_dependencies = AppDependencyHelper(self.provider.testbed_config)
             self.app_dependencies.compile_dependency_list()
             self.state_manager.set_app_dependecy_helper(self.app_dependencies)
-            self.integration_helper = IntegrationHelper(self.provider.testbed_path,
+            self.integration_helper = IntegrationHelper(self.provider.testbed_package_path,
                                                         str(self.provider.app_base_path),
                                                         self.provider,
                                                         skip_integration,
@@ -314,7 +314,7 @@ class Controller(Dismantable):
 
                 helper = InstanceHelper(instance=instance,
                                         management=management_settings,
-                                        testbed_package_path=str(self.provider.testbed_path),
+                                        testbed_package_path=str(self.provider.testbed_package_path),
                                         image=str(diskimage_path),
                                         cores=instance_config.cores,
                                         memory=instance_config.memory,
@@ -567,7 +567,7 @@ class Controller(Dismantable):
         else:
             logger.success(f"Experiment data will be saved to InfluxDB {self.influx_db.database} with tag experiment={self.provider.experiment}")
 
-        if not load_vm_initialization(self.provider.testbed_config, self.provider.testbed_path, self.state_manager):
+        if not load_vm_initialization(self.provider.testbed_config, self.provider.testbed_package_path, self.state_manager):
             logger.critical("Critical error while loading Instance initialization!")
             return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
@@ -621,7 +621,8 @@ class Controller(Dismantable):
     def execute_testbed(self) -> TestbedFunctionStatus:
         if self.provider.result_wrapper is not None:
             self.provider.result_wrapper.unwrap_after_init(self.provider.testbed_config, 
-                                                           self.provider.experiment)
+                                                           self.provider.experiment,
+                                                           self.provider.testbed_package_path)
 
         self.prevent_logging = False
         setup_timeout = self.provider.testbed_config.settings.startup_init_timeout

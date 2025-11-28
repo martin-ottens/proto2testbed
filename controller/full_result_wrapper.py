@@ -22,6 +22,7 @@ from loguru import logger
 from dataclasses import dataclass, field
 from typing import List, Tuple, Dict, Optional, Any
 from datetime import datetime
+from pathlib import Path
 
 from utils.settings import TestbedConfig, ApplicationConfig, TestbedInstance
 from common.instance_manager_message import LogMessageType, ApplicationStatus
@@ -53,25 +54,26 @@ class InstanceStatusReport:
 
 
 class FullResultWrapper:
-    def __init__(self, testbed_config: TestbedConfig) -> None:
+    def __init__(self, testbed_config: TestbedConfig, testbed_package_path: Path) -> None:
         self.application_status_map: Dict[Tuple[str, str], ApplicationStatusReport] = {}
         self.instance_status_map: Dict[str, InstanceStatusReport] = {}
         self.controller_log: List[LogEntry] = []
         self.controller_succeeded: bool = False
         self.experiment_tag: Optional[str] = None
         self._is_after_snapshot: bool = False
+        self.testbed_package_path: Path = testbed_package_path
+        self.testbed_config: TestbedConfig = testbed_config
 
         for instance in testbed_config.instances:
             self.instance_status_map[instance.name] = InstanceStatusReport(config=instance)
-            #for application in instance.applications:
-            #    key = (instance.name, application.name)
-            #    val = ApplicationStatusReport(config=application)
-            #    self.application_status_map[key] = val
 
-    def unwrap_after_init(self, testbed_config: TestbedConfig, experiment_tag: str) -> None:
+    def unwrap_after_init(self, testbed_config: TestbedConfig, experiment_tag: str, 
+                          testbed_package_path: Path) -> None:
         self._is_after_snapshot = True
         self.experiment_tag = experiment_tag
         self.controller_succeeded = False
+        self.testbed_config = testbed_config
+        self.testbed_package_path = testbed_package_path
 
         self.application_status_map.clear()
         for instance in testbed_config.instances:

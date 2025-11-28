@@ -17,6 +17,7 @@
 #
 
 import atexit
+import copy
 
 from typing import Optional, List
 from pathlib import Path
@@ -211,7 +212,7 @@ class Proto2TestbedAPI:
         
         if self._stored_controller is None:
             self._provider.set_testbed_config(testbed_config, testbed_package_path)
-            self._stored_result_wrapper = FullResultWrapper(testbed_config)
+            self._stored_result_wrapper = FullResultWrapper(testbed_config, testbed_package_path)
             self._provider.set_full_result_wrapper(self._stored_result_wrapper)
             self._provider.update_experiment_tag(experiment_tag, True)
 
@@ -230,6 +231,7 @@ class Proto2TestbedAPI:
         else:
             try:
                 self._stored_testbed_config.is_identical_besides_experiments(testbed_config)
+                self._provider.set_testbed_config(testbed_config, testbed_package_path)
             except Exception as ex:
                 raise ex
             
@@ -249,7 +251,7 @@ class Proto2TestbedAPI:
             self.destroy_testbed()
             raise ex
 
-        result_wrapper = self._stored_result_wrapper
+        result_wrapper = copy.deepcopy(self._stored_result_wrapper)
 
         if not use_checkpoints:
             self.destroy_testbed()
@@ -337,6 +339,35 @@ class Proto2TestbedAPI:
                                       testbed_package_path, 
                                       self._provider)
         return exporter.output_to_list()
+    
+    def export_results_from_wrapper(self, result_wrapper: FullResultWrapper) -> List[APISeriesContainer]:
+        """
+        Export data points from the InfluxDB, e.g., when not stored in the 
+        FullResultWrapper. Uses the testbed config, testbed package path, and
+        the experiment tag stored in a FullResultWrapper object obtained from a testbed
+        execution.
+
+        Args:
+            result_wrapper (FullResultWrapper): FullResultWrapper obtained from a testbed execution,
+                                                used to obtain the experiment tag used/generated during
+                                                the testbed execution, the testbed config used and
+                                                the testbed package path.
+        
+        Returns:
+            List[APISeriesContainer]: All measurements obatined from the InfluxDB for 
+                                      the testbed config and experiment tag. A single
+                                      measurement is contained in an individual
+        """
+
+        if result_wrapper.testbed_config is None or result_wrapper.testbed_package_path is None:
+            raise ValueError("FullResultWrapper is in invalid state: No testbed config provided.")
+        
+        if result_wrapper.experiment_tag is None:
+            raise ValueError("FullResultWrapper is in invalid state: No experiment tag provided.")
+        
+        return self.export_results(experiment_tag=result_wrapper.experiment_tag,
+                                   testbed_config=result_wrapper.testbed_config,
+                                   testbed_package_path=result_wrapper.testbed_package_path)
 
     def clean_results(self, 
                       experiment_tag: Optional[str] = None,
@@ -374,3 +405,18 @@ class Proto2TestbedAPI:
             raise ex
         finally:
             adapter.close_access_client()
+
+    def clean_results_from_wrapper(self, result_wrapper: FullResultWrapper) -> List[APISeriesContainer]:
+        """
+        Delete results from the InfluxDB as referenced by the experiment tag in the FullResultWrapper
+
+        Args:
+            result_wrapper (FullResultWrapper): FullResultWrapper obtained from a testbed execution,
+                                                used to obtain the experiment tag used/generated during
+                                                the testbed execution.
+        """
+
+        if result_wrapper.experiment_tag is None:
+            raise ValueError("FullResultWrapper is in invalid state: No experiment tag provided.")
+        
+        return self.clean_results(experiment_tag=result_wrapper.experiment_tag, all=False)

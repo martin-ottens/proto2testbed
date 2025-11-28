@@ -87,7 +87,7 @@ class BaseIntegration(ABC):
         self.environment = environment
         self.status = status_container
         self.provider = provider
-        self.base_path = provider.testbed_path
+        self.base_path = provider.testbed_package_path
         self.settings = None
 
     # Helper function to kill a process with all of its child. Do not overwrite.
