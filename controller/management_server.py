@@ -120,7 +120,7 @@ class ManagementClientConnection(threading.Thread):
                         self.send_message(InitializeMessageUpstream(
                             self.client.get_setup_env()[0], 
                             self.client.get_setup_env()[1],
-                            self.controller.run_parameters.create_checkpoint))
+                            self.controller.create_checkpoint))
                     else:
                         logger.info(f"Management: Client '{self.expected_instance.name}': Started. Setup deferred.")
             case InstanceMessageType.INITIALIZED:

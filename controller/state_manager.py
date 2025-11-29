@@ -453,9 +453,9 @@ class InstanceStateManager(Dismantable):
 
         self.map.clear()
 
-    def reset_all_after_snapshot_restore(self):
+    def reset_all_after_snapshot_restore(self, preserve_target: Optional[Path]):
         for instance in self.map.values():
-            instance.remove_interchange_dir(self.provider.preserve, False)
+            instance.remove_interchange_dir(preserve_target, False)
             instance.reset_after_snapshot_restore()
 
     def get_instance(self, name: str) -> Optional[InstanceState]:

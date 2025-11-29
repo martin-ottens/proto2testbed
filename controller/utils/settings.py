@@ -25,6 +25,7 @@ from enum import Enum
 from abc import ABC
 from dataclasses import dataclass
 from loguru import logger
+from json import JSONEncoder
 
 from common.application_configs import ApplicationConfig
 
@@ -133,9 +134,10 @@ class TestbedInstance:
             raise ValueError("Can only compare TestbedInstance objects")
         
         if (self.name != other.name or self.diskimage != other.diskimage or
-            self.setup_script != other.setup_script or self.environment != other.environment or
-            self.cores != other.cores or self.memory != other.cores or
-            self.management_address != other.management_address or self.networks != other.networks):
+            self.setup_script != other.setup_script or self.cores != other.cores or 
+            self.memory != other.memory or 
+            self.management_address != other.management_address or 
+            self.networks != other.networks):
                 return False
         else:
             return True
@@ -165,12 +167,16 @@ class TestbedConfig:
             raise Exception("'settings' sections of TestbedConfigs are different")
         
         def normalize(obj):
-            return json.dumps(obj, sort_keys=True)
+            class CloseEncoder(JSONEncoder):
+                def default(self, o):
+                    return o.__dict__
 
-        if sorted(self.networks, key=normalize) == sorted(other.networks, key=normalize):
+            return json.dumps(obj, sort_keys=True, cls=CloseEncoder)
+
+        if normalize(self.networks) != normalize(other.networks):
             raise Exception("'networks' sections of TestbedConfigs are different")
         
-        if sorted(self.integrations, key=normalize) == sorted(other.integrations, key=normalize):
+        if normalize(self.integrations) != normalize(other.integrations):
             raise Exception("'integrations' sections of TestbedConfigs are different")
         
         self_instances = list(map(lambda x: x.name, self.instances))
@@ -184,7 +190,7 @@ class TestbedConfig:
                 if instance.name != other_instance.name:
                     continue
 
-                if not instance.compare_without_applications(other):
+                if not instance.compare_without_applications(other_instance):
                     raise Exception(f"Instance '{instance.name}' differs in config")
         
         return True

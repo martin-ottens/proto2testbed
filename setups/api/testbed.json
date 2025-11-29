@@ -30,7 +30,22 @@
                     "settings": {
                         "target": "10.0.0.2"
                     }
+                },
+                {
+                    "application": "run-program",
+                    "name": "a-program",
+                    "delay": 0,
+                    "runtime": 1,
+                    "settings": {
+                        "command": "app.sh",
+                        "environment": {
+                            "VALUE": "Hello from vma! "
+                        }
+                    }
                 }
+            ],
+            "preserve_files": [
+                "/tmp/preserve.txt"
             ]
         },
         {
@@ -52,7 +67,22 @@
                     "settings": {
                         "target": "10.0.0.1"
                     }
+                },
+                {
+                    "application": "run-program",
+                    "name": "b-program",
+                    "delay": 10,
+                    "runtime": 1,
+                    "settings": {
+                        "command": "app.sh",
+                        "environment": {
+                            "VALUE": "Hello from vmb! "
+                        }
+                    }
                 }
+            ],
+            "preserve_files": [
+                "/tmp/preserve.txt"
             ]
         }
     ]

@@ -481,14 +481,19 @@ class Controller(Dismantable):
         else:
             return True
         
-    def reset_testbed_to_snapshot(self, interact: bool = False) -> bool:
+    def reset_testbed_to_snapshot(self, interact: bool = False, 
+                                  preserve_path: Optional[Path] = None) -> bool:
         if not self.provider.snapshots_enabled and interact:
             return False
         elif not self.provider.snapshots_enabled:
             raise Exception("Cannot reset to snapshot: Snapshots not available")
         
         self.integration_helper.graceful_shutdown(InvokeIntegrationAfter.INIT)
-        self.state_manager.reset_all_after_snapshot_restore()
+        if preserve_path is not None:
+            self.state_manager.reset_all_after_snapshot_restore()
+        else:
+            self.state_manager.reset_all_after_snapshot_restore(self.provider.preserve)
+
         self.state_manager.do_for_all_instances_parallel(lambda instance: instance.prepare_reconnect())
 
         def restore_snapsnot_callback(instance) -> bool:

@@ -91,6 +91,9 @@ class Proto2TestbedAPI:
         self._stored_result_wrapper: Optional[FullResultWrapper] = None
         atexit.register(self.destroy_testbed)
 
+    def __del__(self) -> None:
+        self.destroy_testbed()
+
     def load_testbed_config_from_package(self, 
                                          testbed_package_path: Path,
                                          skip_substitution: bool = True) -> TestbedConfig:
@@ -212,6 +215,7 @@ class Proto2TestbedAPI:
         
         if self._stored_controller is None:
             self._provider.set_testbed_config(testbed_config, testbed_package_path)
+            self._stored_testbed_config = copy.deepcopy(testbed_config)
             self._stored_result_wrapper = FullResultWrapper(testbed_config, testbed_package_path)
             self._provider.set_full_result_wrapper(self._stored_result_wrapper)
             self._provider.update_experiment_tag(experiment_tag, True)
@@ -224,21 +228,22 @@ class Proto2TestbedAPI:
                                                     create_checkpoint=use_checkpoints)
                 init_state = self._stored_controller.initialize_testbed()
                 if init_state.has_failed:
-                    raise TestbedInitializationException("Failure during tested initialization")
+                    return copy.deepcopy(self._stored_result_wrapper)
             except Exception as ex:
                 self.destroy_testbed()
                 raise ex
         else:
             try:
-                self._stored_testbed_config.is_identical_besides_experiments(testbed_config)
-                self._provider.set_testbed_config(testbed_config, testbed_package_path)
-            except Exception as ex:
-                raise ex
-            
-            try:
                 self._stored_controller.reset_testbed_to_snapshot()
             except Exception as ex:
                 self.destroy_testbed()
+                raise ex
+
+            try:
+                self._stored_testbed_config.is_identical_besides_experiments(testbed_config)
+                self._provider.set_testbed_config(testbed_config, testbed_package_path)
+                self._stored_testbed_config = copy.deepcopy(testbed_config)
+            except Exception as ex:
                 raise ex
         
         try:

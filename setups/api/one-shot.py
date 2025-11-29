@@ -23,7 +23,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path("../../controller").resolve()))
 
 from api import Proto2TestbedAPI
-from utils.settings import TestbedConfig
 
 TESTBED_PACKAGE = Path(".")
 
@@ -31,17 +30,11 @@ TESTBED_PACKAGE = Path(".")
 api = Proto2TestbedAPI(log_to_influx=True, 
                        skip_integration=True)
 
-# Execute the testbed with the loaded TestbedConfig. Create
-# a checkpoint that can be used to execute different experiments
-# with the same testbed setup in a looped operation. This
-# method blocks until the testbed completes (or fails), but with
-# use_checkpoints before it is dismantled.
+# Execute the testbed with the loaded TestbedConfig. This
+# method blocks until the testbed completes (or fails).
 # The testbed config is autoloaded from TESTBED_PACKAGE/testbed.json.
 result = api.run_testbed(testbed_package_path=TESTBED_PACKAGE,
-                         use_checkpoints=True)
-
-# Manually dismantle the testbed
-api.destroy_testbed()
+                         preserve_path=Path("./out"))
 
 # Get the testbed logs, instance and application status reports in a
 # machine readable format, output to stdout
@@ -52,7 +45,7 @@ result.dump_state()
 
 # Set the previously randomly generated experiment tag to the API instance
 # to obtain the data series results. Clean results afterwards
-print("Results from InfluxDB:", api.export_results_from_wrappper(result))
+print("Results from InfluxDB:", api.export_results_from_wrapper(result))
 api.clean_results_from_wrapper(result)
 
 # List all running testbeds, should be an empty list when the 
