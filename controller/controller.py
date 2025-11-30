@@ -481,18 +481,20 @@ class Controller(Dismantable):
         else:
             return True
         
-    def reset_testbed_to_snapshot(self, interact: bool = False, 
-                                  preserve_path: Optional[Path] = None) -> bool:
+    def copy_presere_files(self, preserve_path: Optional[Path] = None) -> bool:
+        if preserve_path is not None:
+            self.state_manager.copy_preserve_files()
+        else:
+            self.state_manager.copy_preserve_files(self.provider.preserve)
+        
+    def reset_testbed_to_snapshot(self, interact: bool = False) -> bool:
         if not self.provider.snapshots_enabled and interact:
             return False
         elif not self.provider.snapshots_enabled:
             raise Exception("Cannot reset to snapshot: Snapshots not available")
         
         self.integration_helper.graceful_shutdown(InvokeIntegrationAfter.INIT)
-        if preserve_path is not None:
-            self.state_manager.reset_all_after_snapshot_restore()
-        else:
-            self.state_manager.reset_all_after_snapshot_restore(self.provider.preserve)
+        self.state_manager.reset_all_after_snapshot_restore()
 
         self.state_manager.do_for_all_instances_parallel(lambda instance: instance.prepare_reconnect())
 
@@ -535,6 +537,8 @@ class Controller(Dismantable):
                 return run_state.has_failed
             
             if run_state.can_continue:
+                self.copy_presere_files()
+
                 if not self.reset_testbed_to_snapshot(interact=True):
                     return False
                 

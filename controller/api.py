@@ -233,6 +233,8 @@ class Proto2TestbedAPI:
                 self.destroy_testbed()
                 raise ex
         else:
+            self._provider.update_experiment_tag(experiment_tag, True)
+
             try:
                 self._stored_controller.reset_testbed_to_snapshot()
             except Exception as ex:
@@ -253,9 +255,11 @@ class Proto2TestbedAPI:
         
             self._stored_result_wrapper.controller_succeeded = not run_state.has_failed
         except Exception as ex:
+            self._stored_controller.copy_presere_files()
             self.destroy_testbed()
             raise ex
 
+        self._stored_controller.copy_presere_files()
         result_wrapper = copy.deepcopy(self._stored_result_wrapper)
 
         if not use_checkpoints:

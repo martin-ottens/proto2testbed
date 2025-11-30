@@ -36,8 +36,7 @@ def alter_testbed_config(config: TestbedConfig, i: int) -> None:
 
 # Instanciate the API class with some default settings
 api = Proto2TestbedAPI(log_to_influx=True, 
-                       skip_integration=True,
-                       verbose=2)
+                       skip_integration=True)
 config = api.load_testbed_config_from_package(testbed_package_path=TESTBED_PACKAGE)
 
 for i in range(1, 3):
@@ -60,3 +59,4 @@ for i in range(1, 3):
     print("Running testbeds:", api.list_testbeds())
 
 api.destroy_testbed()
+print("Running testbeds:", api.list_testbeds())

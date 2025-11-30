@@ -453,9 +453,13 @@ class InstanceStateManager(Dismantable):
 
         self.map.clear()
 
-    def reset_all_after_snapshot_restore(self, preserve_target: Optional[Path]):
+    def copy_preserve_files(self, preserve_target: Optional[Path]) -> None:
         for instance in self.map.values():
             instance.remove_interchange_dir(preserve_target, False)
+
+    def reset_all_after_snapshot_restore(self):
+        for instance in self.map.values():
+            instance.remove_interchange_dir(None, False)
             instance.reset_after_snapshot_restore()
 
     def get_instance(self, name: str) -> Optional[InstanceState]:

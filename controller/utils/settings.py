@@ -91,6 +91,13 @@ class AttachedNetwork:
 
     def __str__(self) -> str:
         return self.name
+    
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, AttachedNetwork):
+            raise ValueError("Can only compare AttachedNetwork objects")
+
+        return (self.name == other.name and self.mac == other.mac 
+                and self.netmodel == other.netmodel and self.vhost == other.vhost)
 
 
 class TestbedInstance:
@@ -135,12 +142,27 @@ class TestbedInstance:
         
         if (self.name != other.name or self.diskimage != other.diskimage or
             self.setup_script != other.setup_script or self.cores != other.cores or 
-            self.memory != other.memory or 
-            self.management_address != other.management_address or 
-            self.networks != other.networks):
+            self.memory != other.memory or self.management_address != other.management_address):
                 return False
-        else:
-            return True
+        
+        if len(self.networks) != len(other.networks):
+                return False
+        
+        for network in self.networks:
+            match = False
+            for other_network in other.networks:
+                if network.name != other_network.name:
+                    continue
+                if network != other_network:
+                    return False
+                else:
+                    match = True
+                    break
+            
+            if not match:
+                return False
+
+        return True
 
 
 class TestbedConfig:
@@ -185,13 +207,23 @@ class TestbedConfig:
         if self_instances != other_instances:
             raise Exception("'instances' in TestbedConfigs have different Instance names")
         
+        if len(self.instances) != len(other.instances):
+            raise Exception(f"Instances section has different length.")
+
         for instance in self.instances:
+            match = False
             for other_instance in other.instances:
                 if instance.name != other_instance.name:
                     continue
 
                 if not instance.compare_without_applications(other_instance):
                     raise Exception(f"Instance '{instance.name}' differs in config")
+                else:
+                    match = True
+                    break
+            
+            if not match:
+                raise Exception(f"Instance '{instance.name}' missing in new config.")
         
         return True
 
