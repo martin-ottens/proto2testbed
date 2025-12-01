@@ -17,16 +17,25 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
-# Load Proto²Testbed sources
+#
+# CHECKPOINT API USAGE EXAMPLE
+#
+# Make sure to understand one-shot.py first.
+# This example runs the testbed twice, resetting it to a checkpoint after the
+# testbed initialization between both runs. The experiment tag, Applications 
+# to be executed and preserve path are changed between the testbed runs. 
+# Data is exported as in the one shot operation example.
+
+# Load Proto²Testbed sources in a hacky way.
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path("../../controller").resolve()))
-
 from api import Proto2TestbedAPI
 from utils.settings import TestbedConfig
 
 TESTBED_PACKAGE = Path(".")
 
+# Change all "run-program" Applications in the TestbedConfig object
 def alter_testbed_config(config: TestbedConfig, i: int) -> None:
     for instance in config.instances:
         for application in instance.applications:
@@ -34,7 +43,8 @@ def alter_testbed_config(config: TestbedConfig, i: int) -> None:
                 continue
             application.settings["environment"]["VALUE"] = f"Experiment {i}"
 
-# Instanciate the API class with some default settings
+# Instantiate the API class with some default settings and load the testbed 
+# config JSON file from the testbed package to a TestbedConfig object.
 api = Proto2TestbedAPI(log_to_influx=True, 
                        skip_integration=True)
 config = api.load_testbed_config_from_package(testbed_package_path=TESTBED_PACKAGE)
@@ -50,11 +60,13 @@ for i in range(1, 3):
     result = api.run_testbed(testbed_config=config,
                              testbed_package_path=TESTBED_PACKAGE,
                              use_checkpoints=True,
-                             preserve_path=Path(f"./out{i}"))
+                             preserve_path=Path(f"./out{i}"),
+                             experiment_tag=f"checkpoint{i}")
     
     result.dump_state()
-    print("Results from InfluxDB:", api.export_results_from_wrapper(result))
-    api.clean_results_from_wrapper(result)
+    print("Results from InfluxDB:", api.export_results(experiment_tag=result.experiment_tag,
+                                                       testbed_config=result.testbed_config))
+    api.clean_results(experiment_tag=result.experiment_tag)
 
     print("Running testbeds:", api.list_testbeds())
 

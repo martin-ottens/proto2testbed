@@ -231,7 +231,7 @@ class Proto2TestbedAPI:
                     return copy.deepcopy(self._stored_result_wrapper)
             except Exception as ex:
                 self.destroy_testbed()
-                raise ex
+                raise TestbedInitializationException("Testbed initialization failed") from ex
         else:
             self._provider.update_experiment_tag(experiment_tag, True)
 
@@ -239,7 +239,7 @@ class Proto2TestbedAPI:
                 self._stored_controller.reset_testbed_to_snapshot()
             except Exception as ex:
                 self.destroy_testbed()
-                raise ex
+                raise TestbedInitializationException("Testbed checkpoint restore failed") from ex
 
             try:
                 self._stored_testbed_config.is_identical_besides_experiments(testbed_config)
