@@ -55,20 +55,40 @@ for i in range(1, 3):
     print(f"-------- STARTING TESTBED RUN {i} -------")
     print("---------------------------------------")
     print("---------------------------------------")
+
+    # Change settings in the TestbedSettings object. It is only possible to
+    # change the "applications" and "preserve_files" sections of the 
+    # Instances, all other testbed settings must remain (e.g. Instances, 
+    # network, setup scripts) unaltered during different runs with the 
+    # same testbed.
     alter_testbed_config(config, i)
 
+    # Run the testbed with checkpoint operation. On the first call, the
+    # testbed setup is handled automatically. A checkpoint is created after
+    # the setup, when the setup fails, a TestbedInitializationException is
+    # raised. The first experiments follows on the first call. On the 
+    # second call, the checkpoint is restored and the second experiment 
+    # with altered testbed config is executed.
     result = api.run_testbed(testbed_config=config,
                              testbed_package_path=TESTBED_PACKAGE,
                              use_checkpoints=True,
                              preserve_path=Path(f"./out{i}"),
                              experiment_tag=f"checkpoint{i}")
     
+    # Output results from the testbed run and clean results from the 
+    # InfluxDB. Use the experiment tag and TestbedConfig object stored in
+    # the FullResultWrapper.
     result.dump_state()
     print("Results from InfluxDB:", api.export_results(experiment_tag=result.experiment_tag,
                                                        testbed_config=result.testbed_config))
     api.clean_results(experiment_tag=result.experiment_tag)
 
+    # This shows the currently running testbed as it is not destoryed 
+    # between runs. It must be destoryed manually after all experiments
+    # are completed.
     print("Running testbeds:", api.list_testbeds())
 
+# Destroy the testbed, the list of all running testbed should be empty 
+# again.
 api.destroy_testbed()
 print("Running testbeds:", api.list_testbeds())

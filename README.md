@@ -3,10 +3,11 @@
 *Testbed framework for security **proto**col evaluation and **proto**typing.*
 
 Proto²Testbed is a tool for research and development in the field of network applications and protocols. 
-A virtual topology is created using several virtual machines (called instances), which are connected to each other using network bridges.
+A virtual topology is created using several virtual machines (called Instances), which are connected to each other using network bridges.
 The structure of the topology, the configuration and also experiments are defined via a testbed package.
 After a small amount of manual configuration, Proto²Testbed takes care of setting up and dismantling the topology and carrying out experiments, if desired, completely automated way.
 Proto²Testbed can be used for various workflows and can be extended with functions for specific projects thanks to its modular approach.
+A Python API allows the integration of Proto²Testbed in existing programs.
 
 Proto²Testbed was first introduced at the 12th Advanced Satellite Multimedia Systems Conference (ASMS) 2025, BibTeX citation:
 ```
@@ -31,6 +32,7 @@ Proto²Testbed was first introduced at the 12th Advanced Satellite Multimedia Sy
 - Proto²Testbed also allows real network interfaces of the Testbed Host to be integrated into a virtual testbed topology. **Integrations** are available to execute special functions on the Testbed Host during testbed runs.
 - With the right preparation, each testbed run has only a few seconds overhead for the creation and setup of the instances - a virtual topology is available in just a few seconds.
 - In addition to the fully automatic operation, numerous CLI features also allow a testbed to be used interactively - great for debugging or prototyping.
+- A checkpoint operation allows to execute several subsequent experiments on the same testbed setup with minimal loss of time between experiments.
 - Variables in the testbed configuration allows the test of different environments or scenarios. Especially with integration in CI/CD tools, Proto²Testbed can also be used as a tool for automatic software tests.
 
 > **Some important notes:**
@@ -166,7 +168,7 @@ The Testbed Package is made available in the file system of all Instances during
 - Experiment-specific Python source files of Applications or Integrations (not packaged in the Instance Manager or Testbed Controller and dynamically loaded during testbed execution from within the Testbed Package), see [`docs/extensions.md`](docs/extensions.md) for further details.
 
 ## 8. Python API
-Proto²Testbed can be used from within Python programs (without using the CLI). See `controller/api.py` for an API documentation and `setups/api` for usage examples.
+Proto²Testbed can be used from within Python programs (without using the CLI). See `controller/api.py` and `controller/full_result_wrapper.py` for an API documentation, and `setups/api` for usage examples for one-shot and checkpoint operation.
 
 ## 9. Hacking & Extension
 Proto²Testbed can be easily extended for special requirements, see [`docs/extensions.md`](docs/extensions.md) for further details:

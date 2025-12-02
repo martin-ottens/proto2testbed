@@ -69,9 +69,11 @@ class RunExecutor(BaseExecutor):
         if provider.experiment_generated:
             logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {provider.experiment}")
         
-        if interact != PauseAfterSteps.DISABLE and not os.isatty(sys.stdout.fileno()):
-            logger.error("TTY does not allow user interaction, disabling 'interact' parameter")
+        if ((interact != PauseAfterSteps.DISABLE or args.checkpoint) and 
+            not os.isatty(sys.stdout.fileno())):
+            logger.error("TTY does not allow user interaction, disabling 'interact' and 'checkpoint' parameter")
             interact = PauseAfterSteps.DISABLE
+            args.checkpoint = False
 
         preserve_path = None
         if args.preserve is not None:
@@ -81,7 +83,7 @@ class RunExecutor(BaseExecutor):
             logger.critical("Unable to set up File Preservation")
             return 1
 
-        from ..controller import Controller
+        from controller import Controller
         from cli import CLI
         cli = CLI(provider)
         controller = Controller(provider, cli)
@@ -95,7 +97,8 @@ class RunExecutor(BaseExecutor):
             logger.opt(exception=ex).critical("Error during loading of testbed config.")
             return 1
         
-        full_result_wrapper = FullResultWrapper(config)
+        full_result_wrapper = FullResultWrapper(testbed_config=config,
+                                                testbed_package_path=testbed_config_path)
         provider.set_full_result_wrapper(full_result_wrapper)
 
         try:
@@ -131,7 +134,7 @@ class RunExecutor(BaseExecutor):
         if provider.preserve is not None:
             logger.success(f"Files preserved to '{provider.preserve}' (if any)")
         
-        if not parameters.dont_use_influx:
+        if not args.dont_store:
             logger.success(f"Data series stored with experiment tag '{provider.experiment}' (if any)")
 
         exit_code = 0

@@ -1,7 +1,5 @@
 - Documentation
-- Examples
 - Testcases:
-    - Test looped Operation (API/CLI)
     - Test Application List Changes
     - Test File Preservation Changes
     - Test Experiment Tag Changes

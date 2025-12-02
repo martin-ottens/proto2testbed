@@ -522,6 +522,8 @@ class Controller(Dismantable):
         elif not reconnect_status:
             raise Exception("Instances have not reconnected after checkpoint restore.")
         
+        return True
+        
     def testbed_main_interactive(self, pause_after_step: PauseAfterSteps = PauseAfterSteps.DISABLE) -> bool:
         self.pause_after = pause_after_step
 
@@ -534,10 +536,13 @@ class Controller(Dismantable):
             run_state = self.execute_testbed()
 
             if self.request_exit:
-                return run_state.has_failed
+                return not run_state.has_failed
             
             if run_state.can_continue:
                 self.copy_presere_files()
+
+                if not self.provider.snapshots_enabled:
+                    return not run_state.has_failed
 
                 if not self.reset_testbed_to_snapshot(interact=True):
                     return False
@@ -550,7 +555,8 @@ class Controller(Dismantable):
 
                 self.pause_after = pause_after_step
             else:
-                return run_state.has_failed
+                print("Another")
+                return not run_state.has_failed
 
     def initialize_testbed(self) -> TestbedFunctionStatus:
         self.provider.set_snapshots_enabled(False)
