@@ -25,7 +25,6 @@ from pathlib import Path
 
 from executors.base_executor import BaseExecutor
 from utils.continue_mode import PauseAfterSteps
-from utils.settings import RunParameters
 from utils.state_provider import TestbedStateProvider
 from full_result_wrapper import FullResultWrapper
 
@@ -39,7 +38,7 @@ class RunExecutor(BaseExecutor):
         super().__init__(subparser)
 
         self.subparser.add_argument("TESTBED_CONFIG", type=str, help="Path to testbed package")
-        self.subparser.add_argument("--interact", "-i", choices=[p.name for p in PauseAfterSteps], 
+        self.subparser.add_argument("--interact", "-i", choices=[p.name for p in PauseAfterSteps.get_selectable()], 
                                     required=False, default=PauseAfterSteps.DISABLE.name, type=str.upper,
                                     help="Interact with Controller after step is completed")
         self.subparser.add_argument("--no_kvm", action="store_true", required=False, default=False,
@@ -52,33 +51,37 @@ class RunExecutor(BaseExecutor):
                                     help="Skip substitution of placeholders with environment variable values in config")
         self.subparser.add_argument("-p", "--preserve", type=str, help="Path for instance data preservation, disabled with omitted",
                                     required=False, default=None)
+        self.subparser.add_argument("-c", "--checkpoint", action="store_true", required=False, default=False,
+                                    help="Create checkpoints of instances after sucessful setup")
 
     def invoke(self, args, provider: TestbedStateProvider) -> int:
-        parameters = RunParameters()
         testbed_path = ""
         if os.path.isabs(args.TESTBED_CONFIG):
-            testbed_path = args.TESTBED_CONFIG
+            testbed_path = Path(args.TESTBED_CONFIG)
         else:
-            testbed_path = f"{os.getcwd()}/{args.TESTBED_CONFIG}"
+            testbed_path = Path(f"{os.getcwd()}/{args.TESTBED_CONFIG}")
 
         from constants import TESTBED_CONFIG_JSON_FILENAME
         testbed_config_path = Path(testbed_path) / Path(TESTBED_CONFIG_JSON_FILENAME)
 
         interact = PauseAfterSteps[args.interact]
-        parameters.disable_kvm = args.no_kvm
-        parameters.dont_use_influx = args.dont_store
-        parameters.skip_integration = args.skip_integrations
         
         if provider.experiment_generated:
             logger.warning(f"InfluxDBAdapter: InfluxDB experiment tag randomly generated -> {provider.experiment}")
         
-        if interact != PauseAfterSteps.DISABLE and not os.isatty(sys.stdout.fileno()):
-            logger.error("TTY does not allow user interaction, disabling 'interact' parameter")
+        if ((interact != PauseAfterSteps.DISABLE or args.checkpoint) and 
+            not os.isatty(sys.stdout.fileno())):
+            logger.error("TTY does not allow user interaction, disabling 'interact' and 'checkpoint' parameter")
             interact = PauseAfterSteps.DISABLE
+            args.checkpoint = False
 
-        parameters.preserve = None
+        preserve_path = None
         if args.preserve is not None:
-            parameters.preserve = Path(args.preserve)
+            preserve_path = Path(args.preserve)
+
+        if not provider.update_preserve_path(preserve_path):
+            logger.critical("Unable to set up File Preservation")
+            return 1
 
         from controller import Controller
         from cli import CLI
@@ -89,23 +92,27 @@ class RunExecutor(BaseExecutor):
         from utils.config_tools import load_config
         try:
             config: TestbedConfig = load_config(testbed_config_path, args.skip_substitution)
-            provider.set_testbed_config(config)
+            provider.set_testbed_config(config, testbed_path)
         except Exception as ex:
             logger.opt(exception=ex).critical("Error during loading of testbed config.")
             return 1
         
-        full_result_wrapper = FullResultWrapper(config)
+        full_result_wrapper = FullResultWrapper(testbed_config=config,
+                                                testbed_package_path=testbed_config_path)
         provider.set_full_result_wrapper(full_result_wrapper)
 
         try:
-            controller.init_config(parameters, testbed_path)
+            controller.init_config(skip_integration=args.skip_integrations,
+                                   disable_kvm=args.no_kvm,
+                                   dont_use_influx=args.dont_store,
+                                   create_checkpoint=args.checkpoint)
         except Exception as ex:
             logger.opt(exception=ex).critical("Error during config initialization")
             return 1
 
         import signal
         try:
-            status = controller.main(interact)
+            status = controller.testbed_main_interactive(interact)
         except Exception as ex:
             logger.opt(exception=ex).critical("Uncaught Controller Exception")
             status = False
@@ -124,10 +131,10 @@ class RunExecutor(BaseExecutor):
 
             restart_requested = controller.request_restart
 
-        if parameters.preserve is not None:
-            logger.success(f"Files preserved to '{parameters.preserve}' (if any)")
+        if provider.preserve is not None:
+            logger.success(f"Files preserved to '{provider.preserve}' (if any)")
         
-        if not parameters.dont_use_influx:
+        if not args.dont_store:
             logger.success(f"Data series stored with experiment tag '{provider.experiment}' (if any)")
 
         exit_code = 0

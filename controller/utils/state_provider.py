@@ -32,11 +32,13 @@ from state_manager import InstanceStateManager
 from cli import CLI
 from full_result_wrapper import FullResultWrapper
 from constants import DEFAULT_CONFIG_PATH, DEFAULT_STATE_DIR
+from utils.config_tools import check_preserve_dir
 
 
 class TestbedStateProvider:
-    def __init__(self, verbose: int, sudo: bool, from_api_call: bool = False, 
-                 cache_datapoints: bool = False) -> None:
+    def __init__(self, verbose: int, sudo: bool, 
+                 from_api_call: bool = False, cache_datapoints: bool = False, 
+                 preserve: Optional[Path] = None) -> None:
 
         self.default_configs = DefaultConfigs(DEFAULT_CONFIG_PATH)
         self.statefile_base = Path(self.default_configs.get_defaults("statefile_basedir", DEFAULT_STATE_DIR))
@@ -53,28 +55,37 @@ class TestbedStateProvider:
         self.sudo_mode = sudo
         self.experiment: Optional[str] = None
         self.experiment_generated = False
+        self.preserve: Optional[Path] = preserve
         self.unique_run_name = f"{self.main_pid}-{self.executor}"
         self.testbed_config: Optional[TestbedConfig] = None
-        self.concurrency_reservation: Optional[ConcurrencyReservation] = None
+        self.testbed_package_path: Optional[Path] = None
         self.state_lock = StateLock(self.statefile_base)
         self.from_api_call = from_api_call
         self.cache_datapoints = cache_datapoints
         self.cli: Optional[CLI] = None
         self.instance_manager: Optional[InstanceStateManager] = None
         self.result_wrapper: Optional[FullResultWrapper] = None
+        self.snapshots_enabled: bool = False
+        self.concurrency_reservation: ConcurrencyReservation = ConcurrencyReservation(self)
+
+    def clear(self) -> None:
+        self.concurrency_reservation.clear_reservations()
     
     def update_experiment_tag(self, experiment: Optional[str], accuire: bool) -> str:
+        if experiment == "":
+            raise ValueError("Empty string is invalid for an experiment tag.")
+
         if self.experiment is not None and accuire:
             self.release_experiment_tag()
 
         if experiment is not None and accuire:
             if not StateFileReader.check_and_aquire_experiment(self.state_lock, 
                                                                experiment, 
-                                                               self.statefile_base):
-                raise Exception(f"Experiment tag must be unique, but {experiment} is already in use!")
+                                                               self.statefile_base,
+                                                               self.unique_run_name):
+                raise Exception(f"Experiment tag must be unique, but {experiment} is already in use by another running testbed!")
             
             self.experiment = experiment
-            self.concurrency_reservation = ConcurrencyReservation(self)
             return self.experiment
         else:
             self.experiment = experiment
@@ -84,11 +95,21 @@ class TestbedStateProvider:
 
                 if accuire and not StateFileReader.check_and_aquire_experiment(self.state_lock, 
                                                                                self.experiment, 
-                                                                               self.statefile_base):
+                                                                               self.statefile_base,
+                                                                               self.unique_run_name):
                     self.experiment = None
             
-            self.concurrency_reservation = ConcurrencyReservation(self)
             return self.experiment
+        
+    def update_preserve_path(self, preserve_path: Optional[Path]) -> bool:
+        if not check_preserve_dir(preserve_path, self.executor):
+            return False
+        
+        self.preserve = preserve_path
+        return True
+
+    def set_snapshots_enabled(self, enabled: bool) -> None:
+        self.snapshots_enabled = enabled
 
     def release_experiment_tag(self) -> None:
         StateFileReader.release_experiment(self.state_lock, 
@@ -96,10 +117,10 @@ class TestbedStateProvider:
                                            self.statefile_base)
         self.experiment = None
         self.experiment_generated = False
-        self.concurrency_reservation = None
 
-    def set_testbed_config(self, config: TestbedConfig) -> None:
+    def set_testbed_config(self, config: TestbedConfig, testbed_package_path: Path) -> None:
         self.testbed_config = config
+        self.testbed_package_path = testbed_package_path
 
     def set_cli(self, cli: CLI) -> None:
         self.cli = cli

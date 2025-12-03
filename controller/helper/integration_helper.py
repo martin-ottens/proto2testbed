@@ -91,7 +91,7 @@ class IntegrationLoader:
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
         except Exception as ex:
-            logger.opt(exception=ex).debug(f"Error while loading integration from '{path}'")
+            logger.opt(exception=ex).debug(f"IntegrationLoader: Error while loading Integration from '{path}'")
             return False
         
         added = 0
@@ -141,7 +141,7 @@ class IntegrationLoader:
 
 
 class IntegrationHelper(Dismantable):
-    def __init__(self, testbed_package_base: Optional[str], app_base: str, provider: TestbedStateProvider, 
+    def __init__(self, testbed_package_base: Optional[Path], app_base: str, provider: TestbedStateProvider, 
                  skip_integrations: bool = False, disabled: bool = False) -> None:
         self.provider = provider
         self.loader = IntegrationLoader(testbed_package_base, app_base)
@@ -193,10 +193,12 @@ class IntegrationHelper(Dismantable):
     def __del__(self) -> None:
         self.force_shutdown()
 
-    def _get_all_integration_wrappers(self) -> List[IntegrationExecutionWrapper]:
+    def _get_all_integration_wrappers(self, 
+                                      stage: Optional[InvokeIntegrationAfter] = None) -> List[IntegrationExecutionWrapper]:
         result: List[IntegrationExecutionWrapper] = []
-        for _, mapping in self.mapped_integrations.items():
-            result.extend(mapping)
+        for stage_select, mapping in self.mapped_integrations.items():
+            if stage is None or stage_select == stage:
+                result.extend(mapping)
 
         return result
 
@@ -205,43 +207,44 @@ class IntegrationHelper(Dismantable):
             barrier.wait()
             exec.started_at = time.time()
 
-            logger.trace(f"Calling start of integration '{exec.obj.name}'")
+            logger.trace(f"Integration: Calling start of Integration '{exec.obj.name}'")
             try:
                 exec.impl.start()
 
                 if exec.status.get_error() is not None:
-                    logger.error(f"Integration: Start of integration '{exec.obj.name}' failed: {exec.status.get_error()}")
+                    logger.error(f"Integration: Start of Integration '{exec.obj.name}' failed: {exec.status.get_error()}")
             except Exception as ex:
                 logger.opt(exception=ex).error(f"Integration: Start of '{exec.obj.name}' failed")
                 exec.status.set_error(ex)
 
             exec.status.set_finished()
-            logger.trace(f"Integration start thread '{exec.obj.name}' terminates now.")
+            logger.trace(f"Integration: Integration start thread '{exec.obj.name}' terminates now.")
         
         exec.started = True
+        exec.is_shutdown = False
         exec.thread = threading.Thread(target=integration_thread, args=(exec, barrier, ), daemon=True)
-        logger.info(f"Integration: Invoking start of integration '{exec.obj.name}'")
+        logger.info(f"Integration: Invoking start of Integration '{exec.obj.name}'")
         exec.thread.start()
 
     def _stop_integration(self, exec: IntegrationExecutionWrapper):
         def integration_thread(exec: IntegrationExecutionWrapper):
             exec.started_at = time.time()
 
-            logger.trace(f"Calling stop of integration '{exec.obj.name}'")
+            logger.trace(f"Integration: Calling stop of Integration '{exec.obj.name}'")
             try:
                 exec.impl.stop()
 
                 if exec.status.get_error() is not None:
-                    logger.error(f"Integration: Stop of integration '{exec.obj.name}' failed: {exec.status.get_error()}")
+                    logger.error(f"Integration: Stop of Integration '{exec.obj.name}' failed: {exec.status.get_error()}")
             except Exception as ex:
                 logger.opt(exception=ex).error(f"Integration: Stop of '{exec.obj.name}' failed")
                 exec.status.set_error(ex)
         
             exec.status.set_finished()
-            logger.trace(f"Integration stop thread '{exec.obj.name}' terminates now.")
+            logger.trace(f"Integration: Integration stop thread '{exec.obj.name}' terminates now.")
         
         exec.thread = threading.Thread(target=integration_thread, args=(exec, ), daemon=True)
-        logger.info(f"Integration: Invoking stop of integration '{exec.obj.name}'")
+        logger.info(f"Integration: Invoking stop of Integration '{exec.obj.name}'")
         exec.thread.start()
     
     # Returns:
@@ -302,12 +305,14 @@ class IntegrationHelper(Dismantable):
                     sync_integration.thread.join(wait_until - time.time())
                     if sync_integration.thread.is_alive():
                         logger.critical(f"Integration: Timeout joining '{sync_integration.obj.name}' start thread.")
+                        sync_integration.started = False
                         status = False
                         continue
 
                     if sync_integration.status.get_error() is not None:
                         logger.critical(f"Integration: Integration '{sync_integration.obj.name}' reported failure")
                         sync_integration.status.reset_error()
+                        sync_integration.started = False
                         status = False
 
                 except InterruptedError:
@@ -347,6 +352,7 @@ class IntegrationHelper(Dismantable):
             if async_integration.status.get_error() is not None:
                 logger.critical(f"Integration: Integration '{async_integration.obj.name}' reported failure: {async_integration.status.get_error()}")
                 async_integration.status.reset_error()
+                async_integration.started = False
                 status = False
         
         return status
@@ -359,12 +365,15 @@ class IntegrationHelper(Dismantable):
         return False
 
     # Graceful shutdown
-    def graceful_shutdown(self) -> None:
-        logger.debug("Integration: Gracefully stopping all started integrations")
+    def graceful_shutdown(self, stage: Optional[InvokeIntegrationAfter] = None) -> None:
+        if stage is None:
+            logger.debug("Integration: Gracefully stopping all started Integrations")
+        else:
+            logger.debug(f"Integration: Gracefully stopping Integrations with stage '{stage}'")
 
-        # 1. Wait for async integrations to finish. They have to deal with timeouts themselves.
-        for integration in self._get_all_integration_wrappers():
-            logger.trace(f"Checking start status of async integration '{integration.obj.name}'")
+        # 1. Wait for async Integrations to finish. They have to deal with timeouts themselves.
+        for integration in self._get_all_integration_wrappers(stage):
+            logger.trace(f"Integration: Checking start status of async Integration '{integration.obj.name}'")
 
             if not integration.started:
                 continue
@@ -391,11 +400,11 @@ class IntegrationHelper(Dismantable):
                     logger.critical(f"Integration: Integration '{integration.obj.name}' reported failure.")
                     integration.status.reset_error()
             except InterruptedError:
-                logger.critical("Integration: Waiting for integrations to finish start phase was interrupted!")
+                logger.critical("Integration: Waiting for Integrations to finish start phase was interrupted!")
         
         # 2. Reset Status, get maximum Timeout & Invoke integration stop
         expected_max_timeout = 0
-        for integration in self._get_all_integration_wrappers():
+        for integration in self._get_all_integration_wrappers(stage):
             integration.thread = None
 
             if not integration.started:
@@ -415,13 +424,13 @@ class IntegrationHelper(Dismantable):
         # 3. Fire integration stop for all integrations
         # Stop is always sync
         wait_until = time.time() + expected_max_timeout + 1
-        for integration in self._get_all_integration_wrappers():
+        for integration in self._get_all_integration_wrappers(stage):
             if integration.thread is None:
                 logger.trace(f"Integration '{integration.obj.name}' was not stopped now.")
                 continue
 
             try:
-                logger.trace(f"Waiting for integration '{integration.obj.name}' to finish stop.")
+                logger.trace(f"Integration: Waiting for Integration '{integration.obj.name}' to finish stop.")
                 integration.thread.join(wait_until - time.time())
                 if integration.thread.is_alive():
                     logger.critical(f"Integration: Timeout joining '{integration.obj.name}' stop thread.")
@@ -431,7 +440,7 @@ class IntegrationHelper(Dismantable):
                     logger.critical(f"Integration: Integration '{integration.obj.name}' reported failure.")
                     integration.status.reset_error()
             except InterruptedError:
-                logger.critical("Integration: Waiting for integrations to finish stop phase was interrupted!")
+                logger.critical("Integration: Waiting for Integrations to finish stop phase was interrupted!")
                 return
     
     # Force shutdown. Just fire stop action of integrations without waiting
@@ -439,11 +448,11 @@ class IntegrationHelper(Dismantable):
     def force_shutdown(self) -> None:
         for integration in self._get_all_integration_wrappers():
             if not integration.started:
-                logger.trace(f"Integration '{integration.obj.name}' was not started yet.")
+                logger.trace(f"Integration: Integration '{integration.obj.name}' was not started yet.")
                 continue
 
             if integration.is_shutdown:
-                logger.trace(f"Integration '{integration.obj.name}' was already stopped.")
+                logger.trace(f"Integration: Integration '{integration.obj.name}' was already stopped.")
                 continue
 
             try:

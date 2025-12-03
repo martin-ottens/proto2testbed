@@ -25,6 +25,7 @@ from dataclasses import dataclass
 
 from utils.settings import IntegrationSettings
 from base_integration import BaseIntegration, IntegrationStatusContainer
+from utils.state_provider import TestbedStateProvider
 
 
 @dataclass
@@ -39,8 +40,8 @@ class StartStopIntegration(BaseIntegration):
     NAME = "startstop"
 
     def __init__(self, name: str, status_container: IntegrationStatusContainer, 
-                 environment: Optional[Dict[str, str]] = None) -> None:
-        super().__init__(name, status_container, environment)
+                 provider: TestbedStateProvider, environment: Optional[Dict[str, str]] = None) -> None:
+        super().__init__(name, status_container, provider, environment)
         self.start_process = None
         self.settings = None
         self.start_script = None

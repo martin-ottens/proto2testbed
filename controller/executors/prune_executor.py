@@ -82,12 +82,18 @@ class PruneExecutor(BaseExecutor):
             if InstanceState.clean_interchange_dir(os.path.dirname(entry.filepath)):
                 logger.info(f"Deleted interchange dir: '{entry.filepath}'")
 
+        logger.info("Clearing dangling experiment tag mappings ...")
+        # Delete unused experiment tag mappings after all other cleanup is done
+
+        # Reload updated states -> Cleaned up all "unwanted" states before
+        statefile_reader.reload()
+
+        statefile_reader.free_unused_experiment_tags()
+
         if not args.interfaces:
             return 0
         
         logger.info("Deleting dangling interfaces ...")
-        # Reload updated states -> Cleaned up all "unwanted" states before
-        statefile_reader.reload()
         all_states = statefile_reader.get_states()
 
         known_interfaces = set()

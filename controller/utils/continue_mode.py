@@ -23,7 +23,12 @@ class PauseAfterSteps(Enum):
     SETUP = 1
     INIT = 2
     EXPERIMENT = 3
-    DISABLE = 4
+    FINISH = 4
+    DISABLE = 5
+
+    @classmethod
+    def get_selectable(cls):
+        return [cls.SETUP, cls.INIT, cls.EXPERIMENT, cls.DISABLE]
 
 
 class ContinueMode(Enum):

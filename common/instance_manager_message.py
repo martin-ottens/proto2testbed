@@ -131,11 +131,18 @@ class UpstreamMessage(JSONMessage):
     pass
 
 
+class NullMessageUpstream(UpstreamMessage):
+    def __init__(self, reconnect: bool) -> None:
+        self.reconnect = reconnect
+
+
 class InitializeMessageUpstream(UpstreamMessage):
     def __init__(self, script: Optional[str], 
-                 environment: Optional[Dict[str, str]]) -> None:
+                 environment: Optional[Dict[str, str]],
+                 snapshot_requested: bool) -> None:
         self.script = script
         self.environment = environment
+        self.snapshot_requested = snapshot_requested
 
 
 class InstallApplicationsMessageUpstream(UpstreamMessage):
@@ -144,8 +151,9 @@ class InstallApplicationsMessageUpstream(UpstreamMessage):
 
 
 class RunApplicationsMessageUpstream(UpstreamMessage):
-    def __init__(self, t0: float) -> None:
+    def __init__(self, t0: float, tcurrent: float) -> None:
         self.t0 = t0
+        self.tcurrent = tcurrent
 
 
 class ApplicationStatusMessageUpstream(UpstreamMessage):

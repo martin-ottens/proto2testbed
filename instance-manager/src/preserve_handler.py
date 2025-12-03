@@ -67,8 +67,33 @@ class PreserveHandler:
                                         f"Mounting of exchange directory failed with code ({proc.returncode})")
             self.manager.send_to_server(message)
             raise Exception(f"Unable to mount exchange directory: {proc.stderr.decode('utf-8')}")
+        else:
+            print(f"Mounted p9dev '{self.exchange_p9_dev}' to self.ex")
+    
+    def check_and_remove_exchange_mount(self):
+        if not os.path.ismount(self.exchange_mount):
+            return
 
-    def preserve(self) -> bool:
+        proc = None
+        try:
+            proc = subprocess.run(["umount", self.exchange_mount])
+        except Exception as ex:
+            message = DownstreamMessage(InstanceMessageType.FAILED, f"Unable to unmount exchange directory!")
+            self.manager.send_to_server(message)
+            raise Exception("Unable to unmount exchange directory!") from ex
+
+        if proc.stdout is not None:
+            self.manager.send_extended_system_log(type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
+        if proc.stderr is not None:
+            self.manager.send_extended_system_log(type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
+        
+        if proc is not None and proc.returncode != 0:
+            message = DownstreamMessage(InstanceMessageType.FAILED, 
+                                        f"Unmounting of exchange directory failed with code ({proc.returncode})")
+            self.manager.send_to_server(message)
+            raise Exception(f"Unable to unmount exchange directory: {proc.stderr.decode('utf-8')}")
+
+    def preserve(self, unmount: bool = False) -> bool:
         if len(self.files) == 0:
             return True
 
@@ -106,6 +131,8 @@ class PreserveHandler:
                 self.manager.send_extended_system_log(type=LogMessageType.MSG_ERROR,
                                                       message=f"Unable to preserve '{preserve_file}': Unhandled error: {ex}",
                                                       print_to_user=True)
-                print(f"Error during preservation of '{preserve_file}': {ex}", flush=True, file=sys.stderr)
-        
+
+        if unmount:
+            self.check_and_remove_exchange_mount()
+
         return True

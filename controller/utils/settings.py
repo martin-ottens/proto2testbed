@@ -25,10 +25,9 @@ from enum import Enum
 from abc import ABC
 from dataclasses import dataclass
 from loguru import logger
-from pathlib import Path
+from json import JSONEncoder
 
 from common.application_configs import ApplicationConfig
-from utils.continue_mode import PauseAfterSteps
 
 
 @dataclass
@@ -38,6 +37,7 @@ class TestbedSettings:
     startup_init_timeout: int = 30 # seconds
     experiment_timeout: int = -1 # seconds
     file_preservation_timeout: int = 30 # seconds
+    checkpoint_timeout: int = 30 # seconds
     appstart_timesync_offset: int = 1 # seconds
     allow_gso_gro: bool = False
 
@@ -91,6 +91,13 @@ class AttachedNetwork:
 
     def __str__(self) -> str:
         return self.name
+    
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, AttachedNetwork):
+            raise ValueError("Can only compare AttachedNetwork objects")
+
+        return (self.name == other.name and self.mac == other.mac 
+                and self.netmodel == other.netmodel and self.vhost == other.vhost)
 
 
 class TestbedInstance:
@@ -128,6 +135,34 @@ class TestbedInstance:
     
     def __str__(self) -> str:
         return self.name
+    
+    def compare_without_applications(self, other) -> bool:
+        if not isinstance(other, TestbedInstance):
+            raise ValueError("Can only compare TestbedInstance objects")
+        
+        if (self.name != other.name or self.diskimage != other.diskimage or
+            self.setup_script != other.setup_script or self.cores != other.cores or 
+            self.memory != other.memory or self.management_address != other.management_address):
+                return False
+        
+        if len(self.networks) != len(other.networks):
+                return False
+        
+        for network in self.networks:
+            match = False
+            for other_network in other.networks:
+                if network.name != other_network.name:
+                    continue
+                if network != other_network:
+                    return False
+                else:
+                    match = True
+                    break
+            
+            if not match:
+                return False
+
+        return True
 
 
 class TestbedConfig:
@@ -146,6 +181,52 @@ class TestbedConfig:
         for instance in json_dict["instances"]:
             self.instances.append(TestbedInstance(**instance))
 
+    def is_identical_besides_experiments(self, other) -> bool:
+        if not isinstance(other, TestbedConfig):
+            raise ValueError("Can only compare TestbedConfig objects")
+        
+        if self.settings != other.settings:
+            raise Exception("'settings' sections of TestbedConfigs are different")
+        
+        def normalize(obj):
+            class CloseEncoder(JSONEncoder):
+                def default(self, o):
+                    return o.__dict__
+
+            return json.dumps(obj, sort_keys=True, cls=CloseEncoder)
+
+        if normalize(self.networks) != normalize(other.networks):
+            raise Exception("'networks' sections of TestbedConfigs are different")
+        
+        if normalize(self.integrations) != normalize(other.integrations):
+            raise Exception("'integrations' sections of TestbedConfigs are different")
+        
+        self_instances = list(map(lambda x: x.name, self.instances))
+        other_instances = list(map(lambda x: x.name, other.instances))
+
+        if self_instances != other_instances:
+            raise Exception("'instances' in TestbedConfigs have different Instance names")
+        
+        if len(self.instances) != len(other.instances):
+            raise Exception(f"Instances section has different length.")
+
+        for instance in self.instances:
+            match = False
+            for other_instance in other.instances:
+                if instance.name != other_instance.name:
+                    continue
+
+                if not instance.compare_without_applications(other_instance):
+                    raise Exception(f"Instance '{instance.name}' differs in config")
+                else:
+                    match = True
+                    break
+            
+            if not match:
+                raise Exception(f"Instance '{instance.name}' missing in new config.")
+        
+        return True
+
 
 class DefaultConfigs:
     def __init__(self, path: str) -> None:
@@ -163,11 +244,3 @@ class DefaultConfigs:
             return fallback
         else:
             return self.defaults.get(key)
-
-
-@dataclass
-class RunParameters:
-    disable_kvm: bool = False
-    dont_use_influx: Optional[bool] = False
-    skip_integration: bool = False
-    preserve: Optional[Path] = None

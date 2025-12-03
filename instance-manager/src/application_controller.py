@@ -175,6 +175,7 @@ class ApplicationController(Thread):
                                                    type=LogMessageType.MSG_ERROR, 
                                                    print_to_user=True,
                                                    new_status=ApplicationStatus.EXECUTION_FAILED)
+            self.application_manager.report_app_status(self, AppStartStatus.FAILED)
         
         self.is_terminated.set()
 

@@ -18,7 +18,8 @@
 
 MACHINE_STATE_FILE = "state.json"
 GLOBAL_LOCKFILE = "p2t.filelock"
-EXPERIMENT_RESERVATION_FILE = "reservationmap.json"
+CONCURRENCY_RESERVATION_FILE = "reservationmap.json"
+EXPERIMENT_RESERVATION_DIR = "experiments/"
 INTERCHANGE_DIR_PREFIX = "ptb-i-"
 TAP_PREFIX = "ptb-t-"
 BRIDGE_PREFIX = "ptb-b-"

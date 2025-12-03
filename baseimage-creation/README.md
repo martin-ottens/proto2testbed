@@ -60,7 +60,7 @@ The script `make-baseimage.sh` can create base-images with AMD64 Debian 12 "Book
    ```bash
    sudo umount /tmp/isomount
    ```
-6. The created image can be used with the `im-installer.py` script to install additional dependencies and make executable in a testbed.
+6. The created image can be used with the `im-installer.py` (often referred to as `p2t-genimg`) script to install additional dependencies and make executable in a testbed.
 
 ## Installation of the Instance Manager and Additional Dependencies
 Before the base-image created in the steps above can be used in a testbed run, the Instance Manager has to be installed. The Instance Manager handles the communication with the testbed controller, installs additional experiments and applies some configuration changes to the image. During the installation of the Instance Manager, users could install additional common dependencies to create an experiment-specific base-image where, e.g. kernel modules that do not change between testbed runs, are installed. 
@@ -74,7 +74,7 @@ Before the base-image created in the steps above can be used in a testbed run, t
    cd <path/to/proto-tetsbed>/instance-manager
    make all
    ```
-2. Run the `im-installer.py` script:
+2. Run the `im-installer.py` script (also referred to as `p2t-genimg`):
    ```bash
    sudo ./im-installer.py -i <path/to/input/image.qcow2> -o <path/to/output/image.qcow2> -p <path/to/proto-testbed>/instance-manager/instance-manager.deb
    ```
@@ -95,7 +95,7 @@ Before the base-image created in the steps above can be used in a testbed run, t
 
 ### Manually Install the Instance Manager
 
-**Please note:** This can also be handled automatically by the `im-installer.py` script if the installation was configured as mentioned above. This section is intended for base-images that are configured in a different way during installation (e.g., use of another OS) and the `im-installer.py` script is not applicable.
+**Please note:** This can also be handled automatically by the `im-installer.py` script/`p2t-genimg` tool if the installation was configured as mentioned above. This section is intended for base-images that are configured in a different way during installation (e.g., use of another OS) and the `im-installer.py` script is not applicable.
 
 1. Build the Instance Manager Debian package `instance`:
    ```bash

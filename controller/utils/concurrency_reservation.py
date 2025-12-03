@@ -44,17 +44,18 @@ class ConcurrencyReservation:
         self.current_reservation = ReservationMapping()
 
     def _write_reservation(self) -> None:
-        with open(self.provider.statefile_base / self.provider.experiment / EXPERIMENT_RESERVATION_FILE, "w+") as handle:
+        os.makedirs(self.provider.statefile_base / self.provider.unique_run_name, mode=0o777, exist_ok=True)
+        with open(self.provider.statefile_base / self.provider.unique_run_name / CONCURRENCY_RESERVATION_FILE, "w+") as handle:
             handle.write(jsonpickle.encode(self.current_reservation))
 
     def _collect_all_reservations(self) -> ReservationMapping:
         mapping = ReservationMapping()
 
-        for experiment in os.listdir(self.provider.statefile_base):
-            if not os.path.isdir(os.path.join(self.provider.statefile_base, experiment)):
+        for unique_run_name in os.listdir(self.provider.statefile_base):
+            if not os.path.isdir(os.path.join(self.provider.statefile_base, unique_run_name)):
                 continue
             
-            reservation_file = os.path.join(self.provider.statefile_base, experiment, EXPERIMENT_RESERVATION_FILE)
+            reservation_file = os.path.join(self.provider.statefile_base, unique_run_name, CONCURRENCY_RESERVATION_FILE)
 
             if not os.path.exists(reservation_file):
                 continue
@@ -70,6 +71,13 @@ class ConcurrencyReservation:
                 logger.opt(exception=ex).debug(f"Unable to read reservation file '{reservation_file}'")
 
         return mapping
+    
+    def clear_reservations(self) -> None:
+        try:
+            os.remove(self.provider.statefile_base / self.provider.unique_run_name / CONCURRENCY_RESERVATION_FILE)
+            os.rmdir(self.provider.statefile_base / self.provider.unique_run_name)
+        except Exception:
+            pass
 
     def generate_new_tap_names(self, count: int = 1) -> List[str]:
         tap_names: List[str] = []

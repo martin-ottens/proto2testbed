@@ -27,6 +27,7 @@ The following subcommands are available:
 - **`--dont_store`/`-d`**: Don't push any data into the InfluxDB.
 - **`--skip_substitution`**: Don't replace placeholders in the Testbed Configuration. If an invalid JSON file results from this, the startup will fail.
 - **`--no_kvm`**: Disable KVM virtualization (e.g., when using Proto²Testbed on a virtual machine). Performance will be severely degraded.
+- **`--checkpoint`/`-c`**: Create a checkpoint after the Instance setup is completed but before Applications are installed/executed. After the testbed run is completed, the testbed is restored to the checkpoint and paused (comparable to `--interact`). The testbed setup can be managed using the interactive Terminal and subsequent experiments can follow. If combined with `--interact INIT/EXPERIMENT` the testbed will pause twice during every run.
 
 ### `list`
 List all testbeds that are currently running on the host with some details. 
@@ -56,7 +57,7 @@ If unwanted remnants of testbed runs remain on the Testbed Host (files or networ
 - **`--interfaces`**: Strictly delete all dangling interfaces (matching by name and not by state files)
 
 ## Controller Commands in Interactive Mode
-When a testbed is started with the `run` subcommand and interaction is enabled during a testbed pause (`--interact <stage>`), a simple CLI is started alongside the log output. The following commands are available:
+When a testbed is started with the `run` subcommand and interaction is enabled during a testbed pause (`--interact <stage>` or `--checkpoint`), a simple CLI is started alongside the log output. The following commands are available:
 - **`continue (INIT|EXPERIMENT)`**: Continue with the testbed execution, when `INIT` or `EXPERIMENT` is specified the testbed will pause again at that stage, otherwise it will run to completion.
 - **`attach <instance>`**: Attach to an Instance using the serial console connection. When the CLI of the Controller is attached to an Instance, no log messages are printed by the Controller.
 - **`copy (instance:)<path> (instance:)<path>`**: Copy a file or directory from the Testbed Host to an Instance or the other way around. More or less works like `scp`.
@@ -64,6 +65,10 @@ When a testbed is started with the `run` subcommand and interaction is enabled d
 - **`preserve <instance>:<path>`**: Mark a file or directory on an Instance for preservation. It will be copied before the Instance is shut down.
 - **`exit`**: Stop the testbed now, do not continue. File preservation will still be performed.
 - **`restart`**: The same as exit, but the testbed is restarted with the same configuration and arguments afterwards.
+- **`restore`**: Restore testbed to the checkpoint (after Instance setup), requires the `--checkpoint` option during testbed start
+- **`set <Parameter> <Value>`**: Alter testbed settings. This is useful for changing parameters between subsequent experiments in the checkpoint operation:
+  - `set preserve (<Value>)`: Change the preserve path for the next testbed execution, leave out value to disable file preservation
+  - `set experiment <Value>`: Update the experiment tag for next testbed execution
 
 ## Instance Manager `im` Commands
 On the Instances, the Instance Manager provides the `im` command, that can be used to interact with the Proto²Testbed from within the Instance. 

@@ -18,13 +18,13 @@
 
 import os
 import jsonpickle
-import shutil
 
 from loguru import logger
 from dataclasses import dataclass
 from typing import List, Optional, Dict
+from pathlib import Path
 
-from constants import MACHINE_STATE_FILE, INTERCHANGE_DIR_PREFIX
+from constants import MACHINE_STATE_FILE, INTERCHANGE_DIR_PREFIX, EXPERIMENT_RESERVATION_DIR
 from utils.networking import InstanceInterface
 from utils.state_lock import StateLock
 
@@ -34,10 +34,10 @@ class InstanceStateFile:
     instance: str
     executor: int
     cmdline: str
-    experiment: str
     main_pid: int
     uuid: str
     mgmt_ip: Optional[str]
+    experiment: str = None
     interfaces: Optional[List[InstanceInterface]] = None
 
     @staticmethod
@@ -56,6 +56,7 @@ class InstanceStateFile:
 @dataclass
 class StateFileEntry:
     contents: Optional[InstanceStateFile]
+    unique_run_name: str
     filepath: str
 
 
@@ -63,23 +64,35 @@ class StateFileReader:
     def __init__(self, provider) -> None:
         self.provider = provider
         self.files: List[StateFileEntry] = []
+
+        # unique_run_name -> experiment_tag
+        self.experiment_map: Dict[str, str] = {}
         self.reload()
 
     def reload(self) -> None:
         base_dir = self.provider.statefile_base
         self.files = []
+        self.experiment_map = {}
+
         if not os.path.exists(base_dir) or not os.path.isdir(base_dir):
             return
         
-        for experiment in os.listdir(base_dir):
-            if not os.path.isdir(os.path.join(base_dir, experiment)):
+        experiment_dir = os.path.join(base_dir, EXPERIMENT_RESERVATION_DIR)
+        if os.path.exists(experiment_dir) and os.path.isdir(experiment_dir):
+            for experiment in os.listdir(experiment_dir):
+                with open(os.path.join(experiment_dir, experiment), "r") as handle:
+                    unique_run_name = handle.readline()
+                self.experiment_map[unique_run_name] = experiment
+
+        for unique_run_name in os.listdir(base_dir):
+            if not os.path.isdir(os.path.join(base_dir, unique_run_name)):
                 continue
 
-            for instance in os.listdir(os.path.join(base_dir, experiment)):
+            for instance in os.listdir(os.path.join(base_dir, unique_run_name)):
                 if not instance.startswith(INTERCHANGE_DIR_PREFIX):
                     continue
 
-                itempath = os.path.join(base_dir, experiment, instance)
+                itempath = os.path.join(base_dir, unique_run_name, instance)
                 if not os.path.isdir(itempath):
                     continue
 
@@ -90,7 +103,11 @@ class StateFileReader:
                 try:
                     with open(statefilepath, "r") as handle:
                         state = InstanceStateFile.from_json(handle.read())
-                        self.files.append(StateFileEntry(state, statefilepath))
+
+                        experiment = self.experiment_map.get(unique_run_name, None)
+                        state.experiment = experiment
+
+                        self.files.append(StateFileEntry(state, unique_run_name, statefilepath))
                         logger.trace(f"Loaded a state from '{statefilepath}'")
                 except Exception as ex:
                     logger.opt(exception=ex).error(f"Cannot load state file '{statefilepath}'")
@@ -120,19 +137,27 @@ class StateFileReader:
             return False
         
     @staticmethod
-    def check_and_aquire_experiment(lock: StateLock, tag: str, basedir: str) -> bool:
+    def check_and_aquire_experiment(lock: StateLock, tag: str, basedir: str,
+                                    uniqe_run_name: str) -> bool:
+        experiment_dir = Path(basedir) / EXPERIMENT_RESERVATION_DIR
+        os.makedirs(experiment_dir, mode=0o777, exist_ok=True)
         with lock:
-            for item in os.listdir(basedir):
+            for item in os.listdir(experiment_dir):
                 if tag == item:
                     return False
-            
-            os.mkdir(basedir / tag, mode=0o777)
-            return True
+                
+            fd = os.open(experiment_dir / tag, os.O_WRONLY | os.O_CREAT, 0o777)
+            with open(fd, "w") as handle:
+                handle.write(uniqe_run_name)
+        return True
         
     @staticmethod
     def release_experiment(lock: StateLock, tag: str, basedir: str) -> None:
         with lock:
-            shutil.rmtree(basedir / tag, ignore_errors=True)
+            try:
+                os.remove(Path(basedir) / EXPERIMENT_RESERVATION_DIR / tag)
+            except Exception as ex:
+                logger.opt(exception=ex).error("Unable to release experiment tag mapping")
 
     def get_states(self, filter_owned_by_executor: bool = False, 
                    filter_experiment_tag: Optional[str] = None, 
@@ -184,3 +209,26 @@ class StateFileReader:
             result.append(item.contents.experiment)
 
         return result
+    
+    def free_unused_experiment_tags(self):
+        delete_keys = []
+        for key, value in self.experiment_map.items():
+            found = False
+
+            for entry in self.files:
+                if key == entry.unique_run_name:
+                    found = True
+                    break
+            
+            if not found:
+                delete_keys.append(key)
+            else:
+                logger.trace(f"Testbed '{key}' for experiment tag '{value}' is still running.")
+
+        for delete_key in delete_keys:
+            logger.debug(f"Deleting unused experiment tag '{self.experiment_map[delete_key]}' for non-existing testbed '{delete_key}'")
+            try:
+                os.remove(Path(self.provider.statefile_base) / EXPERIMENT_RESERVATION_DIR / value)
+                del self.experiment_map[delete_key]
+            except Exception as ex:
+                logger.opt(exception=ex).error("Cannot deleting experiment tag mapping file")

@@ -28,6 +28,7 @@ from pathlib import Path
 from loguru import logger
 from typing import Tuple, Optional, List, Dict
 from threading import Lock, Semaphore, Event
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.system_commands import invoke_subprocess, set_owner
 from helper.file_copy_helper import FileCopyHelper
@@ -50,6 +51,7 @@ class AgentManagementState(Enum):
     FINISHED = 6
     FILES_PRESERVED = 7
     DISCONNECTED = 8
+    AWAITING_RECONNECT = 98
     FAILED = 99
 
 
@@ -96,6 +98,7 @@ class InstanceState:
 
         self._state: AgentManagementState = AgentManagementState.UNKNOWN
         self.connection = None
+        self.reconnect_requested = False
         self.interchange_ready = False
         self.interfaces: List[InstanceInterface] = []
         if init_preserve_files is not None:
@@ -105,6 +108,7 @@ class InstanceState:
         self.apps = Optional[List[ApplicationConfig]]
         self.mgmt_ip_addr: Optional[str] = None
         self.file_copy_helper = FileCopyHelper(self, provider.executor)
+        self.instance_helper = None
 
     def __str__(self) -> str:
         return f"{self.name} ({self.uuid})"
@@ -123,6 +127,9 @@ class InstanceState:
                 break
         
         return found_interface
+    
+    def set_instance_helper(self, instance_helper) -> None:
+        self.instance_helper = instance_helper
     
     def get_interface_by_bridge_dev(self, bridge_dev: str) -> Optional[InstanceInterface]:
         found_interface = None
@@ -182,18 +189,18 @@ class InstanceState:
 
         self.manager.notify_state_change(new_state)
 
-    def prepare_interchange_dir(self) -> None:
-        self.interchange_dir = self.provider.statefile_base / Path(self.provider.experiment) / Path(INTERCHANGE_DIR_PREFIX + self.uuid)
+    def prepare_interchange_dir(self, strict: bool = True) -> None:
+        self.interchange_dir = self.provider.statefile_base / Path(self.provider.unique_run_name) / Path(INTERCHANGE_DIR_PREFIX + self.uuid)
 
-        if self.interchange_dir.exists():
+        if strict and self.interchange_dir.exists():
             raise Exception(f"Error during setup of interchange directory: {self.interchange_dir} already exists!")
         
         # Set 777 permission to allow socket access with --sudo option
         os.makedirs(self.interchange_dir, mode=0o777, exist_ok=True)
-        os.mkdir(self.interchange_dir / INSTANCE_INTERCHANGE_DIR_MOUNT)
+        os.makedirs(self.interchange_dir / INSTANCE_INTERCHANGE_DIR_MOUNT, exist_ok=True)
         self.interchange_ready = True
 
-    def remove_interchange_dir(self, file_preservation: Optional[Path]) -> None:
+    def remove_interchange_dir(self, file_preservation: Optional[Path], fully_delete: bool = True) -> None:
         if not self.interchange_ready:
             return
         
@@ -218,10 +225,18 @@ class InstanceState:
                     self.provider.result_wrapper.add_instance_preserved_files(self.name, target, len(flist))
 
                 logger.info(f"File Preservation: Preserved {len(flist)} files for Instance {self.name} to '{target}'")
-            
-        
-        shutil.rmtree(self.interchange_dir)
-        self.interchange_ready = False
+
+        if fully_delete:
+            shutil.rmtree(self.interchange_dir)
+            self.interchange_ready = False
+        else:
+            mount_target = self.interchange_dir / INSTANCE_INTERCHANGE_DIR_MOUNT
+            if mount_target.exists():
+                for content in mount_target.iterdir():
+                    if content.is_dir():
+                        shutil.rmtree(content)
+                    else:
+                        content.unlink()
 
     def get_mgmt_socket_path(self) -> None | Path:
         if not self.interchange_ready or self.vsock_cid is not None:
@@ -270,6 +285,10 @@ class InstanceState:
 
         self.connection.send_message(message)
 
+    def reset_after_snapshot_restore(self) -> None:
+        self._state = AgentManagementState.INITIALIZED
+        self.prepare_interchange_dir(strict=False)
+
     def is_connected(self) -> bool:
         return self.connection is not None
     
@@ -283,13 +302,23 @@ class InstanceState:
         self.connection = None
         self.set_state(AgentManagementState.DISCONNECTED)
 
+    def prepare_reconnect(self) -> None:
+        self.set_state(AgentManagementState.AWAITING_RECONNECT)
+        self.reconnect_requested = True
+
+    def is_reconnect(self) -> bool:
+        if self.reconnect_requested:
+            self.reconnect_requested = False
+            return True
+        else:
+            return False
+
     def dump_state(self) -> None:
         state = InstanceStateFile(
             instance=self.name,
             uuid=self.uuid,
             executor=int(self.provider.executor),
             cmdline=self.provider.cmdline,
-            experiment=self.provider.experiment,
             main_pid=self.provider.main_pid,
             mgmt_ip=str(self.mgmt_ip_addr),
             interfaces=self.interfaces
@@ -320,7 +349,6 @@ class InstanceStateManager(Dismantable):
         self.provider.set_instance_manager(self)
         self.map: dict[str, InstanceState] = {}
         self.state_change_lock: Lock = Lock()
-        self.file_preservation: Optional[Path] = None
 
         self.waiting_for_states: Optional[List[InstanceState]] = None
         self.state_change_semaphore: Optional[Semaphore] = None
@@ -335,11 +363,24 @@ class InstanceStateManager(Dismantable):
     def set_app_dependecy_helper(self, helper: AppDependencyHelper) -> None:
         self.app_dependecy_helper = helper
 
-    def enable_file_preservation(self, preservation_path: Optional[Path]):
-        self.file_preservation = preservation_path
+    def do_for_all_instances_parallel(self, callback, *args, max_workers=None) -> bool:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures= [executor.submit(callback, instance, *args) for instance in self.map.values()]
 
-    def get_all_instances(self) -> List[InstanceState]:
-        return list(self.map.values())
+            overall = True
+            for future in as_completed(futures):
+                if not future.result():
+                    overall = False
+        
+        return overall
+    
+    def do_for_all_instances_sequential(self, callback, *args) -> bool:
+        overall = True
+        for instance in self.map.values():
+            if not callback(instance, *args):
+                overall = False
+
+        return overall
     
     def add_instance(self, name: str, script_file: str, 
                     setup_env: Dict[str, str], 
@@ -402,10 +443,24 @@ class InstanceStateManager(Dismantable):
             self.state_change_semaphore.release(n=len(self.map))
 
         for instance in self.map.values():
-            instance.remove_interchange_dir(self.file_preservation)
+            instance.remove_interchange_dir(self.provider.preserve)
             instance.disconnect()
         
+        try:
+            os.rmdir(self.provider.statefile_base / Path(self.provider.unique_run_name))
+        except Exception:
+            pass
+
         self.map.clear()
+
+    def copy_preserve_files(self, preserve_target: Optional[Path]) -> None:
+        for instance in self.map.values():
+            instance.remove_interchange_dir(preserve_target, False)
+
+    def reset_all_after_snapshot_restore(self):
+        for instance in self.map.values():
+            instance.remove_interchange_dir(None, False)
+            instance.reset_after_snapshot_restore()
 
     def get_instance(self, name: str) -> Optional[InstanceState]:
         if name not in self.map.keys():

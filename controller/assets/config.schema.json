@@ -49,6 +49,15 @@
                 "experiment_timeout": {
                     "type": "number"
                 },
+                "file_preservation_timeout": {
+                    "type": "number"
+                },
+                "checkpoint_timeout": {
+                    "type": "number"
+                },
+                "appstart_timesync_offset": {
+                    "type": "number"
+                },
                 "allow_gso_gro": {
                     "type": "boolean"
                 }

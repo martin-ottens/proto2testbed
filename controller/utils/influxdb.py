@@ -94,8 +94,8 @@ class InfluxDBAdapter(Dismantable):
     def __init__(self, provider: TestbedStateProvider,
                  warn_on_no_database: bool = False,
                  full_result_wrapper: Optional[FullResultWrapper] = None) -> None:
+        self.provider = provider
         self.store_disabled = warn_on_no_database
-        self.series_name = provider.experiment
         self.full_result_wrapper = full_result_wrapper
 
         self._queue = queue.Queue()
@@ -158,7 +158,7 @@ class InfluxDBAdapter(Dismantable):
             return True
         
         try:
-            point[0]["tags"]["experiment"] = self.series_name
+            point[0]["tags"]["experiment"] = self.provider.experiment
 
             hashstr = ""
             for tag_value in point[0]["tags"].values():

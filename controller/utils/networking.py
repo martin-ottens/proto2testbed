@@ -16,11 +16,7 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
-import random
-import string
-
 from typing import Optional, List, Dict, Any
-from constants import TAP_PREFIX, BRIDGE_PREFIX
 
 from helper.network_helper import NetworkBridge
 

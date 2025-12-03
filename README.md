@@ -3,10 +3,11 @@
 *Testbed framework for security **proto**col evaluation and **proto**typing.*
 
 Proto²Testbed is a tool for research and development in the field of network applications and protocols. 
-A virtual topology is created using several virtual machines (called instances), which are connected to each other using network bridges.
+A virtual topology is created using several virtual machines (called Instances), which are connected to each other using network bridges.
 The structure of the topology, the configuration and also experiments are defined via a testbed package.
 After a small amount of manual configuration, Proto²Testbed takes care of setting up and dismantling the topology and carrying out experiments, if desired, completely automated way.
 Proto²Testbed can be used for various workflows and can be extended with functions for specific projects thanks to its modular approach.
+A Python API allows the integration of Proto²Testbed in existing programs.
 
 Proto²Testbed was first introduced at the 12th Advanced Satellite Multimedia Systems Conference (ASMS) 2025, BibTeX citation:
 ```
@@ -31,6 +32,7 @@ Proto²Testbed was first introduced at the 12th Advanced Satellite Multimedia Sy
 - Proto²Testbed also allows real network interfaces of the Testbed Host to be integrated into a virtual testbed topology. **Integrations** are available to execute special functions on the Testbed Host during testbed runs.
 - With the right preparation, each testbed run has only a few seconds overhead for the creation and setup of the instances - a virtual topology is available in just a few seconds.
 - In addition to the fully automatic operation, numerous CLI features also allow a testbed to be used interactively - great for debugging or prototyping.
+- A checkpoint operation allows to execute several subsequent experiments on the same testbed setup with minimal loss of time between experiments.
 - Variables in the testbed configuration allows the test of different environments or scenarios. Especially with integration in CI/CD tools, Proto²Testbed can also be used as a tool for automatic software tests.
 
 > **Some important notes:**
@@ -133,7 +135,23 @@ The creation of different disk images is particularly relevant here in order to 
 2. Install the Instance Manager and additional dependencies to create a base disk images for experiments. Additional dependencies can be software, configurations and so on that does not change for different testbed runs or are identical for all Instances in a testbed. By performing the installation at an early stage, the startup time of a Testbed can be reduced. A base disk image can be used by multiple Instances and is not modified during testbed runs. A disk images used in a testbed run needs the Installation of the Instance Manager.
 3. During the startup of a testbed, Instances are created from the base images as defined in the `testbed.json`. Some initial preparation is done by *cloud-init* at startup.
 4. After the startup, a setup script can be executed on the Instance that is provided in the Testbed Package. Additional and testbed run/Instance specific dependencies (e.g., kernel modules or software that is to be evaluated in the testbed) can be installed by the setup script (loaded from within the testbed package or downloaded from the internet (when management network is enabled)). The setup scripts also needs to perform the network configuration of the Instances.
-5. When the setup is completed, the Instances are ready for the experiment and Applications are executed, pushing results (time series data) to the Controller or marking files for preservation when the testbed is stopped. After the Experiment is completed, the testbed is shut down - all Instances and the virtual topology is fully destroyed.
+5. When the setup is completed, the Instances are ready for the experiment and Applications are executed, pushing results (time series data) to the Controller or marking files for preservation when the testbed is stopped. After the Experiment is completed, the testbed is shut down - all Instances and the virtual topology is fully destroyed, files marked for preservation will be copied to the Testbed Host.
+
+Besides this general workflow, there are two operation modes for Proto²Testbed:
+
+#### One-Shot Operation
+![Proto²Testbed One-Shot Operation](docs/images/proto2testbed_oneshot.png)
+
+This is the default operation mode. The testbed is set up from the beginning every time and the testbed will always be terminated after the experiments are completed. This operation mode works without any manual intervention/interaction (starting the testbed can run to completion) so it is especially useful for automated experiments and tests.
+The testbed execution can be paused at several stages (see green boxes in the image) to interact with the Instances.
+
+#### Checkpoint Operation
+![Proto²Testbed Checkpoint Operation](docs/images/proto2testbed_checkpoint.png)
+This mode is enabled by running Proto²Testbed with the `--checkpoint` option. After the testbed setup, but before the Applications are installed on the Instances, a checkpoint containing the state of the Instances is created. After an experiment is completed, the testbed can be restored to this state or terminated. This operation mode is only available with interaction enabled since the instruction to restore or terminated is given via the interactive CLI.
+
+Between different testbed runs, the preserve file output path and the experiment tag can be changed. Passing `--interact INIT`, the testbed will pause during every repetition before the experiment is started, which can be useful to change configurations of the Instances. *STARTUP* and *NETWORK* Integrations are started once during testbed setup and are stopped when the experiment loop is terminated. *INIT* Integrations are started before every experiment repetitions and stopped afterwards.
+
+When using the API (see Section 8) it is also possible to change the Application configuration of all Instances before restoring the checkpoint. This allows to test different aspects with an identical Instance setup and testbed topology with minimal time loss (restoring checkpoints only takes a few seconds).
 
 ## 5. Interacting with Proto²Testbed
 Proto²Testbeds `p2t` command (or `./proto-testbed` if not installed globally) is the main way to interact with the framework. The following subcommands are currently available:
@@ -166,7 +184,7 @@ The Testbed Package is made available in the file system of all Instances during
 - Experiment-specific Python source files of Applications or Integrations (not packaged in the Instance Manager or Testbed Controller and dynamically loaded during testbed execution from within the Testbed Package), see [`docs/extensions.md`](docs/extensions.md) for further details.
 
 ## 8. Python API
-Proto²Testbed can be used from within Python programs (without using the CLI). See `controller/api.py` for an API documentation and `setups/api` for usage examples.
+Proto²Testbed can be used from within Python programs (without using the CLI). See `controller/api.py` and `controller/full_result_wrapper.py` for an API documentation, and `setups/api` for usage examples for one-shot and checkpoint operation.
 
 ## 9. Hacking & Extension
 Proto²Testbed can be easily extended for special requirements, see [`docs/extensions.md`](docs/extensions.md) for further details:

@@ -52,10 +52,11 @@ class InstanceHelper(Dismantable):
                                 -smp {cores} \
                                 -machine q35 \
                                 -hda {image} \
-                                -serial unix:{tty},server,nowait \
+                                -rtc base=utc,clock=host \
+                                -serial unix:{tty},server=on,wait=off \
                                 {im_comm_setting} \
-                                -virtfs local,path={mount},mount_tag=exchange,security_model=passthrough,id=exchange \
                                 -virtfs local,path={testbed_package},mount_tag=tbp,security_model=passthrough,id=tbp,readonly=on \
+                                -virtfs local,path={mount},mount_tag=exchange,security_model=passthrough,id=exchange \
                                 {nics} \
                                 -snapshot \
                                 -cdrom {cloud_init_iso} \
@@ -63,9 +64,9 @@ class InstanceHelper(Dismantable):
                                 -monitor stdio"""
     __QEMU_KVM_OPTIONS = """-enable-kvm \
                             -cpu host"""
-    __QEMU_IM_COMM_SERIAL = """-chardev socket,id=mgmtchardev,path={serial},server,nowait \
-                               -device pci-serial,chardev=mgmtchardev"""
 
+    __QEMU_IM_COMM_SERIAL = """-chardev socket,id=mgmtchardev,path={serial},server=on,wait=off \
+                               -device pci-serial,chardev=mgmtchardev"""
     __QEMU_IM_COMM_VSOCK = "-device vhost-vsock-pci,guest-cid={cid} "
 
     __CLOUD_INIT_ISO_TEMPLATE = """genisoimage \
@@ -73,6 +74,8 @@ class InstanceHelper(Dismantable):
                                    -volid cidata \
                                    -joliet \
                                    -rock {input}"""
+    
+    __QEMU_SNAPSHOT_NAME = "after_setup"
 
     def __init__(self, instance: InstanceState, 
                  management: Optional[InstanceManagementSettings],
@@ -83,12 +86,14 @@ class InstanceHelper(Dismantable):
         self.debug = debug
         self.qemu_handle = None
         self.testbed_package_path = testbed_package_path
+        self.has_snapshot = False
+        self.snapshot_timeout = instance.provider.testbed_config.settings.checkpoint_timeout
 
         if len(instance.interfaces) > (SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE + 1):
             raise Exception(f"Error during creation, {SUPPORTED_EXTRA_NETWORKS_PER_INSTANCE} interfaces are allowed, but {len(instance.interfaces)} were added!")
         
         if not instance.interchange_ready:
-            raise Exception("Unable to set up interchange directory for p9 an mgmt socket!")
+            raise Exception("Unable to set up interchange directory for p9 and mgmt socket!")
 
         self.tempdir = tempfile.TemporaryDirectory()
  
@@ -284,3 +289,40 @@ class InstanceHelper(Dismantable):
         except Exception as ex:
             logger.opt(exception=ex).warning(f"Instance '{self.instance.name}': Unable to get status")
             return "VM status: unknown"
+        
+    def create_snapshot(self) -> bool:
+        if self.qemu_handle is None:
+            logger.error(f"Instance '{self.instance.name}': Cannot create snapshot when qemu process is not running.")
+            return False
+    
+        try:
+            logger.trace(f"Instance '{self.instance.name}': Starting snapshot creation ...")
+            self.qemu_handle.sendline(f"savevm {self.__QEMU_SNAPSHOT_NAME}")
+            self.qemu_handle.readline()
+            self.qemu_handle.expect_exact("(qemu)", timeout=self.snapshot_timeout)
+            self.has_snapshot = True
+            logger.trace(f"Instance '{self.instance.name}': Snapshot creation finished.")
+            return True
+        except Exception as ex:
+            logger.opt(exception=ex).warning(f"Instance '{self.instance.name}': Unable to create snapshot")
+            return False
+        
+    def restore_snapshot(self) -> bool:
+        if not self.has_snapshot:
+            logger.error(f"Instance '{self.instance.name}': Cannot restore snapshot when it was not created before.")
+            return False
+
+        if self.qemu_handle is None:
+            logger.error(f"Instance '{self.instance.name}': Cannot restore snapshot when instance is not running.")
+            return False
+    
+        try:
+            logger.trace(f"Instance '{self.instance.name}': Starting snapshot restore ...")
+            self.qemu_handle.sendline(f"loadvm {self.__QEMU_SNAPSHOT_NAME}")
+            self.qemu_handle.readline()
+            self.qemu_handle.expect_exact("(qemu)", timeout=self.snapshot_timeout)
+            logger.trace(f"Instance '{self.instance.name}': Snapshot restore finished.")
+            return True
+        except Exception as ex:
+            logger.opt(exception=ex).warning(f"Instance '{self.instance.name}': Unable to restore snapshot")
+            return False
