@@ -1,5 +1,2 @@
-- Documentation
-- Testcases:
-    - Test Application List Changes
-    - Test File Preservation Changes
-    - Test Experiment Tag Changes
+- Documentation of FullResultWrapper
+- More Flags for Status in FullResultWrapper

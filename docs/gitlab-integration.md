@@ -1,127 +1,116 @@
 # Proto²Testbed GitLab CI/CD Integration
 
-> **Notice:** The Runner will be run as root. Depending on configuration of the repo and pipeline, all persons with access to the GitLab repo will have full root control over the testbed host by design. 
+> **Notice:** The runner will be run with effective root privileges. Depending on configuration of the repo and pipeline, all persons with access to the GitLab repo could obtain full root access to the server executing the runner.#
+
+This document describes how the Proto²Testbed Docker images can be used to integrate the testbed framework into GitLab CI/CD workflows. The use of Integrations is not possible in this setup.
 
 ## Installation
 
 1. Install GitLab-Runner as described [here](https://docs.gitlab.com/runner/install/linux-repository.html).
-2. Install Proto²Testbed as described in the `README.md` (using the installer script)
-2. Register the GitLab Runner as a shell runner for the project. Per default, `concurrent` is set to `1`, you can update it to a suitable value (see `/etc/gitlab-runner/config.toml` and host requirements in the projects `README.md`).
-3. Start the GitLab-Runner as `root` user by changing `"--user" "gitlab-runner"` to `"--user" "root"` in `/etc/systemd/system/gitlab-runner.service`. Restart the runner:
+2. Due to the size of disk images, they should not be up- and downloaded as GitLab artifacts. It is recommended to store disk images at a central location of the runners file system, e.g. at `/images` (this path is used in this setup example). There you could also place and maintain a general base OS installation disk image. The generation of such a base OS installation disk image is described in `baseimage-creation/README.md`. When using multiple runner hosts, the image directory should be shard across all hosts, e.g., using NFS.
+3. For optimal performance, enable the `vhost_vsock` kernel module on the runner host.
+4. Make sure the GitLab-Runner is started, register it in GitLab using
     ```bash
-    systemctl daemon-reload
-    systemctl restart gitlab-runner.service
+     gitlab-runner register --executor "docker"
     ```
-4. Due to the size of disk images, they should not be up- and downloaded as GitLab artifacts. It is recommended to store disk images at a central location of the runners file system, e.g. at `/images`. There you could also place and maintain a general base OS installation disk image.
+   Add a tag to the runner to indicate that it is capable to run Proto²Testbeds, e.g., *p2t*.
+4. Change the GitLab-Runner configuration located at `/etc/gitlab-runner/config.toml`:
+   - Select a suitable `concurrent` count. Do not over-provision the hardware.
+   - Set `runners.docker/privildged` to *true* (grants access to network device management and access to `/dev/kvm`)
+   - Set `runners.docker/network_mode` to *host* (use the root network namespace of the runner's host system)
+   - Add */images:/images* and */tmp/p2t:/tmp/p2t* to `runners.docker/volumes`
+5. The GitLab-Runner should reload the config by itself. If not, restart the runner.
 
-## Sample Config
+### Example GitLab-Runner Config
+```toml
+concurrent = 4 # Select a suitable value
+check_interval = 0
+connection_max_age = "15m0s"
+shutdown_timeout = 0
 
-Below is a complex example of a `.gitlab-ci.yml` file. The variables defined in the *parallel-tags* matrix is used in the testbed configuration by using `{{ PLACEHOLDERS }}`.
+[session_server]
+  session_timeout = 1800
 
-In this example, a basic OS installation image is located at `/images/debian-template.qcow2`. Experiment-specific images are created from this file during the pipeline is executed - after the pipeline is completed, these images are deleted.
+[[runners]]
+  # ... skipped register settings ...
+  executor = "docker"
+  # ... skipped [runners.cache] ...
+  [runners.docker]
+    tls_verify = false
+    image = "debian:latest"
+    privileged = true
+    disable_entrypoint_overwrite = false
+    oom_kill_disable = false
+    disable_cache = false
+    volumes = [
+      "/cache",
+      "/images:/images",
+      "/tmp/p2t:/tmp/p2t"
+    ]
+    shm_size = 0
+    network_mtu = 0
+    network_mode = "host"
+```
+
+## Sample CI/CD Configs
+
+### Image Generation
+This example creates an experiment-specific disk image using the `p2t-genimg` Docker image. The disk image is based on a basic OS installation disk image located at `/image/debian-template.qcow2` and is written to `/images/debian-<BRANCH_NAME>.qcow2`.
+See `baseimage-creation/README.md` *im-installer.py* for details on how to use `p2t-genimg` tool.
 
 ```yml
-stages:
-  - build
-  - run
-  - export
-  - cleanup
-
-default:
-  tags: [proto-testbed-host]
-
+# ...
 variables:
-  INFLUXDB_DATABASE: "testbed"
-  INFLUXDB_EXPERIMENT: $CI_PIPELINE_ID
-  BASE_IMAGE: "/images/debian-template.qcow2"
-  PIPELINE_STORAGE_BASE: /tmp/$CI_PIPELINE_ID
-  TESTBED_CONFIG_BASE: ./setup
+  IMAGE_LIBRARY: "/images"
+  TEMPLATE_IMAGE: "debian-template.qcow2"
 
-.parallel-tags: &parallel-tags
+generate-image:
+ image: 
+    name: martinottens/proto2testbed:genimg
+    entrypoint: [""]
+  tags: ["p2t"]
+  needs: []
+  stage: prepare
+  script:
+    - p2t-genimg 
+      --input ${IMAGE_LIBRARY}/${TEMPLATE_IMAGE} 
+      --output ${IMAGE_LIBRARY}/debian-${CI_COMMIT_BRANCH}.qcow2
+      --package /im.deb
+      --mount ${CI_PROJECT_DIR}/prepare
+      --extra ${CI_PROJECT_DIR}/prepare/extra.commands
+      --timeout 240
+```
+
+### Testbed Execution
+This example executes a testbed based on the previously created experiment-specific disk image. This job actually runs four experiments in parallel using the *parallel.marix* feature in GitLab: The variables defined in the *parallel-tags* matrix are used in the testbed configuration file by using `{{ PLACEHOLDERS }}`.
+
+Preserve files and CSVs of InfluxDB time series are exported and stored as pipeline artifacts for later analysis. To prevent interferences with parallel running testbeds, GitLab's unique *CI_JOB_ID* is used as the experiment tag. After the main script is completed or failed, the *after_script* is executes, which attempts to clear the data from the InfluxDB and removes remains of dangling testbed runs.
+
+```yml
+# ...
+start-experiments:
+  needs: ["generate-image"]
+  image:
+    name: martinottens/proto2testbed:p2t
+    entrypoint: [""]
+  tags: ["p2t"]
+  stage: execute
   parallel:
     matrix:
-      - EXPERIMENT_TAG: default
-        IMAGE_CLIENT: debian-default.qcow2
-        IMAGE_ROUTER: debian-default.qcow2
-        WIREGUARD_A: disable
-        WIREGUARD_B: disable
-        IPERF_HOST: "10.0.1.1"
-        PING_TARGET: "10.0.1.1"
-        PING_SOURCE: "10.0.2.1"
-        VM_CORES: 2
-      - EXPERIMENT_TAG: wireguard
-        IMAGE_CLIENT: debian-wireguard.qcow2
-        IMAGE_ROUTER: debian-default.qcow2
-        WIREGUARD_A: "192.168.0.1"
-        WIREGUARD_B: "192.168.0.2"
-        IPERF_HOST: "192.168.0.1"
-        PING_TARGET: "192.168.0.1"
-        PING_SOURCE: "192.168.0.2"
-        VM_CORES: 2
-
-.build-defaults: &build-defaults
-  stage: build
-  script:
-    - "curl -O --header \"PRIVATE-TOKEN: $EXTERNAL_ACCESS_TOKEN\" $CI_API_V4_URL/your-instance-manager-build-project/jobs/artifacts/main/raw/instance-manager/instance-manager.deb?job=build-manager-package"
-    - mkdir -p $PIPELINE_STORAGE_BASE
-    - p2t-genimg --input $BASE_IMAGE --output $PIPELINE_STORAGE_BASE/$TARGET_IMAGE --extra $EXTRA_COMMANDS $PIPELINE_STORAGE_BASE/$TARGET_IMAGE ./instance-manager.deb
-  retry:
-    max: 1
-    exit_codes: 1
-
-build-default-image:
+      - SETUP: ["Testcase1", "Testcase2"]
+        EXPERIMENT: ["Delay", "Throughput"]
   variables:
-    EXTRA_COMMANDS: "default.extra"
-    TARGET_IMAGE: "debian-default.qcow2"
-  <<: *build-defaults
-
-build-wireguard-image:
-  variables:
-    EXTRA_COMMANDS: "wireguard.extra"
-    TARGET_IMAGE: "debian-wireguard.qcow2"
-  <<: *build-defaults
-
-experiment:
-  stage: run
-  tags: [proto-testbed-host]
-  needs: [build-default-image, build-wireguard-image]
-  <<: *parallel-tags
+    TEMPLATE: "template/"
+    OUTPUT_PATH: "${ARTIFACTS_PATH}/${SETUP}-${EXPERIMENTS}"
+    EXPERIMENT_TAG: "$CI_JOB_ID"
   script:
-    - p2t run -d preserved_files --experiment ${CI_PIPELINE_ID}-${EXPERIMENT_TAG} $TESTBED_CONFIG_BASE
+    - p2t run -p $OUTPUT_PATH -e $EXPERIMENT_TAG ${CI_PROJECT_DIR}/testbed
+    - p2t export csv -e $EXPERIMENT_TAG -o $OUTPUT_PATH ${CI_PROJECT_DIR}/testbed
+  after_script:
+    - p2t clean -e $EXPERIMENT_TAG
+    - p2t prune --all --interfaces -vv # Optional: Clean dangling testbeds on that host
   artifacts:
     paths:
-      - "preserved_files"
-    expire_in: 1 day
-
-export-results:
-  stage: export
-  needs: [experiment]
-  <<: *parallel-tags
-  script:
-    - result_renderer.py --config $TESTBED_CONFIG_BASE/testbed.json --influx_database $INFLUXDB_DATABASE --experiment ${CI_PIPELINE_ID}-$EXPERIMENT_TAG --renderout ./images
-    - result_export.py --config $TESTBED_CONFIG_BASE/testbed.json --influx_database $INFLUXDB_DATABASE --experiment ${CI_PIPELINE_ID}-$EXPERIMENT_TAG --output ./csvs
-  artifacts:
-    paths:
-      - "images/"
-      - "csvs/"
-    expire_in: 1 day
-
-.cleanup-defaults: &cleanup-defaults
-  stage: cleanup
-  variables:
-    GIT_STRATEGY: none
-  dependencies: []
-  <<: *parallel-tags
-  script:
-    - rm -rfv $PIPELINE_STORAGE_BASE || true
-    - p2t clean --experiment ${CI_PIPELINE_ID}-$EXPERIMENT_TAG
-
-cleanup-success:
-  needs: [export-results]
-  when: on_success
-  <<: *cleanup-defaults
-
-cleanup-failure:
-  when: on_failure
-  <<: *cleanup-defaults
+      - "$OUTPUT_PATH"
+    expire_in: 2h
 ```
