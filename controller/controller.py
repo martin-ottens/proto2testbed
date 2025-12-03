@@ -545,6 +545,7 @@ class Controller(Dismantable):
                     return not run_state.has_failed
 
                 if not self.reset_testbed_to_snapshot(interact=True):
+                    self.provider.result_wrapper.controller_failed = True
                     return False
                 
                 logger.success("Testbed snapshot restored the INIT state without app installation.")
@@ -555,10 +556,12 @@ class Controller(Dismantable):
 
                 self.pause_after = pause_after_step
             else:
-                print("Another")
                 return not run_state.has_failed
 
     def initialize_testbed(self) -> TestbedFunctionStatus:
+        if self.provider.result_wrapper is None:
+            raise ValueError("Invalid state: No result wrapper is present!")
+
         self.provider.set_snapshots_enabled(False)
 
         start_status = self.integration_helper.handle_stage_start(InvokeIntegrationAfter.STARTUP)
@@ -566,11 +569,13 @@ class Controller(Dismantable):
             logger.debug(f"No Integration scheduled for start at stage {InvokeIntegrationAfter.STARTUP}")
         elif start_status is False:
             logger.critical("Critical error during integration start!")
+            self.provider.result_wrapper.integration_failed = True
             return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
         if self.provider.testbed_config.settings.management_network is not None:
             if not self.setup_local_network():
                 logger.critical("Critical error during local network setup!")
+                self.provider.result_wrapper.controller_failed = True
                 return TestbedFunctionStatus.FAILED_DONT_CONTINUE
         else:
             logger.warning("Management Network is disabled, skipping setup.")
@@ -584,16 +589,19 @@ class Controller(Dismantable):
 
         if not load_vm_initialization(self.provider.testbed_config, self.provider.testbed_package_path, self.state_manager):
             logger.critical("Critical error while loading Instance initialization!")
+            self.provider.result_wrapper.configuration_failed = True
             return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
         self.state_manager.assign_all_vsock_cids()
 
         if not self.start_management_infrastructure(self.pause_after != PauseAfterSteps.SETUP):
             logger.critical("Critical error during start of management infrastructure!")
+            self.provider.result_wrapper.controller_failed = True
             return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
         if not self.setup_infrastructure():
             logger.critical("Critical error during instance setup")
+            self.provider.result_wrapper.controller_failed = True
             return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
         setup_timeout = self.provider.testbed_config.settings.startup_init_timeout
@@ -602,6 +610,7 @@ class Controller(Dismantable):
 
             if not self.wait_for_to_become(setup_timeout, "Infrastructure Setup", 
                                            AgentManagementState.STARTED, False, False):
+                self.provider.result_wrapper.configuration_failed = True
                 return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
             if not self.start_interaction(PauseAfterSteps.SETUP):
@@ -619,6 +628,7 @@ class Controller(Dismantable):
         if not self.wait_for_to_become(setup_timeout, "Instance Initialization", 
                                        AgentManagementState.INITIALIZED, 
                                        self.pause_after == PauseAfterSteps.INIT, True):
+            self.provider.result_wrapper.configuration_failed = True
             return TestbedFunctionStatus.FAILED_DONT_CONTINUE
         
         if self.create_checkpoint:
@@ -626,6 +636,7 @@ class Controller(Dismantable):
 
             if not self.state_manager.do_for_all_instances_parallel(lambda instance: 
                                                                     instance.instance_helper.create_snapshot()):
+                self.provider.result_wrapper.controller_failed = True
                 logger.critical("Unable to create checkpoints, but it was requested.")
                 return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
@@ -634,10 +645,9 @@ class Controller(Dismantable):
         return TestbedFunctionStatus.OK_CONTINUE
 
     def execute_testbed(self) -> TestbedFunctionStatus:
-        if self.provider.result_wrapper is not None:
-            self.provider.result_wrapper.unwrap_after_init(self.provider.testbed_config, 
-                                                           self.provider.experiment,
-                                                           self.provider.testbed_package_path)
+        self.provider.result_wrapper.unwrap_after_init(self.provider.testbed_config, 
+                                                       self.provider.experiment,
+                                                       self.provider.testbed_package_path)
 
         self.prevent_logging = False
         setup_timeout = self.provider.testbed_config.settings.startup_init_timeout
@@ -653,6 +663,7 @@ class Controller(Dismantable):
         if not self.wait_for_to_become(setup_timeout, 'App Installation', 
                                 AgentManagementState.APPS_READY, 
                                 self.pause_after == PauseAfterSteps.INIT, True):
+            self.provider.result_wrapper.configuration_failed = True
             return TestbedFunctionStatus.FAILED_CONTINUE
         
         logger.success("All Instances reported up & ready!")
@@ -662,6 +673,7 @@ class Controller(Dismantable):
             logger.debug(f"No Integration scheduled for start at stage {InvokeIntegrationAfter.INIT}")
         elif start_status is False:
             logger.critical("Critical error during Integration start!")
+            self.provider.result_wrapper.integration_failed = True
             return TestbedFunctionStatus.FAILED_CONTINUE
 
         if self.pause_after == PauseAfterSteps.INIT:
@@ -699,6 +711,7 @@ class Controller(Dismantable):
                 self.start_interaction(PauseAfterSteps.EXPERIMENT)
             
             self.send_finish_message()
+            self.provider.result_wrapper.configuration_failed = True
             return TestbedFunctionStatus.FAILED_CONTINUE
         else:
             succeeded = TestbedFunctionStatus.FAILED_CONTINUE
@@ -708,6 +721,8 @@ class Controller(Dismantable):
                                     False, False):
                 succeeded = TestbedFunctionStatus.OK_CONTINUE
                 logger.success("All Instances reported finished applications!")
+            else:
+                self.provider.result_wrapper.configuration_failed = True
             
             if self.pause_after == PauseAfterSteps.EXPERIMENT:
                 self.start_interaction(PauseAfterSteps.EXPERIMENT)

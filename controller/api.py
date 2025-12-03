@@ -253,7 +253,7 @@ class Proto2TestbedAPI:
             if not run_state.can_continue:
                 raise TestbedExecutionException("Testbed execution failed with error that cannot be fixed by a snapshot restore.")
         
-            self._stored_result_wrapper.controller_succeeded = not run_state.has_failed
+            self._stored_result_wrapper.testbed_succeeded = not run_state.has_failed
         except Exception as ex:
             self._stored_controller.copy_presere_files()
             self.destroy_testbed()
