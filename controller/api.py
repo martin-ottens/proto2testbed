@@ -51,7 +51,8 @@ class Proto2TestbedAPI:
                  sudo: bool = False, 
                  disable_kvm: bool = False,
                  skip_integration: bool = False,
-                 log_to_influx: bool = True) -> None:
+                 log_to_influx: bool = True,
+                 log_to_stdout: bool = False) -> None:
         """
         Creates a new API instance with common settings applied to all 
         testbed executions.
@@ -71,6 +72,7 @@ class Proto2TestbedAPI:
             log_to_influx (bool): Store results to InfluxDB instead of writing
                            them to FullResultWrapper object returned after 
                            testbed run. Default: True (Results are logged to InfluxDB)
+            log_to_stdout (bool): Also print system logs to stdout. Default: False
         """
 
         if verbose not in [0, 1, 2]:
@@ -80,7 +82,8 @@ class Proto2TestbedAPI:
         self._provider = TestbedStateProvider(verbose=verbose,
                                              sudo=sudo,
                                              from_api_call=True,
-                                             cache_datapoints=(not log_to_influx))
+                                             cache_datapoints=(not log_to_influx),
+                                             also_log_stdout=log_to_stdout)
 
         self._disable_kvm = disable_kvm
         self._skip_integration = skip_integration

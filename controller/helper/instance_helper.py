@@ -270,7 +270,7 @@ class InstanceHelper(Dismantable):
                     raise Exception(f"Unable to terminate Instance '{self.instance.name}'")
             else:
                 self.qemu_handle.terminate()
-                raise Exception(f"Unable to stop Instance {self.instance.name}, timeout occured:") from ex
+                raise Exception(f"Unable to stop Instance {self.instance.name}, timeout occured") from ex
         finally:
             self.qemu_handle = None
 

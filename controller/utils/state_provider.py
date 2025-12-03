@@ -38,7 +38,7 @@ from utils.config_tools import check_preserve_dir
 class TestbedStateProvider:
     def __init__(self, verbose: int, sudo: bool, 
                  from_api_call: bool = False, cache_datapoints: bool = False, 
-                 preserve: Optional[Path] = None) -> None:
+                 preserve: Optional[Path] = None, also_log_stdout: bool = False) -> None:
 
         self.default_configs = DefaultConfigs(DEFAULT_CONFIG_PATH)
         self.statefile_base = Path(self.default_configs.get_defaults("statefile_basedir", DEFAULT_STATE_DIR))
@@ -56,6 +56,7 @@ class TestbedStateProvider:
         self.experiment: Optional[str] = None
         self.experiment_generated = False
         self.preserve: Optional[Path] = preserve
+        self.also_log_stdout = also_log_stdout
         self.unique_run_name = f"{self.main_pid}-{self.executor}"
         self.testbed_config: Optional[TestbedConfig] = None
         self.testbed_package_path: Optional[Path] = None

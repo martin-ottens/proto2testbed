@@ -54,7 +54,8 @@ class CLI(Dismantable):
                     self.full_result_wrapper.append_controller_log(message=record["message"],
                                                               level=record["level"].name,
                                                               time=record["time"])
-                return False
+                if not self.also_log_stdout:
+                    return False
 
             return self.enable_output.is_set()
 
@@ -86,6 +87,7 @@ class CLI(Dismantable):
         self.kill_input = Event()
         self.kill_input.clear()
         self.log_to_storage = self.provider.from_api_call
+        self.also_log_stdout = self.provider.also_log_stdout
         self.full_result_wrapper = None
 
         self.enable_interaction.clear()
