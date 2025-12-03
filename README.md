@@ -135,7 +135,23 @@ The creation of different disk images is particularly relevant here in order to 
 2. Install the Instance Manager and additional dependencies to create a base disk images for experiments. Additional dependencies can be software, configurations and so on that does not change for different testbed runs or are identical for all Instances in a testbed. By performing the installation at an early stage, the startup time of a Testbed can be reduced. A base disk image can be used by multiple Instances and is not modified during testbed runs. A disk images used in a testbed run needs the Installation of the Instance Manager.
 3. During the startup of a testbed, Instances are created from the base images as defined in the `testbed.json`. Some initial preparation is done by *cloud-init* at startup.
 4. After the startup, a setup script can be executed on the Instance that is provided in the Testbed Package. Additional and testbed run/Instance specific dependencies (e.g., kernel modules or software that is to be evaluated in the testbed) can be installed by the setup script (loaded from within the testbed package or downloaded from the internet (when management network is enabled)). The setup scripts also needs to perform the network configuration of the Instances.
-5. When the setup is completed, the Instances are ready for the experiment and Applications are executed, pushing results (time series data) to the Controller or marking files for preservation when the testbed is stopped. After the Experiment is completed, the testbed is shut down - all Instances and the virtual topology is fully destroyed.
+5. When the setup is completed, the Instances are ready for the experiment and Applications are executed, pushing results (time series data) to the Controller or marking files for preservation when the testbed is stopped. After the Experiment is completed, the testbed is shut down - all Instances and the virtual topology is fully destroyed, files marked for preservation will be copied to the Testbed Host.
+
+Besides this general workflow, there are two operation modes for Proto²Testbed:
+
+#### One-Shot Operation
+![Proto²Testbed One-Shot Operation](docs/images/proto2testbed_oneshot.png)
+
+This is the default operation mode. The testbed is set up from the beginning every time and the testbed will always be terminated after the experiments are completed. This operation mode works without any manual intervention/interaction (starting the testbed can run to completion) so it is especially useful for automated experiments and tests.
+The testbed execution can be paused at several stages (see green boxes in the image) to interact with the Instances.
+
+#### Checkpoint Operation
+![Proto²Testbed Checkpoint Operation](docs/images/proto2testbed_checkpoint.png)
+This mode is enabled by running Proto²Testbed with the `--checkpoint` option. After the testbed setup, but before the Applications are installed on the Instances, a checkpoint containing the state of the Instances is created. After an experiment is completed, the testbed can be restored to this state or terminated. This operation mode is only available with interaction enabled since the instruction to restore or terminated is given via the interactive CLI.
+
+Between different testbed runs, the preserve file output path and the experiment tag can be changed. Passing `--interact INIT`, the testbed will pause during every repetition before the experiment is started, which can be useful to change configurations of the Instances. *STARTUP* and *NETWORK* Integrations are started once during testbed setup and are stopped when the experiment loop is terminated. *INIT* Integrations are started before every experiment repetitions and stopped afterwards.
+
+When using the API (see Section 8) it is also possible to change the Application configuration of all Instances before restoring the checkpoint. This allows to test different aspects with an identical Instance setup and testbed topology with minimal time loss (restoring checkpoints only takes a few seconds).
 
 ## 5. Interacting with Proto²Testbed
 Proto²Testbeds `p2t` command (or `./proto-testbed` if not installed globally) is the main way to interact with the framework. The following subcommands are currently available:
