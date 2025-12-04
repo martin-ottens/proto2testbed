@@ -146,6 +146,10 @@ class FullResultWrapper:
 
         for instance in testbed_config.instances:
             self._instance_status_map[instance.name] = InstanceStatusReport(config=instance)
+            for application in instance.applications:
+                key = (instance.name, application.name)
+                val = ApplicationStatusReport(config=application)
+                self._application_status_map[key] = val
 
     def unwrap_after_init(self, testbed_config: TestbedConfig, experiment_tag: str, 
                           testbed_package_path: Path) -> None:
