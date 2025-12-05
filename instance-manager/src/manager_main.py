@@ -369,23 +369,28 @@ class InstanceManager:
         
         new_status: ApplicationStatus
         log_string: str
+        print_to_user = False
+        log_level = LogMessageType.NONE
         match status:
             case AppStartStatus.FINISH:
                 new_status = ApplicationStatus.EXECUTION_FINISHED
                 log_string = f"Application '{app}' finished"
-                pass
-            case AppStartStatus.START | AppStartStatus.DAEMON:
+            case AppStartStatus.START:
                 new_status = ApplicationStatus.EXECUTION_STARTED
                 log_string = f"Application '{app}' started"
-                pass
+                print_to_user = True
+                log_level = LogMessageType.MSG_SUCCESS
+            case AppStartStatus.DAEMON:
+                new_status = ApplicationStatus.EXECUTION_STARTED
+                log_string = f"Application '{app}' started as a daemon"
             case AppStartStatus.FAILED:
                 new_status = ApplicationStatus.EXECUTION_FAILED
                 log_string = f"Application '{app}' failed"
         
         payload = ExtendedApplicationMessage(application=app, 
                                              status=new_status, 
-                                             log_message_type=LogMessageType.MSG_INFO, 
-                                             print_to_user=False, 
+                                             log_message_type=log_level, 
+                                             print_to_user=print_to_user, 
                                              log_message=log_string)
         message = DownstreamMessage(InstanceMessageType.APPS_EXTENDED_STATUS, payload)
         if self.state not in [IMState.EXPERIMENT_RUNNING, IMState.FAILED, IMState.READY_FOR_SHUTDOWN]:

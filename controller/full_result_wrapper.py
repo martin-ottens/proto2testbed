@@ -18,7 +18,6 @@
 
 import sys
 
-from loguru import logger
 from dataclasses import dataclass, field
 from typing import List, Tuple, Dict, Optional, Any
 from datetime import datetime
@@ -46,6 +45,17 @@ class LogEntry:
     message: str
     after_snapshot: bool = False
 
+@dataclass
+class InstanceLogEntry(LogEntry):
+    """
+    Class representing a single log entry.
+
+    Attributes:
+        instance_state (AgentManagementState | None): State of the Instance
+                     when the log entry was added
+    """
+    instance_state: Optional[AgentManagementState] = None
+
 
 @dataclass
 class ApplicationStatusReport:
@@ -62,7 +72,7 @@ class ApplicationStatusReport:
     """
     config: ApplicationConfig
     status: ApplicationStatus = ApplicationStatus.PENDING
-    logs: List[LogEntry] = field(default_factory=list)
+    logs: List[InstanceLogEntry] = field(default_factory=list)
     data_series: List[Any] = field(default_factory=list)
 
 
@@ -73,14 +83,14 @@ class InstanceStatusReport:
 
     Attributes:
         config (TestbedInstance): Config of the associated Instance
-        logs (List[LogEntry]): List of LogEntry objects
+        logs (List[InstanceLogEntry]): List of InstanceLogEntry objects
         status (AgentManagementState): Last observed status of the Instance
         preserve (Tuple[str, int] | None): Output base path of preserved files
                                and number of files copied during file preservation.
                                None if file preservation was disabled.
     """
     config: TestbedInstance
-    logs: List[LogEntry] = field(default_factory=list)
+    logs: List[InstanceLogEntry] = field(default_factory=list)
     status: AgentManagementState = AgentManagementState.UNKNOWN
     preserve: Optional[Tuple[str, int]] = None
 
@@ -182,10 +192,10 @@ class FullResultWrapper:
         self._controller_log = list(filter(lambda x: not x.after_snapshot, self._controller_log))
 
     def append_application_log(self, instance: str, application: str, 
-                               message: str, type: LogMessageType) -> bool:
+                               message: str, type: LogMessageType, state: AgentManagementState) -> bool:
         """
         Internal use only.
-        Append LogEntry to a logs list of an ApplicationStatusReport object.
+        Append InstanceLogEntry to a logs list of an ApplicationStatusReport object.
         """
         if (instance, application) not in self._application_status_map.keys():
             raise ValueError(f"FullResultWrapper: Unable to find application {application}@{instance}")
@@ -194,10 +204,11 @@ class FullResultWrapper:
             return True
         
         entry: ApplicationStatusReport = self._application_status_map.get((instance, application))
-        entry.logs.append(LogEntry(time=datetime.now(), 
-                                   type=type, 
-                                   message=message, 
-                                   after_snapshot=self._is_after_snapshot))
+        entry.logs.append(InstanceLogEntry(time=datetime.now(), 
+                                           type=type, 
+                                           message=message, 
+                                           after_snapshot=self._is_after_snapshot,
+                                           instance_state=state))
 
         return True
     
@@ -250,10 +261,11 @@ class FullResultWrapper:
         self._instance_status_map.get(instance).status = new_status
         return True
     
-    def append_instance_log(self, instance: str, message: str, type: LogMessageType) -> bool:
+    def append_instance_log(self, instance: str, message: str, 
+                            type: LogMessageType, state: AgentManagementState) -> bool:
         """
         Internal use only.
-        Append LogEntry to a logs list of an IntsnaceStatusReport object.
+        Append InstanceLogEntry to a logs list of an IntsnaceStatusReport object.
         """
         if instance not in self._instance_status_map.keys():
             raise ValueError(f"FullResultWrapper: Unable to find instance {instance}")
@@ -261,10 +273,11 @@ class FullResultWrapper:
         if type == LogMessageType.NONE:
             return True
 
-        entry = LogEntry(time=datetime.now(), 
+        entry = InstanceLogEntry(time=datetime.now(), 
                          type=type, 
                          message=message,
-                         after_snapshot=self._is_after_snapshot)
+                         after_snapshot=self._is_after_snapshot,
+                         instance_state=state)
         self._instance_status_map[instance].logs.append(entry)
         return True
     
@@ -302,14 +315,18 @@ class FullResultWrapper:
         entries.sort(key=lambda e: e.time)
     
     def get_instance_logs(self, instance: str, 
-                          filter: LogMessageType = LogMessageType.NONE) -> List[LogEntry]:
+                          filter_level: Optional[List[LogMessageType]] = None,
+                          filter_state: Optional[List[AgentManagementState]] = None) -> List[LogEntry]:
         """
         Retrieve the logs of a specific Instance.
 
         Args:
             instance (str): Name of the Instance
-            filter (LogMessageType): Type of logs to retrieve, use LogMessageType.NONE
-                            to disable this filter. Default: LogMessageType.NONE
+            filter_level (List[LogMessageType] | None): Only include log messages
+                            with selected type, None to disable filter. Default: None
+            filter_state (List[AgentManagementState] | None): Only include log messages
+                            generated during specific state of the Instance, 
+                            None to disable filter. Default: None
         
         Returns:
             List[LogEntry]: List of LogEntries for the selected Instance
@@ -320,23 +337,32 @@ class FullResultWrapper:
             raise ValueError(f"Unknown instance '{instance}'")
         
         for entry in self._instance_status_map[instance].logs:
-            if entry.type.priority >= filter.priority:
-                result_list.append(entry)
+            if filter_level is not None and entry.type not in filter_level:
+                continue
+
+            if filter_level is not None and entry.instance_state not in filter_state:
+                continue
+
+            result_list.append(entry)
 
         self._sort_log_entries(result_list)
         return result_list
 
 
     def get_application_logs(self, instance: str, application: str, 
-                             filter: LogMessageType = LogMessageType.NONE) -> List[LogEntry]:
+                             filter_level: Optional[List[LogMessageType]] = None,
+                             filter_state: Optional[List[AgentManagementState]] = None) -> List[LogEntry]:
         """
         Retrieve the logs of a specific Application on a specific Instance.
 
         Args:
             instance (str): Name of the Instance
             application (str): Name of the Application
-            filter (LogMessageType): Type of logs to retrieve, use LogMessageType.NONE
-                            to disable this filter. Default: LogMessageType.NONE
+            filter_level (List[LogMessageType] | None): Only include log messages
+                            with selected type, None to disable filter. Default: None
+            filter_state (List[AgentManagementState] | None): Only include log messages
+                            generated during specific state of the Instance, 
+                            None to disable filter. Default: None
         
         Returns:
             List[LogEntry]: List of LogEntries for the selected Application and
@@ -349,19 +375,24 @@ class FullResultWrapper:
         
         app_entry = self._application_status_map.get((instance, application))
         for entry in  app_entry.logs:
-            if entry.type.priority >= filter.priority:
-                result_list.append(entry)
+            if filter_level is not None and entry.type not in filter_level:
+                continue
+
+            if filter_level is not None and entry.instance_state not in filter_state:
+                continue
+
+            result_list.append(entry)
 
         self._sort_log_entries(result_list)
         return result_list
     
-    def get_controller_logs(self, filter: LogMessageType = LogMessageType.NONE) -> List[LogEntry]:
+    def get_controller_logs(self, filter_level: Optional[List[LogMessageType]] = None) -> List[LogEntry]:
         """
         Retrieve the logs of the testbed controller.
 
         Args:
-            filter (LogMessageType): Type of logs to retrieve, use LogMessageType.NONE
-                            to disable this filter. Default: LogMessageType.NONE
+            filter_level (List[LogMessageType] | None): Only include log messages
+                            with selected type, None to disable filter. Default: None
         
         Returns:
             List[LogEntry]: List of LogEntries of the controller
@@ -369,29 +400,38 @@ class FullResultWrapper:
         result_list = List[LogEntry] = []
 
         for entry in self._controller_log:
-            if entry.type.priority >= filter.priority:
+            if filter_level is not None and entry.type in filter_level:
                 result_list.append(entry)
 
         self._sort_log_entries(result_list)
         return result_list
     
     def get_combined_logs(self, instance: str, application: str, 
-                          filter: LogMessageType = LogMessageType.NONE) -> List[LogEntry]:
+                          filter_level: Optional[List[LogMessageType]] = None,
+                          filter_state: Optional[List[AgentManagementState]] = None) -> List[LogEntry]:
         """
         Retrieve the combined logs of a specific Instance with a specific Application.
 
         Args:
             instance (str): Name of the Instance
             application (str): Name of the Application
-            filter (LogMessageType): Type of logs to retrieve, use LogMessageType.NONE
-                            to disable this filter. Default: LogMessageType.NONE
+            filter_level (List[LogMessageType] | None): Only include log messages
+                            with selected type, None to disable filter. Default: None
+            filter_state (List[AgentManagementState] | None): Only include log messages
+                            generated during specific state of the Instance, 
+                            None to disable filter. Default: None
         
         Returns:
             List[LogEntry]: List of LogEntries for the selected Instance and
                             Application
         """
-        instance_logs = self.get_instance_logs(instance, filter)
-        application_logs = self.get_application_logs(instance, application, filter)
+        instance_logs = self.get_instance_logs(instance=instance, 
+                                               filter_level=filter_level, 
+                                               filter_state=filter_state)
+        application_logs = self.get_application_logs(instance=instance, 
+                                                     application=application, 
+                                                     filter_level=filter_level, 
+                                                     filter_state=filter_state)
         instance_logs.extend(application_logs)
         self._sort_log_entries(instance_logs)
         return instance_logs
@@ -415,7 +455,7 @@ class FullResultWrapper:
             print(f"----- {name}@{instance}: {application.status}", file=file)
             print("Logs:", file=file)
             for log in application.logs:
-                print(f"{log.time.isoformat()} - {log.type.prefix} {log.message} {'(X)' if log.after_snapshot else ''}", file=file)
+                print(f"{log.time.isoformat()} - {log.type.prefix}(@{log.instance_state}) {log.message} {'(X)' if log.after_snapshot else ''}", file=file)
 
             print("Datapoints:", file=file)
             for entry in application.data_series:
@@ -430,7 +470,7 @@ class FullResultWrapper:
 
             print("Logs:", file=file)
             for log in instance.logs:
-                print(f"{log.time.isoformat()} - {log.type.prefix} {log.message} {'(X)' if log.after_snapshot else ''}", file=file)
+                print(f"{log.time.isoformat()} - {log.type.prefix}(@{log.instance_state}) {log.message} {'(X)' if log.after_snapshot else ''}", file=file)
 
         print("\nCONTROLLER LOG\n", file=file)
         for log in self._controller_log:

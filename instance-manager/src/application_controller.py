@@ -159,22 +159,21 @@ class ApplicationController(Thread):
         if not self.shared_state["error_flag"]:
             if self.config.runtime is None:
                 self.mgmt_client.send_extended_app_log(application=self.config.name,
-                                                       message=f"Application started as daemon", 
+                                                       message=f"Application '{self.config.name}' started as a daemon", 
                                                        type=LogMessageType.MSG_SUCCESS, 
                                                        print_to_user=True)
                 self.application_manager.report_app_status(self, AppStartStatus.DAEMON)
             else:
                 self.mgmt_client.send_extended_app_log(application=self.config.name,
-                                                       message=f"Application finished", 
+                                                       message=f"Application '{self.config.name}' finished successfully", 
                                                        type=LogMessageType.MSG_SUCCESS, 
                                                        print_to_user=True)
                 self.application_manager.report_app_status(self, AppStartStatus.FINISH)
         else:
             self.mgmt_client.send_extended_app_log(application=self.config.name,
-                                                   message=f"Application failed", 
+                                                   message=f"Application '{self.config.name}' failed", 
                                                    type=LogMessageType.MSG_ERROR, 
-                                                   print_to_user=True,
-                                                   new_status=ApplicationStatus.EXECUTION_FAILED)
+                                                   print_to_user=True)
             self.application_manager.report_app_status(self, AppStartStatus.FAILED)
         
         self.is_terminated.set()
