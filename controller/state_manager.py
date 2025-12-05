@@ -357,6 +357,7 @@ class InstanceStateManager(Dismantable):
         self.external_interrupt_signal = Event()
         self.external_interrupt_signal.clear()
         self.instance_counter: int = 0
+        self.wait_for_all_feedbacks: bool = False
         self.enable_vsock = InstanceStateManager._check_vsock_status(provider.default_configs.get_defaults("enable_vsock", True))
         self.app_dependecy_helper: Optional[AppDependencyHelper] = None
 
@@ -494,16 +495,22 @@ class InstanceStateManager(Dismantable):
         with self.state_change_lock:
             if self.state_change_semaphore is not None:
                 if new_state == AgentManagementState.FAILED:
-                    self.state_change_semaphore.release(n=len(self.map))
+                    if self.wait_for_all_feedbacks:
+                        self.state_change_semaphore.release()
+                    else:
+                        self.state_change_semaphore.release(n=len(self.map))
+                        
                     return
 
                 if new_state in self.waiting_for_states:
                     self.state_change_semaphore.release()
     
     def wait_for_instances_to_become_state(self, expected_states: List[AgentManagementState], 
-                                          timeout = None) -> WaitResult:
+                                          timeout: Optional[int] = None, 
+                                          wait_for_all_feedbacks: bool = False) -> WaitResult:
         waited = False
         wait_for_count = 0
+        self.wait_for_all_feedbacks = wait_for_all_feedbacks
         with self.state_change_lock:
             self.state_change_semaphore = Semaphore(0)
             self.waiting_for_states = expected_states

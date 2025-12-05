@@ -389,7 +389,7 @@ class Controller(Dismantable):
 
         return True
     
-    def send_finish_message(self):
+    def send_finish_message(self, wait_for_all_feedbacks: bool = False):
         logger.info("Sending finish instructions to Instances")
 
         def send_finish_instruction_callback(instance: InstanceState) -> bool:
@@ -401,13 +401,15 @@ class Controller(Dismantable):
             instance.send_message(message)
             return True
         
+        file_preserve_timeout = self.provider.testbed_config.settings.file_preservation_timeout
         self.state_manager.do_for_all_instances_sequential(send_finish_instruction_callback)
         result: WaitResult = self.state_manager.wait_for_instances_to_become_state([AgentManagementState.STARTED,
                                                                                     AgentManagementState.APPS_SENDED,
                                                                                     AgentManagementState.FILES_PRESERVED, 
                                                                                     AgentManagementState.DISCONNECTED,
                                                                                     AgentManagementState.UNKNOWN],
-                                                                                   timeout=self.provider.testbed_config.settings.file_preservation_timeout)
+                                                                                   timeout=file_preserve_timeout,
+                                                                                   wait_for_all_feedbacks=wait_for_all_feedbacks)
         if result in [WaitResult.FAILED, WaitResult.TIMEOUT]:
             logger.critical("Instances have reported failed during file preservation or a timeout occurred!")
         elif result == WaitResult.SHUTDOWN:
@@ -455,9 +457,12 @@ class Controller(Dismantable):
     def wait_for_to_become(self, timeout: int, stage: str, 
                            waitstate: AgentManagementState, 
                            interact_on_failure: bool = True,
-                           request_file_preservation: bool = True) -> bool:
+                           request_file_preservation: bool = True,
+                           wait_for_all_feedbacks: bool = False) -> bool:
         logger.debug(f"Waiting a maximum of {timeout} seconds for action '{stage}' to finish.")
-        result: WaitResult = self.state_manager.wait_for_instances_to_become_state([waitstate], timeout)
+        result: WaitResult = self.state_manager.wait_for_instances_to_become_state(expected_states=[waitstate], 
+                                                                                   timeout=timeout, 
+                                                                                   wait_for_all_feedbacks=wait_for_all_feedbacks)
 
         if result == WaitResult.FAILED or result == WaitResult.TIMEOUT:
             logger.critical(f"Instances have reported failure during action '{stage}' or a timeout occurred!")
@@ -465,7 +470,7 @@ class Controller(Dismantable):
             if interact_on_failure:
                 self.start_interaction(PauseAfterSteps.DISABLE)
             if request_file_preservation:
-                self.send_finish_message()
+                self.send_finish_message(wait_for_all_feedbacks)
             return False
         elif result == WaitResult.INTERRUPTED:
             self.interrupted_event.set()
@@ -476,7 +481,7 @@ class Controller(Dismantable):
                 self.interact_finished_event.set()
                 self.cli.stop_cli()
             logger.warning("Shutting down testbed due to command from Instance!")
-            self.send_finish_message()
+            self.send_finish_message(wait_for_all_feedbacks)
             return False
         else:
             return True
@@ -515,8 +520,12 @@ class Controller(Dismantable):
         self.state_manager.do_for_all_instances_parallel(lambda instance: 
                                                         instance.send_message(NullMessageUpstream(False)))
         setup_timeout = self.provider.testbed_config.settings.startup_init_timeout
-        reconnect_status = self.wait_for_to_become(setup_timeout, "Instance Reconnect", 
-                                                   AgentManagementState.INITIALIZED, False, False)
+        reconnect_status = self.wait_for_to_become(timeout=setup_timeout, 
+                                                   stage="Instance Reconnect", 
+                                                   waitstate=AgentManagementState.INITIALIZED, 
+                                                   interact_on_failure=False, 
+                                                   request_file_preservation=False,
+                                                   wait_for_all_feedbacks=False)
         if not reconnect_status and interact:
             return False
         elif not reconnect_status:
@@ -558,7 +567,7 @@ class Controller(Dismantable):
             else:
                 return not run_state.has_failed
 
-    def initialize_testbed(self) -> TestbedFunctionStatus:
+    def initialize_testbed(self, wait_for_all_feedbacks: bool = False) -> TestbedFunctionStatus:
         if self.provider.result_wrapper is None:
             raise ValueError("Invalid state: No result wrapper is present!")
 
@@ -608,13 +617,17 @@ class Controller(Dismantable):
         if self.pause_after == PauseAfterSteps.SETUP:
             logger.info("Waiting for Instances to start ...")
 
-            if not self.wait_for_to_become(setup_timeout, "Infrastructure Setup", 
-                                           AgentManagementState.STARTED, False, False):
+            if not self.wait_for_to_become(timeout=setup_timeout, 
+                                           stage="Infrastructure Setup", 
+                                           waitstate=AgentManagementState.STARTED, 
+                                           interact_on_failure=False, 
+                                           request_file_preservation=False, 
+                                           wait_for_all_feedbacks=wait_for_all_feedbacks):
                 self.provider.result_wrapper.configuration_failed = True
                 return TestbedFunctionStatus.FAILED_DONT_CONTINUE
 
             if not self.start_interaction(PauseAfterSteps.SETUP):
-                self.send_finish_message()
+                self.send_finish_message(wait_for_all_feedbacks)
                 return TestbedFunctionStatus.OK_DONT_CONTINUE
             
             self.state_manager.do_for_all_instances_sequential(lambda instance: 
@@ -625,9 +638,12 @@ class Controller(Dismantable):
         else:
             logger.info("Waiting for Instances to start and initialize ...")
 
-        if not self.wait_for_to_become(setup_timeout, "Instance Initialization", 
-                                       AgentManagementState.INITIALIZED, 
-                                       self.pause_after == PauseAfterSteps.INIT, True):
+        if not self.wait_for_to_become(timeout=setup_timeout, 
+                                       stage="Instance Initialization", 
+                                       waitstate=AgentManagementState.INITIALIZED, 
+                                       interact_on_failure=self.pause_after == PauseAfterSteps.INIT, 
+                                       request_file_preservation=True,
+                                       wait_for_all_feedbacks=wait_for_all_feedbacks):
             self.provider.result_wrapper.configuration_failed = True
             return TestbedFunctionStatus.FAILED_DONT_CONTINUE
         
@@ -644,7 +660,7 @@ class Controller(Dismantable):
         
         return TestbedFunctionStatus.OK_CONTINUE
 
-    def execute_testbed(self) -> TestbedFunctionStatus:
+    def execute_testbed(self, wait_for_all_feedbacks: bool = False) -> TestbedFunctionStatus:
         self.provider.result_wrapper.unwrap_after_init(self.provider.testbed_config, 
                                                        self.provider.experiment,
                                                        self.provider.testbed_package_path)
@@ -660,9 +676,12 @@ class Controller(Dismantable):
             instance.set_state(AgentManagementState.APPS_SENDED)
             instance.send_message(InstallApplicationsMessageUpstream(apps))
         
-        if not self.wait_for_to_become(setup_timeout, 'App Installation', 
-                                AgentManagementState.APPS_READY, 
-                                self.pause_after == PauseAfterSteps.INIT, True):
+        if not self.wait_for_to_become(timeout=setup_timeout, 
+                                       stage='App Installation', 
+                                       waitstate=AgentManagementState.APPS_READY, 
+                                       interact_on_failure=(self.pause_after == PauseAfterSteps.INIT), 
+                                       request_file_preservation=True,
+                                       wait_for_all_feedbacks=wait_for_all_feedbacks):
             self.provider.result_wrapper.configuration_failed = True
             return TestbedFunctionStatus.FAILED_CONTINUE
         
@@ -678,7 +697,7 @@ class Controller(Dismantable):
 
         if self.pause_after == PauseAfterSteps.INIT:
             if not self.start_interaction(PauseAfterSteps.INIT):
-                self.send_finish_message()
+                self.send_finish_message(wait_for_all_feedbacks)
                 self.prevent_logging = True
                 return TestbedFunctionStatus.OK_CONTINUE
         
@@ -710,15 +729,18 @@ class Controller(Dismantable):
             if self.pause_after == PauseAfterSteps.EXPERIMENT:
                 self.start_interaction(PauseAfterSteps.EXPERIMENT)
             
-            self.send_finish_message()
+            self.send_finish_message(wait_for_all_feedbacks)
             self.provider.result_wrapper.configuration_failed = True
             return TestbedFunctionStatus.FAILED_CONTINUE
         else:
             succeeded = TestbedFunctionStatus.FAILED_CONTINUE
 
-            if self.wait_for_to_become(experiment_timeout, 'Experiment', 
-                                    AgentManagementState.FINISHED, 
-                                    False, False):
+            if self.wait_for_to_become(timeout=experiment_timeout, 
+                                       stage='Experiment', 
+                                       waitstate=AgentManagementState.FINISHED, 
+                                       interact_on_failure=False, 
+                                       request_file_preservation=False,
+                                       wait_for_all_feedbacks=wait_for_all_feedbacks):
                 succeeded = TestbedFunctionStatus.OK_CONTINUE
                 logger.success("All Instances reported finished applications!")
             else:
@@ -727,6 +749,6 @@ class Controller(Dismantable):
             if self.pause_after == PauseAfterSteps.EXPERIMENT:
                 self.start_interaction(PauseAfterSteps.EXPERIMENT)
             
-            self.send_finish_message()
+            self.send_finish_message(wait_for_all_feedbacks)
 
             return succeeded # Dismantling handled by main

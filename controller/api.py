@@ -130,7 +130,8 @@ class Proto2TestbedAPI:
                     experiment_tag: Optional[str] = None,
                     preserve_path: Optional[Path] = None,
                     use_checkpoints: bool = False,
-                    overwrite_testbed: bool = False) -> FullResultWrapper:
+                    overwrite_testbed: bool = False,
+                    wait_for_all_feedbacks: bool = True) -> FullResultWrapper:
         """
         Executes a testbed, blocks until the testbed execution is finsished.
         This method can be used in two different ways:
@@ -166,7 +167,7 @@ class Proto2TestbedAPI:
               experiment_tag or preserve_path. The checkpoint after the setup_script
               execution is loaded automatically.
            4. Goto 2, repeat until all experiments are finished
-           5. Destory the testbed (destory_testbed)
+           5. Destory the testbed (call destory_testbed)
 
            The Single-Shot operation can be reproduced by execution the steps 1, 5 and 2.
         
@@ -197,6 +198,12 @@ class Proto2TestbedAPI:
                                       transitioning from Checkpoint to Single-Shot
                                       operation. Default: False (throw an Exception in
                                       case a testbed is already present)
+            wait_for_all_feedbacks (bool): Do not return after the first failure feedback
+                                      (instance setup or experiment), wait for all feedbacks
+                                      or a timeout. Only works with use_checkpoint = True and
+                                      ensures that the FullResultWrapper contains all relevant
+                                      logs (and not just until the first failure).
+                                      Default: True (return after first feedback)
 
         Returns:
             FullResultWrapper: Wrapper object with logs, application status reports,
@@ -229,7 +236,7 @@ class Proto2TestbedAPI:
                 self._stored_controller.init_config(skip_integration=self._skip_integration,
                                                     disable_kvm=self._disable_kvm,
                                                     create_checkpoint=use_checkpoints)
-                init_state = self._stored_controller.initialize_testbed()
+                init_state = self._stored_controller.initialize_testbed(wait_for_all_feedbacks=wait_for_all_feedbacks)
                 if init_state.has_failed:
                     return copy.deepcopy(self._stored_result_wrapper)
             except Exception as ex:
@@ -252,7 +259,7 @@ class Proto2TestbedAPI:
                 raise ex
         
         try:
-            run_state = self._stored_controller.execute_testbed()
+            run_state = self._stored_controller.execute_testbed(wait_for_all_feedbacks=wait_for_all_feedbacks)
             if not run_state.can_continue:
                 raise TestbedExecutionException("Testbed execution failed with error that cannot be fixed by a snapshot restore.")
         
