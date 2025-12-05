@@ -51,17 +51,20 @@ Example config:
                 "KEY": "VALUE",
                 "REPEAT": "10"
             }
-            "ignore_timeout": true // Timeout is not treated as a failure
+            "ignore_timeout": true, // Timeout is not treated as a failure
+            "forward_output_on_success": true // Send stdout/stderr to controller also on success
         }
     }
 """
 
 class RunProgramApplicationConfig(ApplicationSettings):
     def __init__(self, command: str, ignore_timeout: bool = False, 
-                 environment: Optional[Dict[str, str]] = None) -> None:
+                 environment: Optional[Dict[str, str]] = None,
+                 forward_output_on_success: bool = False) -> None:
         self.command = command
         self.ignore_timeout = ignore_timeout
         self.environment = environment
+        self.forward_output_on_success = forward_output_on_success
 
 
 class RunProgramApplication(BaseApplication):
@@ -119,40 +122,41 @@ class RunProgramApplication(BaseApplication):
         
         try:
             process = subprocess.Popen(f"{self.command} {self.args}", shell=True, 
-                                       stdout=subprocess.PIPE, 
-                                       stderr=subprocess.PIPE)
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except Exception as ex:
             if self.from_tbp:
                 raise Exception(f"Unable to run program 'TESTBED-PACKAGE/{self.relative_command}': {ex}")
             else:
                 raise Exception(f"Unable to run program '{self.command}': {ex}")
+
         try:
             status = process.wait(runtime)
-            if status != 0:
+            failed = status != 0
+
+            if process.stdout is not None and (failed or self.settings.forward_output_on_success):
+                for line in process.stdout.readlines():
+                    if line is None or line == b"":
+                        continue
+                    self.interface.push_log_message(line.decode('utf-8').replace('\n', ''), 
+                                                    LogMessageType.STDOUT, True)
+
+            if process.stderr is not None and (failed or self.settings.forward_output_on_success):
+                for line in process.stderr.readlines():
+                    if line is None or line == b"":
+                        continue
+                    self.interface.push_log_message(line.decode('utf-8').replace('\n', ''), 
+                                                    LogMessageType.STDERR, True)
+
+            if failed:
                 if self.from_tbp:
-                    self.interface.push_log_message(f"Program 'TESTBED-PACKAGE/{self.relative_command}' exited with code {status}.\nSTDOUT: {process.stdout.readline().decode('utf-8')}\nSTDERR: {process.stderr.readline().decode('utf-8')}", 
-                                                    LogMessageType.MSG_ERROR, 
-                                                    True)
+                    self.interface.push_log_message(f"Program 'TESTBED-PACKAGE/{self.relative_command}' exited with code {status}.", 
+                                                    LogMessageType.MSG_ERROR, True)
                 else:
-                    self.interface.push_log_message(f"Program '{self.command}' exited with code {status}.\nSTDOUT: {process.stdout.readline().decode('utf-8')}\nSTDERR: {process.stderr.readline().decode('utf-8')}", 
-                                                    LogMessageType.MSG_ERROR,
-                                                    True)
-                    
-                if process.stdout is not None:
-                    for line in process.stdout.readlines():
-                        if line is None or line == "":
-                            continue
-                        self.interface.push_log_message(line.replace('\n').decode('utf-8'), LogMessageType.STDOUT)
+                    self.interface.push_log_message(f"Program '{self.command}' exited with code {status}.", 
+                                                    LogMessageType.MSG_ERROR, True)
 
-                if process.stderr is not None:
-                    for line in process.stderr.readlines():
-                        if line is None or line == "":
-                            continue
-                        self.interface.push_log_message(line.replace('\n').decode('utf-8'), LogMessageType.STDERR)
+            return not failed
 
-                return False
-
-            return True
         except subprocess.TimeoutExpired as ex:
             process.kill()
 
@@ -160,8 +164,7 @@ class RunProgramApplication(BaseApplication):
                 return True
             else:
                 self.interface.push_log_message(f"Timeout during program execution: {ex}", 
-                                                LogMessageType.MSG_ERROR, 
-                                                True)
+                                                LogMessageType.MSG_ERROR, True)
                 return False
             
     def exports_data(self) -> bool:

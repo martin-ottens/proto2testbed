@@ -76,9 +76,9 @@ class ManagementClientConnection(threading.Thread):
             case LogMessageType.MSG_ERROR:
                 logger.opt(ansi=True).error(message)
             case LogMessageType.STDERR:
-                logger.opt(ansi=True).trace(f"STDERR: {message}")
+                logger.opt(ansi=True).info(f"STDERR: {message}")
             case LogMessageType.STDOUT:
-                logger.opt(ansi=True).trace(f"STDOUT: {message}")
+                logger.opt(ansi=True).info(f"STDOUT: {message}")
 
     def _process_one_message(self, data) -> bool:
         message_obj: Optional[InstanceManagerMessageDownstream] = None
