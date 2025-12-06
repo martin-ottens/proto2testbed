@@ -334,7 +334,7 @@ class FullResultWrapper:
         result_list: List[LogEntry] = []
 
         if instance not in self._instance_status_map.keys():
-            raise ValueError(f"Unknown instance '{instance}'")
+            raise ValueError(f"Unknown Instance '{instance}'")
         
         for entry in self._instance_status_map[instance].logs:
             if filter_level is not None and entry.type not in filter_level:
@@ -371,7 +371,7 @@ class FullResultWrapper:
         result_list: List[LogEntry] = []
 
         if (instance, application) not in self._application_status_map.keys():
-            raise ValueError(f"Unknown application '{application}' of instance '{instance}'")
+            raise ValueError(f"Unknown Application '{application}' of Instance '{instance}'")
         
         app_entry = self._application_status_map.get((instance, application))
         for entry in  app_entry.logs:
@@ -435,6 +435,34 @@ class FullResultWrapper:
         instance_logs.extend(application_logs)
         self._sort_log_entries(instance_logs)
         return instance_logs
+    
+    def get_application_status_report(self, instance: str,
+                                      application: str) -> Optional[ApplicationStatusReport]:
+        """
+        Retrieve an ApplicationStatusReport object.
+
+        Args:
+            instance (str): Name of the Instance
+            application (str): Name of the Application
+
+        Returns:
+            ApplicationStatusReport | None: Object with status details of 
+                            the Application if found, None otherwise
+        """
+        return self._application_status_map.get((instance, application), None)
+    
+    def get_instance_status_report(self, instance: str) -> Optional[InstanceStatusReport]:
+        """
+        Retrieve an InstanceStatusReport object.
+
+        Args:
+            instance (str): Name of the Instance
+
+        Returns:
+            InstanceStatusReport | None: Object with status details of 
+                            the Instance if found, None otherwise
+        """
+        return self._instance_status_map.get(instance, None)
     
     def dump_state(self, file=sys.stdout) -> None:
         """
