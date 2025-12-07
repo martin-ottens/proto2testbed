@@ -127,8 +127,10 @@ class ApplicationController(Thread):
         # It will remain running in background, but the testbed execution is not delayed by this Application
         if self.config.runtime is not None:
             process.join(wait_left)
+            timed_out = False
 
             if process.is_alive():
+                timed_out = True
                 self.mgmt_client.send_extended_app_log(application=self.config.name,
                                                        message=f"Application still runs after timeout.", 
                                                        type=LogMessageType.MSG_ERROR, 
@@ -156,25 +158,24 @@ class ApplicationController(Thread):
             
             process.join()
 
-        if not self.shared_state["error_flag"]:
-            if self.config.runtime is None:
-                self.mgmt_client.send_extended_app_log(application=self.config.name,
-                                                       message=f"Application '{self.config.name}' started as a daemon", 
-                                                       type=LogMessageType.MSG_SUCCESS, 
-                                                       print_to_user=True)
-                self.application_manager.report_app_status(self, AppStartStatus.DAEMON)
-            else:
-                self.mgmt_client.send_extended_app_log(application=self.config.name,
-                                                       message=f"Application '{self.config.name}' finished successfully", 
-                                                       type=LogMessageType.MSG_SUCCESS, 
-                                                       print_to_user=True)
-                self.application_manager.report_app_status(self, AppStartStatus.FINISH)
-        else:
+        if self.shared_state["error_flag"] or timed_out:
             self.mgmt_client.send_extended_app_log(application=self.config.name,
                                                    message=f"Application '{self.config.name}' failed", 
                                                    type=LogMessageType.MSG_ERROR, 
                                                    print_to_user=True)
             self.application_manager.report_app_status(self, AppStartStatus.FAILED)
+        elif self.config.runtime is None:
+            self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                   message=f"Application '{self.config.name}' started as a daemon", 
+                                                   type=LogMessageType.MSG_SUCCESS, 
+                                                   print_to_user=True)
+            self.application_manager.report_app_status(self, AppStartStatus.DAEMON)
+        else:
+            self.mgmt_client.send_extended_app_log(application=self.config.name,
+                                                   message=f"Application '{self.config.name}' finished successfully", 
+                                                   type=LogMessageType.MSG_SUCCESS, 
+                                                   print_to_user=True)
+            self.application_manager.report_app_status(self, AppStartStatus.FINISH)
         
         self.is_terminated.set()
 
