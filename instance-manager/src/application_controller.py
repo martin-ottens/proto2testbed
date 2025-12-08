@@ -125,9 +125,9 @@ class ApplicationController(Thread):
 
         # If no runtime is specified, the Application is a daemon process. 
         # It will remain running in background, but the testbed execution is not delayed by this Application
+        timed_out = False
         if self.config.runtime is not None:
             process.join(wait_left)
-            timed_out = False
 
             if process.is_alive():
                 timed_out = True

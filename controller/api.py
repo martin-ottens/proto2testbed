@@ -18,6 +18,7 @@
 
 import atexit
 import copy
+import os
 
 from typing import Optional, List
 from pathlib import Path
@@ -118,7 +119,7 @@ class Proto2TestbedAPI:
         from utils.config_tools import load_config
         from constants import TESTBED_CONFIG_JSON_FILENAME
 
-        if not testbed_package_path.name.endswith(TESTBED_CONFIG_JSON_FILENAME):
+        if not testbed_package_path.is_file():
             testbed_package_path = testbed_package_path / TESTBED_CONFIG_JSON_FILENAME
 
         return load_config(testbed_package_path, skip_substitution)
