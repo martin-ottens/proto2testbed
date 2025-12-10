@@ -41,11 +41,11 @@ Example config:
         "delay": 0,
         "runtime": 60,
         "settings": {
-            "target": 10.0.0.2, // host, ICMP echo requests are sent to
-            "source": 10.0.0.1, // local source IP address, required when "target" can be reached by multiple way
+            "target": "10.0.0.2", // host, ICMP echo requests are sent to
+            "source": "10.0.0.1", // local source IP address, required when "target" can be reached by multiple way
             "interval": 5, // send request every 5 seconds
             "packetsize": 1024, // packets have a size of 1024 bytes
-            "ttl": 20, // packets have a ttl of 20
+            "ttl": 20, // packets have a TTL of 20
             "timeout": 2 // if no reply is received within 2 seconds, the host is assumed that the host is unreachable
         }
     }

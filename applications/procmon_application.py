@@ -22,7 +22,6 @@ from typing import Dict, List, Optional, Tuple
 
 from applications.base_application import *
 from common.application_configs import ApplicationSettings
-from applications.generic_application_interface import LogMessageLevel
 from common.instance_manager_message import LogMessageType
 
 """

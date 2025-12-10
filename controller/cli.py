@@ -115,7 +115,7 @@ class CLI(Dismantable):
 
     def handle_command(self, base_command: str, args: Optional[List[str]]) -> bool:
         match base_command:
-            case "restore" | "r":
+            case "restore" | "o":
                 if not self.provider.snapshots_enabled:
                     logger.log("CLI", "Checkpoints are not enabled or available.")
                     return True
@@ -346,7 +346,7 @@ class CLI(Dismantable):
                 logger.opt(ansi=True).log("CLI", "  <u>e</u>xit                       -> Terminate testbed", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>r</u>estart                    -> Request a full testbed restart", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>h</u>elp                       -> Show this help", color=True)
-                logger.opt(ansi=True).log("CLI", "  <u>r</u>estore                    -> Restore setup checkpoint", color=True)
+                logger.opt(ansi=True).log("CLI", "  rest<u>o</u>re                    -> Restore setup checkpoint", color=True)
                 logger.opt(ansi=True).log("CLI", "  <u>s</u>et \<Parameter> \<Value>    -> Change testbed parameters", color=True)
                 logger.opt(ansi=True).log("CLI", "------------------------------------------------------")
                 return True
