@@ -70,7 +70,7 @@ def invoke_pexpect(command: List[str] | str, timeout: int = None, encoding: str 
 
 def get_dns_resolver() -> str:
     pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
-    process = invoke_subprocess("grep -oP '^\s*nameserver\s+\K\d{1,3}(\.\d{1,3}){3}' /etc/resolv.conf | head -n 1", shell=True, needs_root=False)
+    process = invoke_subprocess(r"grep -oP '^\s*nameserver\s+\K\d{1,3}(\.\d{1,3}){3}' /etc/resolv.conf | head -n 1", shell=True, needs_root=False)
 
     if process.returncode != 0:
         raise Exception("Unable to get DNS resolver from /etc/resolv.conf")

@@ -22,7 +22,7 @@ Proto²Testbed was first introduced at the 12th Advanced Satellite Multimedia Sy
 ```
 
 ## 1. Functional Overview & Terminology
-- The main part of Proto²Testbed, the **Controller**, is installed on a *Debian 12* workstation, server or even desktop. This system is called the **Testbed Host**.
+- The main part of Proto²Testbed, the **Controller**, is installed on a *Debian 12 or 13* workstation, server or even desktop. This system is called the **Testbed Host**.
 - The Topology of a testbed and some configurations are defined in the testbed configuration file `testbed.json`, this file is bundled together with scripts and additional dependencies that are used during a testbed execution to form a **Testbed Package**.
 - The Controller reads the configuration file. It starts and configures virtual machines, called **Instances**. Instances are run using *QEMU* and connected using Linux Layer-2-Network-Bridges.
 - Instances are based on Disk Images, these images are used in a read only way - all changes to the file system of an Instance are temporary. Proto²Testbed provides tools to automatically create the required disk images. Since all Instances are fully virtualized, tests with kernel modules are possible, which is often not the case with other testbed frameworks.
@@ -67,7 +67,7 @@ After manual interaction (e.g., for debugging or setup) it is possible to contin
 
 ## 3. Requirements and Installation
 Proto²Testbed currently has the following requirements:
-- **OS**: Debian 12 "Bookworm", other Debian-based OSes are possible as long as the dependencies are satisfied. Since Proto²Testbed currently has no GUI, a headless installation is sufficient. Users can interact with the framework by using SSH.
+- **OS**: Debian 12 "Bookworm" or 13 "Trixie", other Debian-based OSes are possible as long as the dependencies are satisfied. Since Proto²Testbed currently has no GUI, a headless installation is sufficient. Users can interact with the framework by using SSH.
 - **CPU**: Use any x86 CPU. Do not under provision. An Instance should use 2 Threads, so the maximum Number of Instances started in parallel should not exceed *#Threads / 2*. Remember, that parallel testbed executions are possible.
 - **Memory**: Plan around 1GB per Instance, depends on tested protocols and applications.
 

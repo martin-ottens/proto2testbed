@@ -17,7 +17,7 @@
 # along with this program. If not, see https://www.gnu.org/licenses/.
 #
 
-# Proto²Testbed Installer Script for Debian 12
+# Proto²Testbed Installer Script for Debian 12 and 13
 # 
 # 1. -> Clone the repo to /opt/proto-testbed
 # 2. -> Run the script as root from within this directory
@@ -30,8 +30,8 @@ IFS=$'\n\t'
 if [[ -f /etc/os-release ]]; then
     source /etc/os-release
 
-    if [[ "$ID" != "debian" || "$VERSION_ID" != "12" ]]; then
-        echo "OS Release is not Debian 12, installer not compatible." >&2
+    if [[ "$ID" != "debian" || ("$VERSION_ID" != "12" && "$VERSION_ID" != "13")]]; then
+        echo "OS Release is not Debian 12 or 13, installer not compatible." >&2
         exit 1
     fi
 else
@@ -50,11 +50,11 @@ if [[ "$EUID" -ne 0 ]]; then
 fi
 
 echo "Installing required dependencies ..."
-apt install -y --no-install-recommends qemu-utils qemu-system-x86 qemu-system-gui bridge-utils iptables net-tools genisoimage python3 iproute2 influxdb influxdb-client make socat
+apt-get install -y --no-install-recommends qemu-utils qemu-system-x86 qemu-system-gui bridge-utils iptables net-tools genisoimage python3 iproute2 influxdb influxdb-client make socat
 
 echo "Installing required Python dependencies from Debian packages ..."
-apt install -y --no-install-recommends python3-jinja2 python3-pexpect python3-loguru python3-jsonschema python3-influxdb python3-psutil python3-networkx python3-jsonpickle python3-filelock
-apt install -y --no-install-recommends python3-numpy python3-matplotlib
+apt-get install -y --no-install-recommends python3-jinja2 python3-pexpect python3-loguru python3-jsonschema python3-influxdb python3-psutil python3-networkx python3-jsonpickle python3-filelock
+apt-get install -y --no-install-recommends python3-numpy python3-matplotlib
 
 echo "Setting up default InfluxDB database ..."
 influx -execute 'CREATE DATABASE testbed'

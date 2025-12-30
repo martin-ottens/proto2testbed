@@ -141,7 +141,7 @@ class CLI(Dismantable):
 
             case "set" | "s":
                 def set_usage():
-                    logger.opt(ansi=True).log("CLI", "Usage: <u>s</u>et \<Parameter> \<Value>, with Parameters:", color=True)
+                    logger.opt(ansi=True).log("CLI", r"Usage: <u>s</u>et \<Parameter> \<Value>, with Parameters:", color=True)
                     logger.opt(ansi=True).log("CLI", " - preserve:   Update preserve path, skip value to disable", color=True)
                     logger.opt(ansi=True).log("CLI", " - experiment: Update experiment tag (for InfluxDB storage)", color=True)
 
@@ -337,18 +337,18 @@ class CLI(Dismantable):
                     return True
 
             case "help" | "h":
-                logger.opt(ansi=True).log("CLI", "--------- Proto²Testbed Interactive Mode Help ---------")
-                logger.opt(ansi=True).log("CLI", "  <u>c</u>ontinue (INIT|EXPERIMENT) -> Continue testbed (to next pause step)", color=True)
-                logger.opt(ansi=True).log("CLI", "  <u>a</u>ttach \<Instance>          -> Attach to TTY of an Instance", color=True)
-                logger.opt(ansi=True).log("CLI", "  <u>c</u>o<u>p</u>y (\<Instance>:)\<Path> (\<Instance>:)\<Path> -> Copy files from/to instance", color=True)
-                logger.opt(ansi=True).log("CLI", "  <u>l</u>i<u>s</u>t                       -> List all Instances in testbed", color=True)
-                logger.opt(ansi=True).log("CLI", "  <u>p</u>reserve \<Instance>:\<Path> -> Mark file or directory for preservation", color=True)
-                logger.opt(ansi=True).log("CLI", "  <u>e</u>xit                       -> Terminate testbed", color=True)
-                logger.opt(ansi=True).log("CLI", "  <u>r</u>estart                    -> Request a full testbed restart", color=True)
-                logger.opt(ansi=True).log("CLI", "  <u>h</u>elp                       -> Show this help", color=True)
-                logger.opt(ansi=True).log("CLI", "  rest<u>o</u>re                    -> Restore setup checkpoint", color=True)
-                logger.opt(ansi=True).log("CLI", "  <u>s</u>et \<Parameter> \<Value>    -> Change testbed parameters", color=True)
-                logger.opt(ansi=True).log("CLI", "------------------------------------------------------")
+                logger.opt(ansi=True).log("CLI", r"--------- Proto²Testbed Interactive Mode Help ---------")
+                logger.opt(ansi=True).log("CLI", r"  <u>c</u>ontinue (INIT|EXPERIMENT) -> Continue testbed (to next pause step)", color=True)
+                logger.opt(ansi=True).log("CLI", r"  <u>a</u>ttach \<Instance>          -> Attach to TTY of an Instance", color=True)
+                logger.opt(ansi=True).log("CLI", r"  <u>c</u>o<u>p</u>y (\<Instance>:)\<Path> (\<Instance>:)\<Path> -> Copy files from/to instance", color=True)
+                logger.opt(ansi=True).log("CLI", r"  <u>l</u>i<u>s</u>t                       -> List all Instances in testbed", color=True)
+                logger.opt(ansi=True).log("CLI", r"  <u>p</u>reserve \<Instance>:\<Path> -> Mark file or directory for preservation", color=True)
+                logger.opt(ansi=True).log("CLI", r"  <u>e</u>xit                       -> Terminate testbed", color=True)
+                logger.opt(ansi=True).log("CLI", r"  <u>r</u>estart                    -> Request a full testbed restart", color=True)
+                logger.opt(ansi=True).log("CLI", r"  <u>h</u>elp                       -> Show this help", color=True)
+                logger.opt(ansi=True).log("CLI", r"  rest<u>o</u>re                    -> Restore setup checkpoint", color=True)
+                logger.opt(ansi=True).log("CLI", r"  <u>s</u>et \<Parameter> \<Value>    -> Change testbed parameters", color=True)
+                logger.opt(ansi=True).log("CLI", r"------------------------------------------------------")
                 return True
 
             case _:
