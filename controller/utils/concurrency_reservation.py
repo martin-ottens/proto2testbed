@@ -82,6 +82,9 @@ class ConcurrencyReservation:
     def generate_new_tap_names(self, count: int = 1) -> List[str]:
         tap_names: List[str] = []
 
+        if count <= 0:
+            return tap_names
+
         with self.provider.state_lock:
             reservations = self._collect_all_reservations()
 
@@ -101,6 +104,9 @@ class ConcurrencyReservation:
         return tap_names
 
     def generate_new_vsock_cids(self, count: int = 1) -> List[int]:
+        if count <= 0:
+            return []
+
         while True:
             vsock_cids: List[int] = []
 
@@ -148,6 +154,9 @@ class ConcurrencyReservation:
 
     def generate_new_bridge_names(self, count: int = 1) -> List[str]:
         bridge_names: List[str] = []
+
+        if count <= 0:
+            return bridge_names
 
         with self.provider.state_lock:
             reservations = self._collect_all_reservations()
