@@ -3,6 +3,5 @@
 # Check if the ptp_kvm module can be loaded
 modprobe ptp_kvm
 if [ $? -ne 0 ]; then
-    echo "Unable to load ptp_kvm kernel module!"
-    exit 1
+    echo "Unable to load ptp_kvm kernel module"
 fi

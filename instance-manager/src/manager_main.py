@@ -215,7 +215,7 @@ class InstanceManager:
 
         return self.application_manager.install_apps(applications.applications)
     
-    def sync_ptp_clock(self) -> bool:
+    def sync_ptp_clock(self) -> None:
         proc = None
         try:
             proc = subprocess.run("hwclock --hctosys && chronyc makestep", shell=True)
@@ -229,12 +229,10 @@ class InstanceManager:
             self.extended_log_message(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
 
         if proc is not None and proc.returncode != 0:
-            self.message_to_controller(InstanceMessageType.FAILED, 
-                                       f"Syncing of ptp clock failed with exit code ({proc.returncode})")
+            self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
+                                      message=f"Syncing of ptp clock failed ({proc.returncode}), time offsets possible.",
+                                      print_to_user=True)
             print(f"Unable sync ptp clock': {proc.stderr.decode('utf-8')}", file=sys.stderr, flush=True)
-            return False
-        else:
-            return True
 
     def run_apps(self, config: RunApplicationsMessageUpstream) -> bool:
         if self.application_manager is None:
@@ -244,8 +242,7 @@ class InstanceManager:
                                       print_to_user=True)
             return False
         
-        if not self.sync_ptp_clock():
-            return False
+        self.sync_ptp_clock()
         
         current_time = time.time()
         if (current_time + CLOCKDRIFT_TEST_SECONDS) < config.tcurrent or (current_time - CLOCKDRIFT_TEST_SECONDS) > config.tcurrent:

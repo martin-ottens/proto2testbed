@@ -29,4 +29,4 @@ if [ -f /etc/ssh/sshd_config ]; then
     echo 'PermitEmptyPasswords yes' >> /etc/ssh/sshd_config
 fi
 
-echo ptp_kvm >> /etc/modules
+echo ptp_kvm >> /etc/modules-load.d/ptp.conf
