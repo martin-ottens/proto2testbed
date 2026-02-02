@@ -221,7 +221,7 @@ class InstanceManager:
             proc = subprocess.run("hwclock --hctosys && chronyc makestep", shell=True)
         except Exception as ex:
             self.message_to_controller(InstanceMessageType.FAILED, f"Unable to sync ptp clock: {ex}")
-            return False
+            return
         
         if proc.stdout is not None:
             self.extended_log_message(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
@@ -232,7 +232,7 @@ class InstanceManager:
             self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
                                       message=f"Syncing of ptp clock failed ({proc.returncode}), time offsets possible.",
                                       print_to_user=True)
-            print(f"Unable sync ptp clock': {proc.stderr.decode('utf-8')}", file=sys.stderr, flush=True)
+            print(f"Unable sync ptp clock: {proc.returncode}, most likely ptp_kvm kmod not enabled.", file=sys.stderr, flush=True)
 
     def run_apps(self, config: RunApplicationsMessageUpstream) -> bool:
         if self.application_manager is None:

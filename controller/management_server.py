@@ -453,8 +453,6 @@ class ManagementServer(Dismantable):
                 self.client_threads.append(client_connection)
             except Exception as ex:
                 logger.opt(exception=ex).error(f"Management: Unable to start client socket connection for {instance.name}")
-            finally:
-                return True
 
         self.manager.do_for_all_instances_sequential(connect_client_callback)
         logger.info(f"Management: Instance connection threads started.")
