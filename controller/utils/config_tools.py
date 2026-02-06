@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024-2025 Martin Ottens
+# Copyright (C) 2024-2026 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -24,11 +24,11 @@ import re
 from pathlib import Path
 from loguru import logger
 from jsonschema import validate
-from typing import Optional
+from typing import Optional, Tuple
 
 import state_manager
 from utils.settings import *
-from utils.system_commands import get_asset_relative_to, set_owner
+from utils.system_commands import get_asset_relative_to, set_owner, invoke_subprocess
 
 
 def load_config(config_path: Path, skip_substitution: bool = False) -> TestbedConfig:
@@ -113,6 +113,46 @@ def load_vm_initialization(config: TestbedConfig, base_path: Path, state_manager
             init_preserve_files=instance.preserve_files)
 
     return True
+
+
+def calculate_resource_utilization(config: TestbedConfig) -> Tuple[int, int]:
+    total_cores = 0
+    total_memory = 0
+    for instance in config.instances:
+        total_cores += (instance.cores + 1)
+        total_memory += instance.memory
+
+        diskimage_path = Path(instance.diskimage)
+
+        if not diskimage_path.is_absolute():
+            diskimage_path =  config.settings.diskimage_basepath / diskimage_path
+                
+        if not diskimage_path.exists():
+            raise Exception(f"Unable to find diskimage '{diskimage_path}'")
+        
+        process = invoke_subprocess([f"qemu-img info {diskimage_path}"], shell=True)
+        if process.returncode != 0:
+            raise Exception(f"Unable to run qemu-img info: {process.stderr.decode('utf-8')}")
+        
+        raw_size = 0
+        output = process.stdout.decode("utf-8")
+        for line in output.split("\n"):
+            if line.startswith("virtual size"):
+                match = re.search(r'\((\d+)\s+bytes\)', line)
+                if match:
+                    raw_size = int(match.group(1)) // (1024 * 1024)
+                break
+        
+        if raw_size == 0:
+            logger.warning(f"Unable to get virtual disk size for '{diskimage_path}', using file size.")
+            raw_size = diskimage_path.stat().st_size // (1024 * 1024)
+
+        logger.trace(f"Resource demand: Instance '{instance.name}': cores={instance.cores + 1}, disk={raw_size}MB, memory={instance.memory}MB")
+        total_memory += raw_size
+    
+
+    logger.trace(f"Total testbed resource demand: cores={total_cores}, memory={total_memory}MB")
+    return total_cores, total_memory
 
 
 def check_preserve_dir(preserve_dir: Optional[str], executor: Optional[str]) -> bool:

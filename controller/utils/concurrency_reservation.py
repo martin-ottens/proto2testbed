@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024-2025 Martin Ottens
+# Copyright (C) 2024-2026 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -36,12 +36,17 @@ class ReservationMapping:
     vsock_cids: List[str] = field(default_factory=list)
     bridge_interfaces: List[str] = field(default_factory=list)
     tap_interfaces: List[str] = field(default_factory=list)
+    cpu_cores: int = 0
+    memory_mb: int = 0
 
 
 class ConcurrencyReservation:
     def __init__(self, provider) -> None:
         self.provider = provider
         self.current_reservation = ReservationMapping()
+        self.all_cpu_cores = 0
+        self.all_memory_mb = 0
+        self._get_system_capacity()
 
     def _write_reservation(self) -> None:
         os.makedirs(self.provider.statefile_base / self.provider.unique_run_name, mode=0o777, exist_ok=True)
@@ -67,10 +72,21 @@ class ConcurrencyReservation:
                     mapping.bridge_interfaces.extend(reservations.bridge_interfaces)
                     mapping.tap_interfaces.extend(reservations.tap_interfaces)
                     mapping.vsock_cids.extend(reservations.vsock_cids)
+
+                    if unique_run_name != self.provider.unique_run_name:
+                        mapping.cpu_cores += reservations.cpu_cores
+                        mapping.memory_mb += reservations.memory_mb
+
             except Exception as ex:
                 logger.opt(exception=ex).debug(f"Unable to read reservation file '{reservation_file}'")
 
         return mapping
+    
+    def _get_system_capacity(self) -> None:
+        self.all_memory_mb = (os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")) // (1024 * 1024)
+        self.all_cpu_cores = os.cpu_count()
+        if self.all_cpu_cores is None:
+            raise Exception("Unable to get host CPU core count")
     
     def clear_reservations(self) -> None:
         try:
@@ -78,6 +94,26 @@ class ConcurrencyReservation:
             os.rmdir(self.provider.statefile_base / self.provider.unique_run_name)
         except Exception:
             pass
+
+    def apply_resource_demand(self, cpu_cores: int, memory_mb: int) -> bool:
+        with self.provider.state_lock:
+            reservations = self._collect_all_reservations()
+
+            if reservations.cpu_cores + cpu_cores > self.all_cpu_cores:
+                logger.warning(f"Not enough CPU cores available: {self.all_cpu_cores} < {reservations.cpu_cores + cpu_cores}")
+                return False
+            
+            if reservations.memory_mb + memory_mb > self.all_memory_mb:
+                logger.warning(f"Not enough memory available: {self.all_memory_mb} MB < {reservations.memory_mb + memory_mb} MB")
+                
+                return False
+
+            self.current_reservation.cpu_cores = cpu_cores
+            self.current_reservation.memory_mb = memory_mb
+            self._write_reservation()
+        
+        logger.debug(f"Host system usage after start: {reservations.cpu_cores + cpu_cores}/{self.all_cpu_cores} cores, {reservations.memory_mb + memory_mb}/{self.all_memory_mb} MB memory")
+        return True
 
     def generate_new_tap_names(self, count: int = 1) -> List[str]:
         tap_names: List[str] = []

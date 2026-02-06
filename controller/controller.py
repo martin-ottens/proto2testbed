@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024-2025 Martin Ottens
+# Copyright (C) 2024-2026 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ from helper.integration_helper import IntegrationHelper
 from helper.app_dependency_helper import AppDependencyHelper
 from helper.state_file_helper import StateFileReader
 from utils.interfaces import Dismantable
-from utils.config_tools import load_vm_initialization
+from utils.config_tools import load_vm_initialization, calculate_resource_utilization
 from utils.state_provider import TestbedStateProvider
 from utils.settings import InvokeIntegrationAfter
 from utils.influxdb import InfluxDBAdapter
@@ -570,6 +570,16 @@ class Controller(Dismantable):
     def initialize_testbed(self, wait_for_all_feedbacks: bool = False) -> TestbedFunctionStatus:
         if self.provider.result_wrapper is None:
             raise ValueError("Invalid state: No result wrapper is present!")
+        
+        if self.provider.default_configs.get_defaults("enforce_underprovision", True):
+            cores, memory = calculate_resource_utilization(self.provider.testbed_config)
+            logger.debug("Checking host system wide resource utilization.")
+            if not self.provider.concurrency_reservation.apply_resource_demand(cores, memory):
+                logger.critical("Starting of testbed could overload host system, startup prohibited.")
+                self.provider.result_wrapper.controller_failed = True
+                return TestbedFunctionStatus.FAILED_DONT_CONTINUE
+            else:
+                logger.debug("Host system resource reservation succeeded.")
 
         self.provider.set_snapshots_enabled(False)
 
