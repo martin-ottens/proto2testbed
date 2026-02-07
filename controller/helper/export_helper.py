@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024-2025 Martin Ottens
+# Copyright (C) 2024-2026 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -246,6 +246,31 @@ class ResultExportHelper:
                     logger.error(f"Unable to process application '{application.application}' for instance '{instance.name}'")
                     continue
 
+        return True
+    
+    def get_selected_database(self) -> str:
+        return self.adapter.get_selected_database()
+    
+    def clear_results_for_experiment(self, experiment_tag: Optional[str] = None) -> bool:
+        delete_tag = self.provider.experiment if experiment_tag is None else experiment_tag
+        try:
+            self.reader.delete_series(tags={"experiment": delete_tag})
+        except Exception as ex:
+            logger.opt(exception=ex).critical(f"Unable to delete experiment tag '{delete_tag}' from database '{self.reader.get_selected_database()}'")
+            return False
+        
+        return True
+    
+    def clear_all_results(self) -> bool:
+        try:
+            for measurement in self.reader.get_list_measurements():
+                name = measurement["name"]
+                logger.debug(f"Deleting measurement '{name}'")
+                self.reader.drop_measurement(name)
+        except Exception as ex:
+            logger.opt(exception=ex).critical(f"Error deleting ALL dara from database '{adapter.get_selected_database()}'")
+            return False
+        
         return True
 
     def output_to_plot(self, output_path: str, format_type: str = "pdf") -> bool:

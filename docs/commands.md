@@ -40,12 +40,13 @@ Attach to the console of the Instance `INSTANCE_NAME` (e.g., when the testbed is
 - **`--other`/`-o`**: Normally, only Instances from testbeds started by the current user can be attached. Use this argument to allow the attachment of all Instances running on the host.
 
 ### `export image|csv <TESTBED_CONFIG>`
-Export the data stored in the InfluxDB to Matplotlib plots (= `image`) or CSV files (= `csv`). The Applications described in `TESTBED_CONFIG` will be exported. The default InfluxDB database from `/etc/proto2testbed/proto2testbed_defaults.json` is used, or a connection defined using the `INFLUXDB_DATABASE`, `INFLUXDB_HOST`, `INFLUXDB_PORT`, `INFLUXDB_USER` and `INFLUXDB_PASSWORD` environment variables. The following additional arguments can be used:
+Export the data stored in the InfluxDB to Matplotlib plots (= `image`) or CSV files (= `csv`). The Applications described in `TESTBED_CONFIG` will be exported. The default InfluxDB database from `/etc/proto2testbed/proto2testbed_defaults.json` is used, or a connection defined using the `INFLUXDB_DATABASE`, `INFLUXDB_HOST`, `INFLUXDB_PORT`, `INFLUXDB_USER` and `INFLUXDB_PASSWORD` environment variables. The `--experiment`/`-e <experiment tag>` argument is required, the following additional arguments can be used:
 - **`--output`/`-o <path>`**: The output path for the exports (defaults to `./out`)
 - **`--format`/`-f pdf|svg|png|jpeg`**: Select the export format for Matplotlib plots (= `image`) (defaults to `pdf`)
 - **`--exclude-instance`/`-ei <instance>`**: Exclude `instance` from the exports. Can be repeated multiple times to exclude multiple Instances.
 - **`--exclude-application`/`-ea <application>`**: Exclude `application` from the exports. Can be repeated multiple times to exclude multiple Applications.
 - **`--skip_substitution`**: Don't replace placeholders in the Testbed Configuration. If an invalid JSON file results from this, the export will fail.
+- **`--clean`/`-c`**: Clean results from database after export (identical to separately run `p2t clean -e <experiment >`)
 
 ### `clean`
 Delete data from the InfluxDB for a specific experiment tag (specified using the `-e` argument). 

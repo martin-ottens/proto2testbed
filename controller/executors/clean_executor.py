@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024-2025 Martin Ottens
+# Copyright (C) 2024-2026 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -36,43 +36,27 @@ class CleanExecutor(BaseExecutor):
 
     def invoke(self, args, provider: TestbedStateProvider) -> int:
         from cli import CLI
-        from utils.influxdb import InfluxDBAdapter
+        from helper.export_helper import ResultExportHelper
 
         CLI(provider)
+        helper = ResultExportHelper(provider.testbed_config, None, provider)
 
         if provider.experiment_generated and not args.all:
             logger.critical(f"No experiment tag was specified, use -e to specify an experiment tag.")
             return 1
         
-        adapter = InfluxDBAdapter(provider, warn_on_no_database=True)
-        client = adapter.get_access_client()
-        if client is None:
-            raise Exception("Unable to create InfluxDB access client")
 
         if not args.all:
-            logger.info(f"Deleting all result data with experiment tag '{provider.experiment}' from database '{adapter.get_selected_database()}'")
-            try:
-                client.delete_series(tags={"experiment": provider.experiment})
-            except Exception as ex:
-                logger.opt(exception=ex).critical(f"Unable to delete experiment tag '{provider.experiment}' from database '{adapter.get_selected_database()}'")
+            logger.info(f"Deleting all result data with experiment tag '{provider.experiment}' from database '{helper.get_selected_database()}'")
+            if not helper.clear_results_for_experiment(provider.experiment):
                 return 1
-            finally:
-                adapter.close_access_client()
             
             logger.success(f"All data for experiment tag '{provider.experiment}' deleted")
             return 0
         else:
-            logger.info(f"Deleting ALL data from database '{adapter.get_selected_database()}'")
-            try:
-                for measurement in client.get_list_measurements():
-                    name = measurement["name"]
-                    logger.debug(f"Deleting measurement '{name}'")
-                    client.drop_measurement(name)
-            except Exception as ex:
-                logger.opt(exception=ex).critical(f"Error deleting ALL dara from database '{adapter.get_selected_database()}'")
+            logger.info(f"Deleting ALL data from database '{helper.get_selected_database()}'")
+            if not helper.clear_all_results():
                 return 1
-            finally:
-                adapter.close_access_client()
             
-            logger.success(f"Deleted ALL data from database '{adapter.get_selected_database()}'")
+            logger.success(f"Deleted ALL data from database '{helper.get_selected_database()}'")
             return 0

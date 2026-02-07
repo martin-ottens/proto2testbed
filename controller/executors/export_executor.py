@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024-2025 Martin Ottens
+# Copyright (C) 2024-2026 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -46,6 +46,8 @@ class ExportExecutor(BaseExecutor):
                                     help="File export format for 'image' type")
         self.subparser.add_argument("-o", "--output", required=False, type=str, default="./out",
                                     help="Output path for exported result")
+        self.subparser.add_argument("-c", "--clean", action="store_true", required=False, default=False,
+                                    help="Clean results after export (identical to p2t clean)")
         self.subparser.add_argument("--skip_substitution", action="store_true", required=False, default=False, 
                                     help="Skip substitution of placeholders with environment variable values in config")
 
@@ -100,7 +102,15 @@ class ExportExecutor(BaseExecutor):
                 return 1
             else:
                 logger.success("Data export completed.")
+
+                if args.clean:
+                    logger.info(f"Deleting all result data with experiment tag '{provider.experiment}' from database '{exporter.get_selected_database()}'")
+                    if not exporter.clear_results_for_experiment(provider.experiment):
+                        return 1
+            
+                logger.success(f"All data for experiment tag '{provider.experiment}' deleted")
                 return 0
+
         except Exception as ex:
             logger.opt(exception=ex).critical("Unhandled error during data export")
             return 1
