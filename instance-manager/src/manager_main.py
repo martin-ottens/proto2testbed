@@ -218,7 +218,7 @@ class InstanceManager:
     def sync_ptp_clock(self) -> None:
         proc = None
         try:
-            proc = subprocess.run("hwclock --hctosys && chronyc makestep", shell=True)
+            proc = subprocess.run("date +%s.%N -s \"@$(phc_ctl /dev/ptp0 get | awk '{print $5}')\"", shell=True)
         except Exception as ex:
             self.message_to_controller(InstanceMessageType.FAILED, f"Unable to sync ptp clock: {ex}")
             return
