@@ -87,8 +87,8 @@ class TcpDumpApplication(BaseApplication):
         if runtime is None:
             return False
         
-        command = ["/usr/bin/tcpdump", "-i", self.settings.interface, 
-                   "-G", str(runtime), "-W", "1", "-w", str(self.outfile)]
+        command = ["/usr/bin/timeout", str(runtime), "/usr/bin/tcpdump", "-i", self.settings.interface, 
+                   "--micro", "-w", str(self.outfile)]
         
         if self.settings.filter is not None:
             command.append(f"'{self.settings.filter}'")
@@ -101,7 +101,7 @@ class TcpDumpApplication(BaseApplication):
 
         try:
             status = process.wait(runtime + 1)
-            failed = status != 0
+            failed = status != 124
 
             if failed and process.stdout is not None:
                 for line in process.stdout.readlines():
