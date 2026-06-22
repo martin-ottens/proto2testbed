@@ -78,7 +78,7 @@ class ManagementClientConnection(threading.Thread):
             case LogMessageType.STDERR:
                 logger.opt(ansi=True).info(f"{prefix} <y>STDERR:</y> {message}")
             case LogMessageType.STDOUT:
-                logger.opt(ansi=True).info(f"{prefix} <y>STDERR:</y> {message}")
+                logger.opt(ansi=True).info(f"{prefix} <y>STDOUT:</y> {message}")
 
     def _process_one_message(self, data) -> bool:
         message_obj: Optional[InstanceManagerMessageDownstream] = None
@@ -219,10 +219,10 @@ class ManagementClientConnection(threading.Thread):
                 if not isinstance(message_obj.payload, ExtendedLogMessage):
                     logger.warning(f"Management: Got invalid payload type for instance log message from Instance '{self.client.name}'.")
                     return True
-                
+
                 extended_log: ExtendedLogMessage = message_obj.payload
-                
-                if extended_log.print_to_user:
+
+                if extended_log.print_to_user or self.manager.provider.also_log_stdout:
                     ManagementClientConnection._message_type_to_logger(type=extended_log.log_message_type,
                                                                        message=extended_log.message,
                                                                        prefix=f"<y>[Instance {self.client.name}]</y>")
@@ -241,7 +241,7 @@ class ManagementClientConnection(threading.Thread):
                 
                 application_log: ExtendedApplicationMessage = message_obj.payload
 
-                if application_log.print_to_user and not self.controller.prevent_logging:
+                if (application_log.print_to_user or self.manager.provider.also_log_stdout) and not self.controller.prevent_logging:
                     ManagementClientConnection._message_type_to_logger(type=application_log.log_message_type,
                                                                        message=application_log.log_message,
                                                                        prefix=f"<y>[Application {application_log.application} from {self.client.name}]</y>")

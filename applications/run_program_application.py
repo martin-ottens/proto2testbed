@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024-2025 Martin Ottens
+# Copyright (C) 2024-2026 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -51,20 +51,17 @@ Example config:
                 "KEY": "VALUE",
                 "REPEAT": "10"
             }
-            "ignore_timeout": true, // Timeout is not treated as a failure
-            "forward_output_on_success": true // Send stdout/stderr to controller also on success
+            "ignore_timeout": true // Timeout is not treated as a failure
         }
     }
 """
 
 class RunProgramApplicationConfig(ApplicationSettings):
     def __init__(self, command: str, ignore_timeout: bool = False, 
-                 environment: Optional[Dict[str, str]] = None,
-                 forward_output_on_success: bool = False) -> None:
+                 environment: Optional[Dict[str, str]] = None) -> None:
         self.command = command
         self.ignore_timeout = ignore_timeout
         self.environment = environment
-        self.forward_output_on_success = forward_output_on_success
 
 
 class RunProgramApplication(BaseApplication):
@@ -120,52 +117,35 @@ class RunProgramApplication(BaseApplication):
             for k, v in self.settings.environment.items():
                 os.environ[k] = str(v)
         
+        status = None
         try:
-            process = subprocess.Popen(f"{self.command} {self.args}", shell=True, 
-                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        except Exception as ex:
-            if self.from_tbp:
-                raise Exception(f"Unable to run program 'TESTBED-PACKAGE/{self.relative_command}': {ex}")
-            else:
-                raise Exception(f"Unable to run program '{self.command}': {ex}")
-
-        try:
-            status = process.wait(runtime)
-            failed = status != 0
-
-            if process.stdout is not None and (failed or self.settings.forward_output_on_success):
-                for line in process.stdout.readlines():
-                    if line is None or line == b"":
-                        continue
-                    self.interface.push_log_message(line.decode('utf-8').replace('\n', ''), 
-                                                    LogMessageType.STDOUT, True)
-
-            if process.stderr is not None and (failed or self.settings.forward_output_on_success):
-                for line in process.stderr.readlines():
-                    if line is None or line == b"":
-                        continue
-                    self.interface.push_log_message(line.decode('utf-8').replace('\n', ''), 
-                                                    LogMessageType.STDERR, True)
-
-            if failed:
-                if self.from_tbp:
-                    self.interface.push_log_message(f"Program 'TESTBED-PACKAGE/{self.relative_command}' exited with code {status}.", 
-                                                    LogMessageType.MSG_ERROR, True)
-                else:
-                    self.interface.push_log_message(f"Program '{self.command}' exited with code {status}.", 
-                                                    LogMessageType.MSG_ERROR, True)
-
-            return not failed
-
+            status = self.interface.run_command_and_stream(f"{self.command} {self.args}", 
+                                                           shell=True, 
+                                                           timeout=(runtime))
         except subprocess.TimeoutExpired as ex:
-            process.kill()
-
             if self.settings.ignore_timeout:
                 return True
             else:
                 self.interface.push_log_message(f"Timeout during program execution: {ex}", 
                                                 LogMessageType.MSG_ERROR, True)
                 return False
+        except Exception as ex:
+            if self.from_tbp:
+                raise Exception(f"Unable to run program 'TESTBED-PACKAGE/{self.relative_command}': {ex}")
+            else:
+                raise Exception(f"Unable to run program '{self.command}': {ex}")
+
+        failed = status != 0
+
+        if failed:
+            if self.from_tbp:
+                self.interface.push_log_message(f"Program 'TESTBED-PACKAGE/{self.relative_command}' exited with code {status}.", 
+                                                LogMessageType.MSG_ERROR, True)
+            else:
+                self.interface.push_log_message(f"Program '{self.command}' exited with code {status}.", 
+                                                LogMessageType.MSG_ERROR, True)
+
+        return not failed
             
     def exports_data(self) -> bool:
         return False

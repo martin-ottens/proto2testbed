@@ -28,6 +28,7 @@ The following subcommands are available:
 - **`--skip_substitution`**: Don't replace placeholders in the Testbed Configuration. If an invalid JSON file results from this, the startup will fail.
 - **`--no_kvm`**: Disable KVM virtualization (e.g., when using Proto²Testbed on a virtual machine). Performance will be severely degraded.
 - **`--checkpoint`/`-c`**: Create a checkpoint after the Instance setup is completed but before Applications are installed/executed. After the testbed run is completed, the testbed is restored to the checkpoint and paused (comparable to `--interact`). The testbed setup can be managed using the interactive Terminal and subsequent experiments can follow. If combined with `--interact INIT/EXPERIMENT` the testbed will pause twice during every run.
+- **`--forward`/`-f`**: Forward stdout and stderr from applications and setup scripts in real time to the controller. If disabled, only the overall status will be reported.
 
 ### `list`
 List all testbeds that are currently running on the host with some details. 

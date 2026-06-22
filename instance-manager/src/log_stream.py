@@ -18,15 +18,21 @@
 import subprocess
 import threading
 
+from typing import List, Optional
+
 class LogStreamer:
     def __init__(self, stdout_log_fn, stderr_log_fn):
         self.stdout = stdout_log_fn
         self.stderr = stderr_log_fn
 
-    def run_and_stream(self, command, shell = False) -> int:
+    def run_and_stream(self, command: str | List[str], shell: bool = False, 
+                       timeout: Optional[int] = None) -> int:
         def single_line_reader(pipe, log_fn):
+            if log_fn is None:
+                return
+
             for line in iter(pipe.readline, ""):
-                log_fn(line.decode("utf-8").rstrip())
+                log_fn(line.rstrip())
             pipe.close()
 
         proc = subprocess.Popen(command,
@@ -44,9 +50,12 @@ class LogStreamer:
         stdout_thread.start()
         stderr_thread.start()
 
-        proc.wait()
-
-        stdout_thread.join()
-        stderr_thread.join()
+        try:
+            proc.wait(timeout=timeout)
+        except Exception as ex:
+            raise ex
+        finally:
+            stdout_thread.join()
+            stderr_thread.join()
 
         return proc.returncode

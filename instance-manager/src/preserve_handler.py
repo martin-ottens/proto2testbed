@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024-2025 Martin Ottens
+# Copyright (C) 2024-2026 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -49,12 +49,12 @@ class PreserveHandler:
     def log_stdout(self, message: str) -> None:
         self.manager.send_extended_system_log(message=message,
                                               message_type=LogMessageType.STDOUT,
-                                              print_to_user=True)
+                                              print_to_user=False)
 
     def log_stderr(self, message: str) -> None:
         self.manager.send_extended_system_log(message=message,
                                               message_type=LogMessageType.STDERR,
-                                              print_to_user=True)
+                                              print_to_user=False)
 
     def check_and_add_exchange_mount(self):
         if os.path.ismount(self.exchange_mount):

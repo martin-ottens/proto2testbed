@@ -101,6 +101,7 @@ class GenericApplicationInterface(ABC):
     # controller.
     @abstractmethod
     def run_command_and_stream(self, command: str | List[str], 
-                               shell: bool = False, print_to_user: bool = True, 
+                               shell: bool = False, timeout: Optional[int] = None, 
+                               print_to_user: bool = False, 
                                store_in_log: bool = True) -> int:
         pass

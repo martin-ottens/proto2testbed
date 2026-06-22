@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024-2025 Martin Ottens
+# Copyright (C) 2024-2026 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -142,7 +142,8 @@ class ApplicationInterface(GenericApplicationInterface):
         return self._send_to_daemon(payload)
     
     def run_command_and_stream(self, command: str | List[str], 
-                               shell: bool = False, print_to_user: bool = True, 
+                               shell: bool = False, timeout: Optional[int] = None, 
+                               print_to_user: bool = False, 
                                store_in_log: bool = True) -> int:
         def _log_stdout(message: str):
             self.push_log_message(message=message,
@@ -157,4 +158,4 @@ class ApplicationInterface(GenericApplicationInterface):
                                   store_in_log=store_in_log)
         
         streamer = LogStreamer(_log_stdout, _log_stderr)
-        return streamer.run_and_stream(command, shell=shell)
+        return streamer.run_and_stream(command, shell=shell, timeout=timeout)

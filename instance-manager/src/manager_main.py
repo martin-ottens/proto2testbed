@@ -140,12 +140,12 @@ class InstanceManager:
     def log_stdout(self, message: str) -> None:
         self.extended_log_message(message=message,
                                   message_type=LogMessageType.STDOUT,
-                                  print_to_user=True)
+                                  print_to_user=False)
 
     def log_stderr(self, message: str) -> None:
         self.extended_log_message(message=message,
                                   message_type=LogMessageType.STDERR,
-                                  print_to_user=True)
+                                  print_to_user=False)
 
     def handle_initialize(self, init_message: InitializeMessageUpstream) -> bool:
         print(f"Got 'initialize' instructions from Management Server", file=sys.stderr, flush=True)
@@ -210,7 +210,7 @@ class InstanceManager:
     def sync_ptp_clock(self) -> None:
         rc = None
         try:
-            streamer = LogStreamer(self.log_stdout, self.log_stderr)
+            streamer = LogStreamer(None, self.log_stderr)
             rc = streamer.run_and_stream("date +%s.%N -s \"@$(phc_ctl /dev/ptp0 get | awk '{print $5}')\"", shell=True)
         except Exception as ex:
             self.message_to_controller(InstanceMessageType.FAILED, f"Unable to sync ptp clock: {ex}")

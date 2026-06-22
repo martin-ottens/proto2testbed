@@ -93,45 +93,30 @@ class TcpDumpApplication(BaseApplication):
         if self.settings.filter is not None:
             command.append(f"'{self.settings.filter}'")
         
+        status = None
         try:
-            process = subprocess.Popen(command, shell=False, 
-                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        except Exception as ex:
-            raise Exception(f"Unable to run tcpdump: {ex}")
-
-        try:
-            status = process.wait(runtime + 1)
-            failed = status != 124
-
-            if failed and process.stdout is not None:
-                for line in process.stdout.readlines():
-                    if line is None or line == b"":
-                        continue
-                    self.interface.push_log_message(line.decode('utf-8').replace('\n', ''), 
-                                                    LogMessageType.STDOUT, True)
-
-            if failed and process.stderr is not None:
-                for line in process.stderr.readlines():
-                    if line is None or line == b"":
-                        continue
-                    self.interface.push_log_message(line.decode('utf-8').replace('\n', ''), 
-                                                    LogMessageType.STDERR, True)
-
-            if failed:
-                self.interface.push_log_message(f"tcpdump exited with unexpected status {status}.", 
-                                                LogMessageType.MSG_ERROR, True)
-                return False
-            elif not self.interface.preserve_file(str(self.outfile)):
-                self.interface.push_log_message(f"Unable to preserve tcpdump outfile '{self.outfile}'", 
-                                                LogMessageType.MSG_ERROR, True)
-                return False
-
-            return True
+            status = self.interface.run_command_and_stream(command, 
+                                                           shell=False, 
+                                                           timeout=(runtime + 1))
         except subprocess.TimeoutExpired as ex:
-            process.kill()
             self.interface.push_log_message(f"Timeout during tcpdump execution: {ex}", 
                                             LogMessageType.MSG_ERROR, True)
             return False
-            
+        except Exception as ex:
+            raise Exception(f"Unable to run tcpdump: {ex}")
+        
+        failed = status != 124
+
+        if failed:
+            self.interface.push_log_message(f"tcpdump exited with unexpected status {status}.", 
+                                            LogMessageType.MSG_ERROR, True)
+            return False
+        elif not self.interface.preserve_file(str(self.outfile)):
+            self.interface.push_log_message(f"Unable to preserve tcpdump outfile '{self.outfile}'", 
+                                            LogMessageType.MSG_ERROR, True)
+            return False
+
+        return True
+
     def exports_data(self) -> bool:
         return False
