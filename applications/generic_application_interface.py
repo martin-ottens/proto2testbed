@@ -1,7 +1,7 @@
 #
 # This file is part of Proto²Testbed.
 #
-# Copyright (C) 2024-2025 Martin Ottens
+# Copyright (C) 2024-2026 Martin Ottens
 # 
 # This program is free software: you can redistribute it and/or modify 
 # it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 from common.instance_manager_message import LogMessageType
 
@@ -95,4 +95,12 @@ class GenericApplicationInterface(ABC):
     @abstractmethod
     def push_log_message(self, message: str, type: LogMessageType, 
                          print_to_user: bool = False, store_in_log: bool = True) -> None:
+        pass
+    
+    # Run a command using subprocess Popen and stream stderr and stdout to the
+    # controller.
+    @abstractmethod
+    def run_command_and_stream(self, command: str | List[str], 
+                               shell: bool = False, print_to_user: bool = True, 
+                               store_in_log: bool = True) -> int:
         pass

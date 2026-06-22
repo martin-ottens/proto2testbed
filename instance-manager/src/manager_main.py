@@ -33,6 +33,7 @@ from management_daemon import IMDaemonServer
 from management_client import ManagementClient, DownstreamMessage, get_hostname
 from application_manager import ApplicationManager
 from global_state import GlobalState
+from log_stream import LogStreamer
 
 from common.instance_manager_message import *
 from common.application_configs import AppStartStatus
@@ -74,24 +75,20 @@ class InstanceManager:
             return
 
         os.makedirs(GlobalState.testbed_package_path, mode=0o777, exist_ok=True)
-        proc = None
+        rc = None
         try:
-            proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", TESTBED_PACKAGE_P9_DEV, GlobalState.testbed_package_path])
+            streamer = LogStreamer(self.log_stdout, self.log_stderr)
+            rc = streamer.run_and_stream(["mount", "-t", "9p", "-o", "trans=virtio", TESTBED_PACKAGE_P9_DEV, GlobalState.testbed_package_path])
         except Exception as ex:
             message = DownstreamMessage(InstanceMessageType.FAILED, f"Unable to mount testbed package directory!")
             self.manager.send_to_server(message)
             raise Exception("Unable to mount testbed package directory!") from ex
 
-        if proc.stdout is not None:
-            self.manager.send_extended_system_log(type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
-        if proc.stderr is not None:
-            self.manager.send_extended_system_log(type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
-        
-        if proc is not None and proc.returncode != 0:
+        if rc != 0:
             message = DownstreamMessage(InstanceMessageType.FAILED, 
-                                        f"Mounting of testbed package directory failed with code ({proc.returncode})")
+                                        f"Mounting of testbed package directory failed with code ({rc})")
             self.manager.send_to_server(message)
-            raise Exception(f"Unable to mount testbed package directory: {proc.stderr.decode('utf-8')}")
+            raise Exception(f"Unable to mount testbed package directory: {rc}")
 
         print(f"Testbed Package mounted to {GlobalState.testbed_package_path}", file=sys.stderr, flush=True)
 
@@ -99,24 +96,20 @@ class InstanceManager:
         if not os.path.ismount(GlobalState.testbed_package_path):
             return
 
-        proc = None
+        rc = None
         try:
-            proc = subprocess.run(["umount", GlobalState.testbed_package_path])
+            streamer = LogStreamer(self.log_stdout, self.log_stderr)
+            rc = streamer.run_and_stream(["umount", GlobalState.testbed_package_path])
         except Exception as ex:
             message = DownstreamMessage(InstanceMessageType.FAILED, f"Unable to unmount testbed package directory!")
             self.manager.send_to_server(message)
             raise Exception("Unable to unmount testbed package directory!") from ex
 
-        if proc.stdout is not None:
-            self.manager.send_extended_system_log(type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
-        if proc.stderr is not None:
-            self.manager.send_extended_system_log(type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
-        
-        if proc is not None and proc.returncode != 0:
+        if rc != 0:
             message = DownstreamMessage(InstanceMessageType.FAILED, 
-                                        f"Unmounting of testbed package directory failed with code ({proc.returncode})")
+                                        f"Unmounting of testbed package directory failed with code ({rc})")
             self.manager.send_to_server(message)
-            raise Exception(f"Unable to unmount testbed package directory: {proc.stderr.decode('utf-8')}")
+            raise Exception(f"Unable to unmount testbed package directory: {rc}")
 
         print(f"Testbed Package unmounted.", file=sys.stderr, flush=True)
 
@@ -144,6 +137,16 @@ class InstanceManager:
                                               print_to_user=print_to_user, 
                                               store_in_log=store_in_log)
 
+    def log_stdout(self, message: str) -> None:
+        self.extended_log_message(message=message,
+                                  message_type=LogMessageType.STDOUT,
+                                  print_to_user=True)
+
+    def log_stderr(self, message: str) -> None:
+        self.extended_log_message(message=message,
+                                  message_type=LogMessageType.STDERR,
+                                  print_to_user=True)
+
     def handle_initialize(self, init_message: InitializeMessageUpstream) -> bool:
         print(f"Got 'initialize' instructions from Management Server", file=sys.stderr, flush=True)
 
@@ -161,35 +164,24 @@ class InstanceManager:
                 for key, value in init_message.environment.items():
                     os.environ[key] = value
 
-                proc = None
-                try:
-                    proc = subprocess.run(["/bin/bash", init_message.script], capture_output=True, shell=False)
-                except Exception as ex:
-                    self.message_to_controller(InstanceMessageType.FAILED, f"Setup script failed:\nMESSAGE: {ex}")
-                    print(f"Unable to run setup_script: {ex}", file=sys.stderr, flush=True)
-                    return False
+            rc = None
+            try:
+                streamer = LogStreamer(self.log_stdout, self.log_stderr)
+                rc = streamer.run_and_stream(["/bin/bash", init_message.script])
+            except Exception as ex:
+                self.message_to_controller(InstanceMessageType.FAILED, f"Setup script failed:\nMESSAGE: {ex}")
+                print(f"Unable to run setup_script: {ex}", file=sys.stderr, flush=True)
+                return False
 
-                if proc.stdout is not None:
-                    for line in proc.stdout.decode("utf-8").split("\n"):
-                        if line == "":
-                            continue
-                        self.extended_log_message(message_type=LogMessageType.STDOUT, message=line, print_to_user=False)
-
-                if proc.stderr is not None:
-                    for line in proc.stderr.decode("utf-8").split("\n"):
-                        if line == "":
-                            continue
-                        self.extended_log_message(message_type=LogMessageType.STDERR, message=line, print_to_user=False)
-
-                if proc is not None and proc.returncode != 0:
-                    self.message_to_controller(InstanceMessageType.FAILED, 
-                                                    f"Setup script failed ({proc.returncode})")
-                    print(f"Unable to run setup_script': {proc.stderr.decode('utf-8')}", file=sys.stderr, flush=True)
-                    return False
-                
-                print(f"Execution of setup script {init_message.script} completed", file=sys.stderr, flush=True)
-            else:
-                print(f"No setup script in 'initialize' message, skipping setup.", file=sys.stderr, flush=True)
+            if rc != 0:
+                self.message_to_controller(InstanceMessageType.FAILED, 
+                                                f"Setup script failed ({rc})")
+                print(f"Unable to run setup_script: {rc}", file=sys.stderr, flush=True)
+                return False
+            
+            print(f"Execution of setup script {init_message.script} completed", file=sys.stderr, flush=True)
+        else:
+            print(f"No setup script in 'initialize' message, skipping setup.", file=sys.stderr, flush=True)
 
         # 3. Report status to management server
         Path(STATE_FILE).touch()
@@ -216,23 +208,19 @@ class InstanceManager:
         return self.application_manager.install_apps(applications.applications)
     
     def sync_ptp_clock(self) -> None:
-        proc = None
+        rc = None
         try:
-            proc = subprocess.run("date +%s.%N -s \"@$(phc_ctl /dev/ptp0 get | awk '{print $5}')\"", shell=True)
+            streamer = LogStreamer(self.log_stdout, self.log_stderr)
+            rc = streamer.run_and_stream("date +%s.%N -s \"@$(phc_ctl /dev/ptp0 get | awk '{print $5}')\"", shell=True)
         except Exception as ex:
             self.message_to_controller(InstanceMessageType.FAILED, f"Unable to sync ptp clock: {ex}")
             return
-        
-        if proc.stdout is not None:
-            self.extended_log_message(message_type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
-        if proc.stderr is not None:
-            self.extended_log_message(message_type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
 
-        if proc is not None and proc.returncode != 0:
+        if rc != 0:
             self.extended_log_message(message_type=LogMessageType.MSG_ERROR,
-                                      message=f"Syncing of ptp clock failed ({proc.returncode}), time offsets possible.",
+                                      message=f"Syncing of ptp clock failed ({rc}), time offsets possible.",
                                       print_to_user=True)
-            print(f"Unable sync ptp clock: {proc.returncode}, most likely ptp_kvm kmod not enabled.", file=sys.stderr, flush=True)
+            print(f"Unable sync ptp clock: {rc}, most likely ptp_kvm kmod not enabled.", file=sys.stderr, flush=True)
 
     def run_apps(self, config: RunApplicationsMessageUpstream) -> bool:
         if self.application_manager is None:

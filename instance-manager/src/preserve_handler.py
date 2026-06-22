@@ -27,6 +27,7 @@ from pathlib import Path
 from management_client import ManagementClient, DownstreamMessage
 from common.instance_manager_message import InstanceMessageType, LogMessageType
 from global_state import GlobalState
+from log_stream import LogStreamer
 
 
 class PreserveHandler:
@@ -44,29 +45,35 @@ class PreserveHandler:
     def add(self, preserve_file: str):
         if preserve_file is not None:
             self.files.append(preserve_file)
+    
+    def log_stdout(self, message: str) -> None:
+        self.manager.send_extended_system_log(message=message,
+                                              message_type=LogMessageType.STDOUT,
+                                              print_to_user=True)
+
+    def log_stderr(self, message: str) -> None:
+        self.manager.send_extended_system_log(message=message,
+                                              message_type=LogMessageType.STDERR,
+                                              print_to_user=True)
 
     def check_and_add_exchange_mount(self):
         if os.path.ismount(self.exchange_mount):
             return
 
-        proc = None
+        rc = None
         try:
-            proc = subprocess.run(["mount", "-t", "9p", "-o", "trans=virtio", self.exchange_p9_dev, self.exchange_mount])
+            streamer = LogStreamer(self.log_stdout, self.log_stderr)
+            rc = streamer.run_and_stream(["mount", "-t", "9p", "-o", "trans=virtio", self.exchange_p9_dev, self.exchange_mount])
         except Exception as ex:
             message = DownstreamMessage(InstanceMessageType.FAILED, f"Unable to mount exchange directory!")
             self.manager.send_to_server(message)
             raise Exception("Unable to mount exchange directory!") from ex
 
-        if proc.stdout is not None:
-            self.manager.send_extended_system_log(type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
-        if proc.stderr is not None:
-            self.manager.send_extended_system_log(type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
-        
-        if proc is not None and proc.returncode != 0:
+        if rc != 0:
             message = DownstreamMessage(InstanceMessageType.FAILED, 
-                                        f"Mounting of exchange directory failed with code ({proc.returncode})")
+                                        f"Mounting of exchange directory failed with code ({rc})")
             self.manager.send_to_server(message)
-            raise Exception(f"Unable to mount exchange directory: {proc.stderr.decode('utf-8')}")
+            raise Exception(f"Unable to mount exchange directory: {rc}")
         else:
             print(f"Mounted p9dev '{self.exchange_p9_dev}' to self.ex")
     
@@ -74,24 +81,20 @@ class PreserveHandler:
         if not os.path.ismount(self.exchange_mount):
             return
 
-        proc = None
+        rc = None
         try:
-            proc = subprocess.run(["umount", self.exchange_mount])
+            streamer = LogStreamer(self.log_stdout, self.log_stderr)
+            rc = streamer.run_and_stream(["umount", self.exchange_mount])
         except Exception as ex:
             message = DownstreamMessage(InstanceMessageType.FAILED, f"Unable to unmount exchange directory!")
             self.manager.send_to_server(message)
             raise Exception("Unable to unmount exchange directory!") from ex
 
-        if proc.stdout is not None:
-            self.manager.send_extended_system_log(type=LogMessageType.STDOUT, message=proc.stdout.decode('utf-8'), print_to_user=False)
-        if proc.stderr is not None:
-            self.manager.send_extended_system_log(type=LogMessageType.STDERR, message=proc.stderr.decode('utf-8'), print_to_user=False)
-        
-        if proc is not None and proc.returncode != 0:
+        if rc != 0:
             message = DownstreamMessage(InstanceMessageType.FAILED, 
-                                        f"Unmounting of exchange directory failed with code ({proc.returncode})")
+                                        f"Unmounting of exchange directory failed with code ({rc})")
             self.manager.send_to_server(message)
-            raise Exception(f"Unable to unmount exchange directory: {proc.stderr.decode('utf-8')}")
+            raise Exception(f"Unable to unmount exchange directory: {rc}")
 
     def preserve(self, unmount: bool = False) -> bool:
         if len(self.files) == 0:

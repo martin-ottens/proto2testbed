@@ -21,10 +21,11 @@ import socket
 import sys
 import select
 
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from applications.generic_application_interface import LogMessageLevel, GenericApplicationInterface
 from common.instance_manager_message import LogMessageType
+from log_stream import LogStreamer
 
 class ApplicationInterface(GenericApplicationInterface):
     def __init__(self, app_name: str, socket_path: str, started_event, dont_store: bool):
@@ -139,3 +140,21 @@ class ApplicationInterface(GenericApplicationInterface):
         }
 
         return self._send_to_daemon(payload)
+    
+    def run_command_and_stream(self, command: str | List[str], 
+                               shell: bool = False, print_to_user: bool = True, 
+                               store_in_log: bool = True) -> int:
+        def _log_stdout(message: str):
+            self.push_log_message(message=message,
+                                  type=LogMessageType.STDOUT,
+                                  print_to_user=print_to_user,
+                                  store_in_log=store_in_log)
+
+        def _log_stderr(message: str):
+            self.push_log_message(message=message,
+                                  type=LogMessageType.STDERR,
+                                  print_to_user=print_to_user,
+                                  store_in_log=store_in_log)
+        
+        streamer = LogStreamer(_log_stdout, _log_stderr)
+        return streamer.run_and_stream(command, shell=shell)

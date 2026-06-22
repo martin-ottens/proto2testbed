@@ -53,6 +53,8 @@ class RunExecutor(BaseExecutor):
                                     required=False, default=None)
         self.subparser.add_argument("-c", "--checkpoint", action="store_true", required=False, default=False,
                                     help="Create checkpoints of instances after sucessful setup")
+        self.subparser.add_argument("-f", "--forward", action="store_true", required=False, default=False,
+                                    help="Forward stdout and stderr from setup process")
 
     def invoke(self, args, provider: TestbedStateProvider) -> int:
         testbed_path = ""
@@ -63,7 +65,7 @@ class RunExecutor(BaseExecutor):
 
         from constants import TESTBED_CONFIG_JSON_FILENAME
         testbed_config_path = Path(testbed_path) / Path(TESTBED_CONFIG_JSON_FILENAME)
-
+        provider.also_log_stdout = args.forward
         interact = PauseAfterSteps[args.interact]
         
         if provider.experiment_generated:
