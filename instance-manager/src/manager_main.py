@@ -211,7 +211,7 @@ class InstanceManager:
         rc = None
         try:
             streamer = LogStreamer(None, self.log_stderr)
-            rc = streamer.run_and_stream("date +%s.%N -s \"@$(phc_ctl /dev/ptp0 get | awk '{print $5}')\"", shell=True)
+            rc = streamer.run_and_stream("date +%s.%N -s @$(/usr/sbin/phc_ctl /dev/ptp0 get | awk '{print $5}')", shell=True)
         except Exception as ex:
             self.message_to_controller(InstanceMessageType.FAILED, f"Unable to sync ptp clock: {ex}")
             return
